@@ -5,68 +5,82 @@ import { useAuth } from './AuthContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/infrastructure/firebase/config/firebase.config';
 
-export interface AppearanceSettings {
+export interface AppearancePreferences {
   theme: 'dark' | 'light' | 'auto';
-  fontFamily: 'Inter' | 'Roboto' | 'Open Sans' | 'Poppins' | 'Montserrat';
-  fontSize: 'sm' | 'md' | 'lg';
+  fontFamily: 'Inter' | 'Roboto' | 'Poppins' | 'Montserrat' | 'Nunito' | 'Open Sans';
+  fontSize: 'Compacto' | 'Normal' | 'Grande';
+  fontWeight: 'Leve' | 'Normal' | 'Semibold' | 'Negrito';
   primaryColor: string;
-  buttonColor: string;
+  secondaryColor: string;
   accentColor: string;
+  buttonColor?: string;
+  sidebarMode: 'Expandido' | 'Compacto';
+  cardStyle: 'Arredondado' | 'Moderado' | 'Quadrado';
+  spacing: 'Compacto' | 'Normal' | 'Confortável';
+  animations: boolean;
 }
 
-const defaultSettings: AppearanceSettings = {
+export const defaultPreferences: AppearancePreferences = {
   theme: 'dark',
   fontFamily: 'Inter',
-  fontSize: 'md',
-  primaryColor: '#2563eb',
-  buttonColor: '#3b82f6',
-  accentColor: '#10b981',
+  fontSize: 'Normal',
+  fontWeight: 'Normal',
+  primaryColor: '#2563EB',
+  secondaryColor: '#1E40AF',
+  accentColor: '#10B981',
+  buttonColor: '#3B82F6',
+  sidebarMode: 'Expandido',
+  cardStyle: 'Moderado',
+  spacing: 'Normal',
+  animations: true,
 };
 
 interface AppearanceContextType {
-  settings: AppearanceSettings;
-  updateSettings: (newSettings: Partial<AppearanceSettings>) => Promise<void>;
+  settings: AppearancePreferences;
+  updateSettings: (newSettings: Partial<AppearancePreferences>) => Promise<void>;
+  resetToDefault: () => Promise<void>;
   isLoading: boolean;
 }
 
 const AppearanceContext = createContext<AppearanceContextType>({
-  settings: defaultSettings,
+  settings: defaultPreferences,
   updateSettings: async () => {},
+  resetToDefault: async () => {},
   isLoading: false,
 });
 
 export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [settings, setSettings] = useState<AppearanceSettings>(defaultSettings);
+  const [settings, setSettings] = useState<AppearancePreferences>(defaultPreferences);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Load from Firebase on User Login
+  // Load from Firebase Firestore collection `user_preferences`
   useEffect(() => {
-    async function loadUserSettings() {
+    async function loadUserPreferences() {
       if (!user) {
         setIsLoading(false);
         return;
       }
 
       try {
-        const docRef = doc(db, 'user_settings', user.uid);
+        const docRef = doc(db, 'user_preferences', user.uid);
         const snap = await getDoc(docRef);
 
         if (snap.exists()) {
-          const data = snap.data() as AppearanceSettings;
-          setSettings({ ...defaultSettings, ...data });
+          const data = snap.data() as AppearancePreferences;
+          setSettings({ ...defaultPreferences, ...data });
         }
       } catch (err) {
-        console.warn('Erro ao carregar configurações de aparência:', err);
+        console.warn('Erro ao carregar preferências de aparência:', err);
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadUserSettings();
+    loadUserPreferences();
   }, [user]);
 
-  // Apply settings to DOM
+  // Apply all preferences to DOM dynamically
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -103,41 +117,61 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     linkEl.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@300;400;500;600;700&display=swap`;
 
-    // 3. Set Font Family on root
+    // 3. Apply Font Family & Weight to root & body
     root.style.setProperty('--font-sans', `'${settings.fontFamily}', sans-serif`);
     document.body.style.fontFamily = `'${settings.fontFamily}', sans-serif`;
 
-    // 4. Set Font Scale
-    if (settings.fontSize === 'sm') {
+    let weightVal = '400';
+    if (settings.fontWeight === 'Leve') weightVal = '300';
+    if (settings.fontWeight === 'Semibold') weightVal = '600';
+    if (settings.fontWeight === 'Negrito') weightVal = '700';
+    document.body.style.fontWeight = weightVal;
+
+    // 4. Apply Font Scale
+    if (settings.fontSize === 'Compacto') {
       root.style.fontSize = '13px';
-    } else if (settings.fontSize === 'lg') {
+    } else if (settings.fontSize === 'Grande') {
       root.style.fontSize = '16px';
     } else {
       root.style.fontSize = '14px';
     }
 
-    // 5. CSS Custom Variables for Colors
+    // 5. Card Border Radius
+    let radius = '1rem';
+    if (settings.cardStyle === 'Arredondado') radius = '1.5rem';
+    if (settings.cardStyle === 'Quadrado') radius = '0.25rem';
+    root.style.setProperty('--card-radius', radius);
+
+    // 6. CSS Colors
     root.style.setProperty('--primary-color', settings.primaryColor);
-    root.style.setProperty('--button-color', settings.buttonColor);
+    root.style.setProperty('--secondary-color', settings.secondaryColor);
     root.style.setProperty('--accent-color', settings.accentColor);
   }, [settings]);
 
-  const updateSettings = async (newSettings: Partial<AppearanceSettings>) => {
+  const updateSettings = async (newSettings: Partial<AppearancePreferences>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
 
     if (user) {
       try {
-        const docRef = doc(db, 'user_settings', user.uid);
-        await setDoc(docRef, { ...updated, userId: user.uid, updatedAt: new Date().toISOString() }, { merge: true });
+        const docRef = doc(db, 'user_preferences', user.uid);
+        await setDoc(
+          docRef,
+          { ...updated, userId: user.uid, updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
       } catch (err) {
-        console.error('Erro ao salvar no Firebase:', err);
+        console.error('Erro ao salvar user_preferences no Firebase:', err);
       }
     }
   };
 
+  const resetToDefault = async () => {
+    await updateSettings(defaultPreferences);
+  };
+
   return (
-    <AppearanceContext.Provider value={{ settings, updateSettings, isLoading }}>
+    <AppearanceContext.Provider value={{ settings, updateSettings, resetToDefault, isLoading }}>
       {children}
     </AppearanceContext.Provider>
   );
