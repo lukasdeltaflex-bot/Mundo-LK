@@ -88,25 +88,26 @@ REGRAS RÍGIDAS DE COPYWRITING:
 Responda SOMENTE com um objeto JSON válido, sem comentários:
 
 {
-  "publicoAlvo": "descrição precisa de quem compra este produto específico",
-  "dorQueResolve": "problema real que o produto resolve na vida da pessoa",
-  "beneficioPrincipal": "o maior benefício e transformação percebidos",
-  "argumentoComercial": "o argumento de venda mais forte para este produto pelo preço de ${price}",
-  "anguloDeVenda": "nome do ângulo (ex: Conveniência, Status, Economia, Praticidade...)",
-  "emocaoDeCompra": "emoção chave que ativa o clique de compra",
-  "categoria": "categoria precisa em português (ex: Casa e Cozinha, Eletrônicos, Moda, Beleza, Esporte, Infantil, Automotivo, etc.)",
-  "whatsAppText": "texto completo persuasivo para WhatsApp com emojis e link: ${product.affiliateUrl.url}",
-  "telegramText": "texto para Telegram com HTML <b>negrito</b> e link no final",
-  "instagramText": "legenda engajadora para Instagram com emojis e hashtags ao final",
-  "facebookText": "post completo e convincente para Facebook",
-  "channelText": "anúncio objetivo e forte para canal de ofertas",
-  "storyText": "texto curto direto para Story com emoji (máx 80 caracteres)",
-  "cta": "chamada para ação forte e persuasiva (máx 12 palavras)",
+  "publicoAlvo": "descrição concisa de 1 frase de quem compra este produto",
+  "dorQueResolve": "problema real que o produto resolve (máximo 15 palavras)",
+  "beneficioPrincipal": "maior benefício e transformação (máximo 15 palavras)",
+  "argumentoComercial": "argumento de venda mais forte (máximo 20 palavras)",
+  "anguloDeVenda": "nome do ângulo (ex: Conveniência, Status, Economia)",
+  "emocaoDeCompra": "emoção chave da compra",
+  "categoria": "categoria precisa em português (ex: Casa e Cozinha, Eletrônicos, etc.)",
+  "whatsAppText": "texto persuasivo para WhatsApp com emojis e link no final (máximo 200 caracteres)",
+  "telegramText": "texto para Telegram com <b>negrito</b> e link no final (máximo 200 caracteres)",
+  "instagramText": "legenda engajadora para Instagram com hashtags ao final (máximo 200 caracteres)",
+  "facebookText": "post persuasivo para Facebook (máximo 250 caracteres)",
+  "channelText": "anúncio objetivo para canal de ofertas (máximo 120 caracteres)",
+  "storyText": "texto curto direto para Story com emoji (máximo 60 caracteres)",
+  "cta": "chamada para ação (máximo 8 palavras)",
   "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
-  "emojis": ["emoji1", "emoji2", "emoji3", "emoji4"],
-  "scoreValue": 88,
-  "scoreJustification": "justificativa clara de 1-2 frases do score"
-}`;
+  "emojis": ["🔥", "✨", "🛒"],
+  "scoreValue": 85,
+  "scoreJustification": "justificativa curta de 1 frase"
+}
+IMPORTANT: Mantenha cada texto curto e objetivo. Responda APENAS o JSON válido.`;
 }
 
 // ─── Gemini API caller with strict timeout & diagnostic logging ───────────────
@@ -125,7 +126,7 @@ async function callGeminiAPI(prompt: string): Promise<string> {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8_000); // 8-second strict timeout
+  const timeoutId = setTimeout(() => controller.abort(), 20_000); // 20-second timeout
 
   try {
     const response = await fetch(
@@ -137,10 +138,9 @@ async function callGeminiAPI(prompt: string): Promise<string> {
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.85,
-            maxOutputTokens: 2048,
-            topP: 0.95,
-            topK: 40,
+            temperature: 0.5,
+            maxOutputTokens: 8192,
+            responseMimeType: 'application/json',
           },
         }),
       }
@@ -170,21 +170,47 @@ async function callGeminiAPI(prompt: string): Promise<string> {
 }
 
 function parseGeminiJSON(raw: string): GeminiOfferAnalysis {
-  const clean = raw
+  let clean = raw
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
 
+  let parsed: GeminiOfferAnalysis | null = null;
+
   try {
-    return JSON.parse(clean) as GeminiOfferAnalysis;
-  } catch {
-    const match = clean.match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(clean) as GeminiOfferAnalysis;
+  } catch (err1) {
+    console.error('[parseGeminiJSON direct parse error]:', err1 instanceof Error ? err1.message : err1);
+    // Replace unescaped control chars (like raw newlines inside JSON strings)
+    const sanitized = clean.replace(/[\u0000-\u001F]+/g, (match) => (match.includes('\n') ? '\\n' : ' '));
+    const match = sanitized.match(/\{[\s\S]*\}/);
     if (match) {
-      return JSON.parse(match[0]) as GeminiOfferAnalysis;
+      try {
+        parsed = JSON.parse(match[0]) as GeminiOfferAnalysis;
+      } catch (err2) {
+        console.error('[parseGeminiJSON match parse error]:', err2 instanceof Error ? err2.message : err2);
+      }
     }
+  }
+
+  if (!parsed) {
     throw new Error('Resposta da IA não é um JSON válido.');
   }
+
+  // Normalize scoreValue (if AI returned 0-10 scale instead of 0-100)
+  if (typeof parsed.scoreValue === 'number' && parsed.scoreValue > 0 && parsed.scoreValue <= 10) {
+    parsed.scoreValue = Math.round(parsed.scoreValue * 10);
+  }
+
+  // Normalize emojis (if AI returned emoji string instead of array)
+  if (typeof parsed.emojis === 'string') {
+    const str = parsed.emojis as unknown as string;
+    const matches = str.match(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu);
+    parsed.emojis = matches && matches.length > 0 ? Array.from(new Set(matches)).slice(0, 5) : ['🔥', '✨', '🛒'];
+  }
+
+  return parsed;
 }
 
 // ─── Fallback (local smart classification when API key/network fails) ─────────
@@ -273,7 +299,7 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
       const rawText = await callGeminiAPI(prompt);
       analysis = parseGeminiJSON(rawText);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? (err.stack || err.message) : String(err);
       console.warn('[GeminiAIAdapter] API call failed/timed out, using local analysis:', msg);
       analysis = buildFallbackAnalysis(product);
     }
