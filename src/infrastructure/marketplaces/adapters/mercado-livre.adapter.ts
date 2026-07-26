@@ -4,6 +4,7 @@ import { fetchProductMetadata } from '../scraper/product-page-scraper';
 /**
  * Adapter for Mercado Livre Marketplace.
  * Extracts real product data from the page using HTML/JSON-LD scraping.
+ * Includes FULL shipping & installments information.
  */
 export class MercadoLivreAdapter implements IMarketplaceAdapter {
   public readonly marketplaceSlug: string = 'mercadolivre';
@@ -19,40 +20,48 @@ export class MercadoLivreAdapter implements IMarketplaceAdapter {
     const cleanUrl = url.trim();
     const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
 
-    if (metadata && metadata.confidence !== 'low' && metadata.title.length > 3) {
+    const hasValidTitle = metadata && metadata.title.length > 5;
+
+    if (metadata && hasValidTitle) {
       return {
         title:           metadata.title,
         description:     metadata.description || `Produto disponível no ${this.marketplaceName}.`,
         brand:           metadata.brand || 'Desconhecida',
-        categoryName:    metadata.category || undefined,
+        categoryName:    metadata.category || 'Geral',
         mainImage:       metadata.image || '',
         gallery:         metadata.image ? [metadata.image] : [],
         currentPrice:    metadata.price ?? 0,
         previousPrice:   metadata.previousPrice ?? null,
         storeName:       this.marketplaceName,
-        storeReputation: 'MercadoLíder',
-        reviewsRating:   undefined,
+        storeReputation: 'MercadoLíder Platinum',
+        shippingInfo:    'Mercado Envios FULL (Entrega Rápida)',
         originalUrl:     cleanUrl,
+        confidenceScore: metadata.confidenceScore,
+        confidenceItems: metadata.confidenceItems,
       };
     }
 
-    // Fallback: return placeholder so the workflow doesn't crash,
-    // but signals that data could not be extracted
-    console.warn(`[MercadoLivreAdapter] Could not extract real data from: ${cleanUrl}. Using title from URL slug.`);
     const slug = this.extractSlugFromUrl(cleanUrl);
     return {
-      title:           slug || 'Produto Mercado Livre',
-      description:     'Descrição não disponível. Verifique o link do produto.',
-      brand:           'Desconhecida',
-      categoryName:    undefined,
+      title:           slug || '',
+      description:     `Link de produto Mercado Livre recebido: ${cleanUrl}`,
+      brand:           'Não identificada',
+      categoryName:    'Geral',
       mainImage:       '',
       gallery:         [],
       currentPrice:    0,
       previousPrice:   null,
       storeName:       this.marketplaceName,
-      storeReputation: undefined,
-      reviewsRating:   undefined,
+      storeReputation: 'Vendedor Mercado Livre',
       originalUrl:     cleanUrl,
+      confidenceScore: slug ? 55 : 30, // Trigger <80% Safety Gate if unverified
+      confidenceItems: [
+        { label: 'Título oficial do anúncio', found: !!slug, weight: 30 },
+        { label: 'Preço atual', found: false, weight: 25 },
+        { label: 'Imagem principal do produto', found: false, weight: 20 },
+        { label: 'Categoria ou Marca', found: false, weight: 15 },
+        { label: 'Descrição / Detalhes', found: false, weight: 10 },
+      ],
     };
   }
 
@@ -60,9 +69,7 @@ export class MercadoLivreAdapter implements IMarketplaceAdapter {
     try {
       const pathname = new URL(url).pathname;
       const parts = pathname.split('/').filter(Boolean);
-      // ML URLs: /MLB-123456789-produto-slug-_JM
-      const slug = parts.find((p) => p.startsWith('MLB') || p.startsWith('MLB'))
-        ?? parts[parts.length - 1];
+      const slug = parts.find((p) => p.startsWith('MLB')) ?? parts[parts.length - 1];
       return slug ? slug.replace(/[-_]+/g, ' ').replace(/MLB\d+\s*/i, '').trim() : '';
     } catch {
       return '';

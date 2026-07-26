@@ -4,6 +4,7 @@ import { initializeMarketplaceRegistry } from '@/infrastructure/marketplaces';
 import { GeminiAIAdapter, type OfferStyle, type GeminiOfferAnalysis } from '@/infrastructure/ai/providers/gemini.adapter';
 import { Product } from '@/core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-objects';
+import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
@@ -57,22 +58,14 @@ function sanitizeUrl(rawUrl: string): string {
   return trimmed;
 }
 
-// ─── Action ───────────────────────────────────────────────────────────────────
+// ─── Action 1: Extract Real Product Metadata & Confidence Score (Pre-AI) ─────
 
-/**
- * Analyzes a product URL and generates an AI offer preview.
- * DOES NOT save anything to Firestore.
- * Guaranteed to return within 12 seconds or return a friendly error.
- */
-export async function analyzeProductUrlAction(input: {
-  url:          string;
+export async function extractProductDetailsAction(input: {
+  url: string;
   affiliateTag?: string;
-  userId?:       string;
-  style?:        OfferStyle;
-}): Promise<{ success: true; data: OfferPreview } | { success: false; error: string }> {
+}): Promise<{ success: true; data: ExtractedProductData; affiliateUrl: string; marketplaceSlug: string } | { success: false; error: string }> {
   try {
     const cleanUrl = sanitizeUrl(input.url);
-
     if (!cleanUrl || cleanUrl.length < 10) {
       return {
         success: false,
@@ -80,23 +73,77 @@ export async function analyzeProductUrlAction(input: {
       };
     }
 
-    console.log('[3] Link recebido no servidor:', cleanUrl);
-    const style = input.style ?? 'padrao';
+    console.log('[Scraper] Extraindo metadados reais para:', cleanUrl);
     const registry = initializeMarketplaceRegistry();
-
-    // 1. Resolve marketplace adapter (Shopee, MercadoLivre, Amazon, Magalu or Generic fallback)
     const adapter = registry.getAdapterForUrl(cleanUrl);
 
-    // 2. Extract real product data from page HTML
+    const startTime = Date.now();
     const extracted = await adapter.extractProductData(cleanUrl);
+    const duration = Date.now() - startTime;
 
-    // 3. Build affiliate URL
+    console.log(`[Scraper] Concluído em ${duration}ms para ${adapter.marketplaceSlug}. Confiança: ${extracted.confidenceScore}%`);
+
+    const affiliateUrl = await adapter.buildAffiliateLink(cleanUrl, input.affiliateTag || 'mundolk');
+
+    return {
+      success: true,
+      data: extracted,
+      affiliateUrl,
+      marketplaceSlug: adapter.marketplaceSlug,
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error('[Scraper Error]:', error);
+    return {
+      success: false,
+      error: `Não foi possível acessar a página do produto: ${error.message}`
+    };
+  }
+}
+
+// ─── Action 2: Generate AI Offer Content from Confirmed Data ──────────────────
+
+export async function analyzeProductUrlAction(input: {
+  url:           string;
+  affiliateTag?: string;
+  userId?:       string;
+  style?:        OfferStyle;
+  confirmedData?: Partial<ExtractedProductData>;
+}): Promise<{ success: true; data: OfferPreview } | { success: false; error: string }> {
+  try {
+    const cleanUrl = sanitizeUrl(input.url);
+
+    if (!cleanUrl || cleanUrl.length < 10) {
+      return {
+        success: false,
+        error: 'Por favor, insira uma URL válida de produto.'
+      };
+    }
+
+    console.log('[Action] Analisando oferta para:', cleanUrl);
+    const style = input.style ?? 'padrao';
+    const registry = initializeMarketplaceRegistry();
+    const adapter = registry.getAdapterForUrl(cleanUrl);
+
+    // Re-use confirmed data if provided or scrape
+    let extracted = input.confirmedData as ExtractedProductData;
+    if (!extracted || !extracted.title) {
+      extracted = await adapter.extractProductData(cleanUrl);
+    }
+
+    // Safety Gate: If title is empty or unverified (<80% confidence without manual confirmation), request confirmation
+    if ((!extracted.title || extracted.confidenceScore < 80) && !input.confirmedData) {
+      return {
+        success: false,
+        error: 'Não foi possível extrair o título e dados reais deste produto com segurança (Confiança < 80%). Por favor, confirme os dados do produto na tela de conferência.'
+      };
+    }
+
     const affiliateUrlString = await adapter.buildAffiliateLink(
       cleanUrl,
       input.affiliateTag || 'mundolk'
     );
 
-    // 4. Build temporary Product entity
     const currentPrice  = Price.create(extracted.currentPrice || 0);
     const previousPrice = extracted.previousPrice ? Price.create(extracted.previousPrice) : null;
     const discountPct   = DiscountPercentage.calculate(currentPrice, previousPrice);
@@ -106,11 +153,11 @@ export async function analyzeProductUrlAction(input: {
       id:                 `preview_${Date.now()}`,
       userId:             input.userId || 'guest',
       title:              extracted.title,
-      description:        extracted.description,
+      description:        extracted.description || `Produto oficial ${extracted.brand || ''}`,
       brand:              extracted.brand || 'Desconhecida',
       categoryId:         extracted.categoryName || 'Geral',
       marketplaceSlug:    adapter.marketplaceSlug,
-      originalUrl:        extracted.originalUrl,
+      originalUrl:        extracted.originalUrl || cleanUrl,
       affiliateUrl:       affiliateLink,
       currentPrice,
       previousPrice,
@@ -121,13 +168,10 @@ export async function analyzeProductUrlAction(input: {
       updatedAt:          new Date(),
     });
 
-    // 5. Call AI with style preference
-    console.log('[4] Gemini chamado para produto:', tempProduct.title);
+    console.log('[Gemini] Invocando agente de IA para:', tempProduct.title);
     const geminiAdapter = new GeminiAIAdapter();
     const aiResult      = await geminiAdapter.generateOfferContent(tempProduct, style);
-    console.log('[5] Resposta recebida da IA com sucesso.');
 
-    // Extract copies safely as plain strings
     const copiesData = aiResult.copies?.copies ?? {};
     const whatsAppText  = String(copiesData.whatsAppText || '');
     const telegramText  = String(copiesData.telegramText || '');
@@ -140,7 +184,6 @@ export async function analyzeProductUrlAction(input: {
     const scoreLabelStr = scoreVal >= 80 ? 'EXCELLENT' : scoreVal >= 50 ? 'GOOD' : 'REGULAR';
     const justificationStr = String(aiResult.score?.justification || 'Análise da IA finalizada com sucesso.');
 
-    // 6. Extract rich analysis
     const rawAnalysis = (aiResult as { analysis?: GeminiOfferAnalysis }).analysis;
     const publicoAlvo        = String(rawAnalysis?.publicoAlvo || 'Consumidores em geral');
     const dorQueResolve      = String(rawAnalysis?.dorQueResolve || 'Necessidade de compra com bom custo-benefício');
@@ -150,7 +193,6 @@ export async function analyzeProductUrlAction(input: {
     const emocaoDeCompra     = String(rawAnalysis?.emocaoDeCompra || 'Satisfação');
     const categoria          = String(rawAnalysis?.categoria || tempProduct.categoryId);
 
-    console.log('[6] Retornando ao frontend com sucesso.');
     return {
       success: true,
       data: {
@@ -164,7 +206,7 @@ export async function analyzeProductUrlAction(input: {
           previousPrice:   previousPrice?.formatBRL(),
           discountPercent: discountPct.formatString(),
           imageUrl:        extracted.mainImage,
-          originalUrl:     extracted.originalUrl,
+          originalUrl:     extracted.originalUrl || cleanUrl,
           affiliateUrl:    affiliateUrlString,
           marketplaceSlug: adapter.marketplaceSlug,
           categoryId:      categoria,
@@ -196,13 +238,10 @@ export async function analyzeProductUrlAction(input: {
     };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error('[REAL_SERVER_ACTION_ERROR]:', error);
-    console.error('[REAL_SERVER_ACTION_STACK]:', error.stack);
-    console.error('[REAL_SERVER_ACTION_JSON]:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-
+    console.error('[analyzeProductUrlAction Exception]:', error);
     return {
       success: false,
-      error: `[ERRO ORIGINAL]: ${error.message} | STACK: ${error.stack || 'sem stack'}`
+      error: `[ERRO NO SERVIDOR]: ${error.message}`
     };
   }
 }

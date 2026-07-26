@@ -7,12 +7,15 @@ import {
   Tag, Image as ImageIcon, ArrowRight,
   MessageCircle, Send, Brain, Target, Heart,
   TrendingUp, Zap, Crown, ShoppingCart, Minimize2, AlertCircle,
+  History, Star, ShieldCheck, ShieldAlert, Layers, ThumbsUp, HelpCircle
 } from 'lucide-react';
-import { analyzeProductUrlAction, type OfferPreview } from '@/presentation/actions/analyze-url.action';
-import type { OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
+import { extractProductDetailsAction, analyzeProductUrlAction, type OfferPreview } from '@/presentation/actions/analyze-url.action';
 import { saveApprovedOfferAction } from '@/presentation/actions/save-offer.action';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
+import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
+import type { OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
+import { ProductConfirmationModal } from './ProductConfirmationModal';
 
 // ─── Style options ────────────────────────────────────────────────────────────
 
@@ -26,70 +29,26 @@ interface StyleOption {
 }
 
 const STYLE_OPTIONS: StyleOption[] = [
-  { id: 'padrao',    label: 'Padrão',      desc: 'Equilibrado e persuasivo',      icon: Sparkles,    color: 'text-blue-400',   border: 'border-blue-500/40'   },
-  { id: 'elegante',  label: 'Elegante',    desc: 'Sofisticado e premium',         icon: Crown,       color: 'text-purple-400', border: 'border-purple-500/40' },
-  { id: 'urgencia',  label: 'Urgência',    desc: 'Escassez e oportunidade única', icon: Zap,         color: 'text-amber-400',  border: 'border-amber-500/40'  },
-  { id: 'promocao',  label: 'Promoção',    desc: 'Foco no preço e desconto',      icon: TrendingUp,  color: 'text-emerald-400',border: 'border-emerald-500/40'},
-  { id: 'minimalista',label: 'Minimalista',desc: 'Conciso e direto',              icon: Minimize2,   color: 'text-slate-300',  border: 'border-slate-500/40'  },
-  { id: 'emocional', label: 'Emocional',   desc: 'Apelo ao sonho e transformação',icon: Heart,       color: 'text-rose-400',   border: 'border-rose-500/40'   },
+  { id: 'padrao',          label: 'Padrão',          desc: 'Equilibrado e persuasivo',      icon: Sparkles,    color: 'text-blue-400',   border: 'border-blue-500/40'   },
+  { id: 'explosiva',       label: 'Explosiva',       desc: 'Bombástico e de alto impacto', icon: Zap,         color: 'text-orange-400', border: 'border-orange-500/40' },
+  { id: 'premium',         label: 'Premium',         desc: 'Exclusivo e desejável',         icon: Crown,       color: 'text-purple-400', border: 'border-purple-500/40' },
+  { id: 'urgencia',        label: 'Urgência',        desc: 'Escassez e estoque limitado',   icon: Zap,         color: 'text-amber-400',  border: 'border-amber-500/40'  },
+  { id: 'minimalista',     label: 'Minimalista',     desc: 'Conciso e objetivo',            icon: Minimize2,   color: 'text-slate-300',  border: 'border-slate-500/40'  },
+  { id: 'emocional',       label: 'Emocional',       desc: 'Transformação e bem-estar',     icon: Heart,       color: 'text-rose-400',   border: 'border-rose-500/40'   },
+  { id: 'promocao',        label: 'Promoção',        desc: 'Foco no desconto e economia',   icon: TrendingUp,  color: 'text-emerald-400',border: 'border-emerald-500/40'},
+  { id: 'custo_beneficio', label: 'Custo-Benefício', desc: 'Compra inteligente e valiosa',  icon: Target,      color: 'text-teal-400',   border: 'border-teal-500/40'   },
+  { id: 'familia',         label: 'Família',         desc: 'Utilidade e lar acolhedor',     icon: Heart,       color: 'text-indigo-400', border: 'border-indigo-500/40' },
+  { id: 'tecnologia',      label: 'Tecnologia',      desc: 'Inovação e alta performance',   icon: Brain,       color: 'text-cyan-400',   border: 'border-cyan-500/40'   },
+  { id: 'casa',            label: 'Casa & Cozinha',  desc: 'Conforto e praticidade do lar', icon: Sparkles,    color: 'text-yellow-400', border: 'border-yellow-500/40' },
+  { id: 'esporte',         label: 'Esporte',         desc: 'Treino, saúde e foco',          icon: Zap,         color: 'text-lime-400',   border: 'border-lime-500/40'   },
+  { id: 'presentes',       label: 'Presentes',       desc: 'Ideal para presentear',         icon: Crown,       color: 'text-pink-400',   border: 'border-pink-500/40'   },
+  { id: 'relampago',       label: 'Relâmpago',       desc: 'Acaba nos próximos minutos',   icon: Zap,         color: 'text-red-400',    border: 'border-red-500/40'    },
+  { id: 'luxo',            label: 'Luxo',            desc: 'Sofisticação e alto padrão',    icon: Crown,       color: 'text-amber-300',  border: 'border-amber-400/40'  },
 ];
 
 // ─── Flow steps ───────────────────────────────────────────────────────────────
 
-type FlowStep = 'input' | 'analyzing' | 'preview' | 'editing' | 'saving' | 'done';
-
-const ANALYSIS_STEPS = [
-  { icon: '🌐', text: 'Acessando página do produto…' },
-  { icon: '🔍', text: 'Extraindo nome, imagem e preço…' },
-  { icon: '🧠', text: 'IA analisando público e benefícios…' },
-  { icon: '✍️', text: 'Criando oferta personalizada…' },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function CopyBtn({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* */ }
-      }}
-      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
-    >
-      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-      {copied ? 'Copiado!' : label}
-    </button>
-  );
-}
-
-function ScorePill({ score, label }: { score: number; label: string }) {
-  const color = score >= 80 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-              : score >= 50 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-              :               'bg-red-500/15 text-red-400 border-red-500/30';
-  return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${color}`}>
-      {score}/100 · {label === 'EXCELLENT' ? 'Excelente' : label === 'GOOD' ? 'Boa oferta' : 'Regular'}
-    </span>
-  );
-}
-
-function AnalysisCard({ icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
-  const Icon = icon;
-  return (
-    <div className="flex gap-2.5 p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-      <div className="mt-0.5 shrink-0">
-        <Icon className="h-4 w-4 text-blue-400" />
-      </div>
-      <div>
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{label}</p>
-        <p className="text-xs text-slate-200 leading-relaxed">{value || '—'}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
+type FlowStep = 'input' | 'extracting' | 'confirming' | 'analyzing' | 'preview' | 'editing' | 'saving' | 'done';
 
 export interface OfferCreationFlowProps {
   onSaved?: (productId: string, offerId: string) => void;
@@ -99,78 +58,136 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [step,    setStep]    = useState<FlowStep>('input');
-  const [url,     setUrl]     = useState('');
-  const [tag,     setTag]     = useState('');
-  const [style,   setStyle]   = useState<OfferStyle>('padrao');
-  const [error,   setError]   = useState<string | null>(null);
-  const [preview, setPreview] = useState<OfferPreview | null>(null);
+  const [step,          setStep]          = useState<FlowStep>('input');
+  const [url,           setUrl]           = useState('');
+  const [tag,           setTag]           = useState('');
+  const [style,         setStyle]         = useState<OfferStyle>('padrao');
+  const [error,         setError]         = useState<string | null>(null);
+  
+  // Phase 1 Extracted Data
+  const [extractedData, setExtractedData] = useState<ExtractedProductData | null>(null);
+  const [affiliateUrl,  setAffiliateUrl]  = useState<string>('');
+  const [marketplace,   setMarketplace]   = useState<string>('');
+
+  // Preview & Version History
+  const [preview,       setPreview]       = useState<OfferPreview | null>(null);
+  const [versions,      setVersions]      = useState<OfferPreview[]>([]);
+  const [activeVerIdx,  setActiveVerIdx]  = useState<number>(0);
+
+  // Active channel copy view
+  const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'story'>('whatsapp');
+  const [copied,        setCopied]        = useState(false);
 
   // Editable overrides
-  const [editTitle, setEditTitle] = useState('');
-  const [editCta,   setEditCta]   = useState('');
+  const [editTitle,     setEditTitle]     = useState('');
+  const [editCta,       setEditCta]       = useState('');
+  const [editWhatsapp,  setEditWhatsapp]  = useState('');
 
   const [savedIds, setSavedIds] = useState<{ productId: string; offerId: string } | null>(null);
 
-  // ── Analyze ───────────────────────────────────────────────────────────────
-  const handleAnalyze = useCallback(async (overrideStyle?: OfferStyle) => {
-    const rawUrl = url.trim();
-    console.log('[1] Botão clicado - URL:', rawUrl);
+  // Stepper messages
+  const [stepperMsg, setStepperMsg] = useState('🔎 Identificando marketplace e extraindo informações...');
 
+  // ── Step 1: Start Extraction ──────────────────────────────────────────────
+  const handleStartExtraction = useCallback(async () => {
+    const rawUrl = url.trim();
     if (!rawUrl) {
-      console.warn('[Validação Frontend] URL vazia ou inválida.');
       setError('Cole a URL do produto para continuar.');
       return;
     }
 
     setError(null);
-    setStep('analyzing');
-    console.log('[2] Server Action iniciada - chamando analyzeProductUrlAction...');
+    setStep('extracting');
+    setStepperMsg('🔎 Identificando marketplace e extraindo informações reais do anúncio...');
 
     try {
-      const result = await analyzeProductUrlAction({
-        url:          rawUrl,
+      const result = await extractProductDetailsAction({
+        url: rawUrl,
         affiliateTag: tag.trim() || 'mundolk',
-        userId:       user?.uid,
-        style:        overrideStyle ?? style,
       });
 
-      console.log('[6] Retornando ao frontend - Resultado:', result.success ? 'SUCESSO' : 'FALHA');
-
       if (!result.success) {
-        console.error('[ERRO SERVER ACTION]:', result.error);
-        setError(result.error || 'Não conseguimos analisar esse link agora. Tente novamente.');
+        setError(result.error || 'Não foi possível acessar a página do produto.');
         setStep('input');
         return;
       }
 
-      console.log('[7] Renderizando prévia da oferta na tela');
-      setPreview(result.data);
-      setEditTitle(result.data.product.title);
-      setEditCta(result.data.offer.cta);
-      setStyle(overrideStyle ?? style);
-      setStep('preview');
-      console.log('[8] Finalizado - Prévia renderizada com sucesso!');
+      setExtractedData(result.data);
+      setAffiliateUrl(result.affiliateUrl);
+      setMarketplace(result.marketplaceSlug);
+
+      // If high confidence (>=80%), proceed automatically or show confirmation modal if needed
+      setStep('confirming');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[EXCEÇÃO FRONTEND]:', msg);
-      if (msg.includes('was not found on the server') || msg.includes('Server Action')) {
-        setError('O sistema foi atualizado! Recarregando a página em instantes para aplicar a nova versão...');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+      setError(`Erro na extração de dados: ${msg}`);
+      setStep('input');
+    }
+  }, [url, tag]);
+
+  // ── Step 2: Generate AI Offer from Confirmed Data ─────────────────────────
+  const handleGenerateAI = useCallback(async (confirmed: ExtractedProductData, overrideStyle?: OfferStyle) => {
+    setError(null);
+    setStep('analyzing');
+    setStepperMsg('🤖 Invocando cadeia de Agentes de IA (Analista ➔ Especialista ➔ Copywriter ➔ Revisor)...');
+
+    try {
+      const result = await analyzeProductUrlAction({
+        url:          url.trim(),
+        affiliateTag: tag.trim() || 'mundolk',
+        userId:       user?.uid,
+        style:        overrideStyle ?? style,
+        confirmedData: confirmed,
+      });
+
+      if (!result.success) {
+        setError(result.error || 'Não conseguimos gerar a oferta agora. Tente novamente.');
+        setStep('confirming');
         return;
       }
-      setError('Não conseguimos analisar esse link agora. Verifique a URL e tente novamente.');
-      setStep('input');
+
+      const newPreview = result.data;
+      setPreview(newPreview);
+      setVersions((prev) => [newPreview, ...prev]);
+      setActiveVerIdx(0);
+
+      setEditTitle(newPreview.product.title);
+      setEditCta(newPreview.offer.cta);
+      setEditWhatsapp(newPreview.offer.whatsAppText);
+      setStyle(overrideStyle ?? style);
+      setStep('preview');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Erro durante a geração da IA: ${msg}`);
+      setStep('confirming');
     }
   }, [url, tag, user, style]);
 
-  // Regenerate with same or different style
-  const handleRegenerate = useCallback((newStyle?: OfferStyle) => {
-    if (newStyle) setStyle(newStyle);
-    handleAnalyze(newStyle ?? style);
-  }, [handleAnalyze, style]);
+  // Regenerate / Generate alternative variation
+  const handleGenerateAlternative = useCallback((newStyle?: OfferStyle) => {
+    if (!extractedData) return;
+    const selectedStyle = newStyle ?? style;
+    setStyle(selectedStyle);
+    handleGenerateAI(extractedData, selectedStyle);
+  }, [extractedData, style, handleGenerateAI]);
+
+  // Switch version tab
+  const handleSelectVersion = (idx: number) => {
+    const target = versions[idx];
+    if (!target) return;
+    setActiveVerIdx(idx);
+    setPreview(target);
+    setEditTitle(target.product.title);
+    setEditCta(target.offer.cta);
+    setEditWhatsapp(target.offer.whatsAppText);
+  };
+
+  // Copy to clipboard
+  const handleCopyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleApprove = useCallback(async () => {
@@ -209,437 +226,358 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     setStep('input');
     setUrl('');
     setTag('');
-    setPreview(null);
     setError(null);
+    setPreview(null);
+    setVersions([]);
+    setExtractedData(null);
     setSavedIds(null);
   };
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ──────────────────────────────────────────────────────────────────────────
-
-  // ── Step: Input ──────────────────────────────────────────────────────────
-  if (step === 'input') {
-    return (
-      <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-6 space-y-5 shadow-xl">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 border border-blue-500/20">
-            <Brain className="h-5 w-5 text-blue-400" />
+  return (
+    <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+      {/* ── ERROR ALERT ── */}
+      {error && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+          <div className="flex-1 text-sm">
+            <span className="font-semibold">Atenção:</span> {error}
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-white">Criar Nova Oferta com IA Real</h3>
-            <p className="text-xs text-slate-400 mt-0.5">A IA analisa o produto individualmente e cria uma oferta única — nunca genérica.</p>
-          </div>
-        </div>
-
-        {/* URL */}
-        <div className="space-y-3">
-          <div className="relative">
-            <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-              placeholder="https://mercadolivre.com.br/... ou https://shopee.com.br/..."
-              className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
-            />
-          </div>
-          <div className="relative">
-            <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-            <input
-              type="text"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              placeholder="Tag de afiliado (opcional)"
-              className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
-            />
-          </div>
-        </div>
-
-        {/* Style selector */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 mb-2.5 flex items-center gap-1.5">
-            <Target className="h-3.5 w-3.5" />
-            Estilo da oferta
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {STYLE_OPTIONS.map((s) => {
-              const Icon   = s.icon;
-              const active = style === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setStyle(s.id)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition ${
-                    active
-                      ? `${s.border} bg-slate-800 ${s.color}`
-                      : 'border-slate-800 bg-slate-950/50 text-slate-500 hover:border-slate-700 hover:text-slate-300'
-                  }`}
-                >
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? s.color : 'text-slate-600'}`} />
-                  <span className="text-[11px] font-semibold leading-tight">{s.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Friendly Error Box */}
-        {error && (
-          <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-300 animate-in fade-in duration-200">
-            <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-            <div className="flex-1 space-y-2">
-              <p className="font-semibold text-white">Não foi possível analisar o produto</p>
-              <p className="text-red-300/90 leading-relaxed">{error}</p>
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleAnalyze()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold transition text-[11px]"
-                >
-                  <RefreshCcw className="h-3 w-3" /> Tentar Novamente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setError(null)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 font-semibold hover:bg-slate-800 transition text-[11px]"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => handleAnalyze()}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-lg shadow-blue-500/20"
-          >
-            <Brain className="h-4 w-4" />
-            Criar Nova Oferta
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step: Analyzing ──────────────────────────────────────────────────────
-  if (step === 'analyzing') {
-    return (
-      <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-6 space-y-5 shadow-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-            <h3 className="text-sm font-bold text-white">IA analisando produto…</h3>
-          </div>
-          {/* Cancel button during loading so user is never trapped */}
-          <button
-            type="button"
-            onClick={() => {
-              setStep('input');
-              setError(null);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
-          >
-            <X className="h-3.5 w-3.5" />
-            Cancelar
-          </button>
-        </div>
-
-        <div className="space-y-2.5">
-          {ANALYSIS_STEPS.map((s, i) => (
-            <div key={i} className="flex items-center gap-3 text-xs">
-              <span className="text-base">{s.icon}</span>
-              <span className="text-slate-400">{s.text}</span>
-              <Loader2 className="h-3 w-3 animate-spin text-blue-400 ml-auto" style={{ animationDelay: `${i * 0.4}s` }} />
-            </div>
-          ))}
-        </div>
-
-        <div className="text-[11px] text-slate-500 pt-1 flex items-center justify-between">
-          <span>Estilo selecionado: <strong className="text-blue-400">{STYLE_OPTIONS.find(s => s.id === style)?.label}</strong></span>
-          <span className="text-slate-600 font-mono">Processando...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step: Done ───────────────────────────────────────────────────────────
-  if (step === 'done' && savedIds) {
-    return (
-      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <CheckCircle2 className="h-8 w-8 text-emerald-400 shrink-0" />
-          <div>
-            <h3 className="text-base font-bold text-white">Oferta salva com sucesso!</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Produto e anúncio já aparecem no Dashboard e Minhas Ofertas.</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleReset}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 text-xs font-semibold hover:bg-slate-800 transition"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          Criar outra oferta
-        </button>
-      </div>
-    );
-  }
-
-  // ── Step: Preview / Editing / Saving ─────────────────────────────────────
-  if ((step === 'preview' || step === 'editing' || step === 'saving') && preview) {
-    const p         = preview.product;
-    const a         = preview.analysis;
-    const o         = preview.offer;
-    const isEditing = step === 'editing';
-    const isSaving  = step === 'saving';
-
-    const currentStyleOption = STYLE_OPTIONS.find(s => s.id === o.style)!;
-
-    return (
-      <div className="space-y-4">
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <Brain className="h-4 w-4 text-blue-400" />
-            Análise da IA — Revisar antes de salvar
-          </h3>
-          <button type="button" onClick={handleReset} className="text-slate-500 hover:text-slate-300 transition p-1">
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </div>
+      )}
 
-        {error && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-medium text-red-400">{error}</div>
-        )}
+      {/* ── STEP 1: INPUT ── */}
+      {step === 'input' && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Assistente de Ofertas com Inteligência Comercial</h2>
+              <p className="text-xs text-slate-400">Extração real dos dados do produto e geração de copys persuasivas para afiliados.</p>
+            </div>
+          </div>
 
-        {/* ── Product Card ─────────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-5 space-y-4">
-
-          {/* Image + Title + Price */}
-          <div className="flex gap-4">
-            {p.imageUrl ? (
-              <img
-                src={p.imageUrl}
-                alt={p.title}
-                className="h-24 w-24 rounded-xl object-cover border border-slate-700 shrink-0 bg-slate-800"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            ) : (
-              <div className="h-24 w-24 rounded-xl border border-slate-700 bg-slate-800 flex items-center justify-center shrink-0">
-                <ImageIcon className="h-8 w-8 text-slate-600" />
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">Link do Produto (Shopee, Mercado Livre, Amazon, Magalu)</label>
+              <div className="mt-2 flex rounded-xl border border-slate-700 bg-slate-950 shadow-inner focus-within:border-blue-500">
+                <span className="flex items-center pl-3 text-slate-500">
+                  <LinkIcon className="h-5 w-5" />
+                </span>
+                <input
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://shopee.com.br/product/... ou https://mercadolivre.com.br/..."
+                  className="w-full bg-transparent px-3 py-3 text-sm text-white placeholder-slate-500 focus:outline-none"
+                />
               </div>
-            )}
+            </div>
 
-            <div className="flex-1 space-y-1.5 min-w-0">
-              {isEditing ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">Tag de Afiliado (Opcional)</label>
                 <input
                   type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full bg-slate-950 border border-blue-500 rounded-lg px-3 py-2 text-sm font-bold text-white"
+                  value={tag}
+                  onChange={(e) => setTag(e.target.value)}
+                  placeholder="mundolk"
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none"
                 />
-              ) : (
-                <p className="text-sm font-bold text-white leading-snug line-clamp-2">{editTitle}</p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded-full bg-blue-600/15 border border-blue-500/20 text-[10px] font-semibold text-blue-300">{p.marketplaceSlug}</span>
-                <span className="px-2 py-0.5 rounded-full bg-slate-700 border border-slate-600 text-[10px] font-semibold text-slate-300">{p.categoryId}</span>
-                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${currentStyleOption.border} ${currentStyleOption.color}`}>
-                  {currentStyleOption.label}
-                </span>
               </div>
 
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg font-bold text-emerald-400">{p.price}</span>
-                {p.previousPrice && p.discountPercent !== '0%' && (
-                  <>
-                    <span className="text-xs text-slate-500 line-through">{p.previousPrice}</span>
-                    <span className="text-xs font-bold text-emerald-400">-{p.discountPercent}</span>
-                  </>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">Estilo de Copy Inicial</label>
+                <select
+                  value={style}
+                  onChange={(e) => setStyle(e.target.value as OfferStyle)}
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                >
+                  {STYLE_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>{opt.label} — {opt.desc}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={handleStartExtraction}
+              disabled={!url.trim()}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-500 active:scale-98 disabled:pointer-events-none disabled:opacity-50"
+            >
+              <Sparkles className="h-5 w-5" />
+              <span>Analisar Produto e Extrair Dados Reais</span>
+              <ArrowRight className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEPPER LOADING SCREEN ── */}
+      {(step === 'extracting' || step === 'analyzing') && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/90 p-12 text-center shadow-2xl">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-500 mb-4" />
+          <h3 className="text-lg font-bold text-white">{stepperMsg}</h3>
+          <p className="mt-2 text-xs text-slate-400 max-w-md">Processamento seguro via Server Actions com validação estrita de dados reais.</p>
+        </div>
+      )}
+
+      {/* ── PHASE 1: PRE-AI PRODUCT CONFIRMATION MODAL ── */}
+      {step === 'confirming' && extractedData && (
+        <ProductConfirmationModal
+          data={extractedData}
+          marketplaceSlug={marketplace}
+          affiliateUrl={affiliateUrl}
+          onConfirm={(confirmed) => handleGenerateAI(confirmed)}
+          onCancel={() => setStep('input')}
+        />
+      )}
+
+      {/* ── PREVIEW SCREEN (PHASE 3 & 4) ── */}
+      {step === 'preview' && preview && (
+        <div className="space-y-6">
+          {/* Header Bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Oferta Gerada com Sucesso
+                </span>
+                {versions.length > 1 && (
+                  <span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-300 border border-purple-500/20 flex items-center gap-1">
+                    <History className="h-3.5 w-3.5" /> {versions.length} Versões Disponíveis
+                  </span>
                 )}
               </div>
+              <h2 className="mt-1 text-lg font-bold text-white">{preview.product.title}</h2>
+              <p className="text-xs text-slate-400">Preço: <span className="font-semibold text-emerald-400">{preview.product.price}</span> | Desconto: {preview.product.discountPercent}</p>
+            </div>
 
-              <ScorePill score={o.score} label={o.scoreLabel} />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleGenerateAlternative()}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                <span>Gerar Outra Oferta</span>
+              </button>
+
+              <button
+                onClick={handleApprove}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/25 hover:bg-emerald-500 active:scale-95"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Aprovar e Salvar Oferta</span>
+              </button>
             </div>
           </div>
 
-          {/* ── AI REASONING SECTION ─────────────────────────────────── */}
-          <div className="rounded-xl border border-blue-500/15 bg-blue-950/20 p-4 space-y-2">
-            <p className="text-xs font-bold text-blue-400 flex items-center gap-2 mb-3">
-              <Brain className="h-3.5 w-3.5" />
-              Raciocínio da IA sobre este produto
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <AnalysisCard icon={Target}       label="Público-alvo"         value={a.publicoAlvo} />
-              <AnalysisCard icon={Heart}        label="Dor que resolve"      value={a.dorQueResolve} />
-              <AnalysisCard icon={TrendingUp}   label="Benefício principal"   value={a.beneficioPrincipal} />
-              <AnalysisCard icon={Sparkles}     label="Ângulo de venda"      value={a.anguloDeVenda} />
-              <AnalysisCard icon={Brain}        label="Emoção de compra"     value={a.emocaoDeCompra} />
-              <AnalysisCard icon={ShoppingCart} label="Argumento principal"   value={a.argumentoComercial} />
-            </div>
-          </div>
-
-          {/* ── Score justification ───────────────────────────────────── */}
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Avaliação da Oferta</p>
-            <p className="text-xs text-slate-300 leading-relaxed">{o.justification}</p>
-          </div>
-
-          {/* ── CTA ──────────────────────────────────────────────────── */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 mb-1.5">Chamada para Ação:</p>
-            {isEditing ? (
-              <input
-                type="text"
-                value={editCta}
-                onChange={(e) => setEditCta(e.target.value)}
-                className="w-full bg-slate-950 border border-blue-500 rounded-lg px-3 py-2 text-xs text-white"
-              />
-            ) : (
-              <p className="text-sm font-semibold text-white">{editCta}</p>
-            )}
-          </div>
-
-          {/* ── Hashtags + Emojis ──────────────────────────────────────── */}
-          <div className="flex flex-wrap gap-1.5">
-            {o.emojis.map((e, i) => (
-              <span key={i} className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-sm">{e}</span>
-            ))}
-            {o.hashtags.map((h) => (
-              <span key={h} className="px-2 py-0.5 rounded-full bg-blue-600/10 border border-blue-500/20 text-[11px] text-blue-400 font-mono">{h}</span>
-            ))}
-          </div>
-
-          {/* ── Copies ───────────────────────────────────────────────── */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-400">Copys geradas pela IA:</p>
-            {[
-              { icon: '📱', label: 'WhatsApp',  text: o.whatsAppText,  ch: 'WhatsApp'  },
-              { icon: '✈️', label: 'Telegram',  text: o.telegramText,  ch: 'Telegram'  },
-              { icon: '📸', label: 'Instagram', text: o.instagramText, ch: 'Instagram' },
-              { icon: '📢', label: 'Canal',     text: o.channelText,   ch: 'Canal'     },
-            ].map(({ icon, label, text, ch }) => (
-              <div key={ch} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold text-slate-400">{icon} {label}</span>
-                  <CopyBtn text={text} label={`Copiar`} />
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-line line-clamp-4">{text || '—'}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Quick share ───────────────────────────────────────────── */}
-          <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(o.whatsAppText)}`, '_blank')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition"
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              WhatsApp
-            </button>
-            <button
-              type="button"
-              onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(p.affiliateUrl)}&text=${encodeURIComponent(o.telegramText)}`, '_blank')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white transition"
-            >
-              <Send className="h-3.5 w-3.5" />
-              Telegram
-            </button>
-          </div>
-        </div>
-
-        {/* ── Style switcher ────────────────────────────────────────────── */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
-          <p className="text-xs font-bold text-slate-300 flex items-center gap-2">
-            <RefreshCcw className="h-3.5 w-3.5 text-blue-400" />
-            🎯 Alterar estilo e gerar nova abordagem:
-          </p>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {STYLE_OPTIONS.map((s) => {
-              const Icon   = s.icon;
-              const active = o.style === s.id;
-              return (
+          {/* Version History Tabs */}
+          {versions.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-1 shrink-0">
+                <Layers className="h-3.5 w-3.5" /> Histórico:
+              </span>
+              {versions.map((ver, idx) => (
                 <button
-                  key={s.id}
-                  type="button"
-                  disabled={isSaving}
-                  onClick={() => handleRegenerate(s.id)}
-                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition text-[10px] font-semibold ${
-                    active
-                      ? `${s.border} bg-slate-800 ${s.color}`
-                      : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700 hover:text-slate-300'
-                  }`}
+                  key={idx}
+                  onClick={() => handleSelectVersion(idx)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shrink-0 ${activeVerIdx === idx ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
                 >
-                  <Icon className={`h-4 w-4 ${active ? s.color : 'text-slate-600'}`} />
-                  {s.label}
+                  Versão {versions.length - idx} ({ver.offer.style})
                 </button>
-              );
-            })}
+              ))}
+            </div>
+          )}
+
+          {/* Main Grid: Live Mockup Card & Copy Inspector */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left: Live Social Post Mockup Card */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                    <ImageIcon className="h-4 w-4 text-blue-400" /> Prévia Visual do Post
+                  </span>
+                  <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-blue-400">
+                    Estilo: {preview.offer.style}
+                  </span>
+                </div>
+
+                {/* Simulated Social Card */}
+                <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner space-y-3">
+                  {preview.product.imageUrl && (
+                    <img src={preview.product.imageUrl} alt="Produto" className="h-48 w-full object-contain rounded-lg bg-slate-900 p-2" />
+                  )}
+
+                  <div className="space-y-1">
+                    <span className="inline-block rounded-md bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 uppercase">
+                      🔥 SUPER OFERTA DE AFILIADO
+                    </span>
+                    <h4 className="text-sm font-bold text-white leading-snug">{editTitle}</h4>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-900/80 p-3 border border-slate-800">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-extrabold text-emerald-400">{preview.product.price}</span>
+                      {preview.product.previousPrice && (
+                        <span className="text-xs text-slate-500 line-through">{preview.product.previousPrice}</span>
+                      )}
+                      <span className="ml-auto rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                        {preview.product.discountPercent}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-blue-600 p-2.5 text-center text-xs font-bold text-white shadow-md flex items-center justify-center gap-2">
+                    <ShoppingCart className="h-4 w-4" />
+                    <span>{editCta}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commercial Intelligence & Star Score */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Brain className="h-4 w-4 text-purple-400" /> Inteligência Comercial
+                  </span>
+                  <div className="flex items-center gap-1 text-amber-400">
+                    <Star className="h-4 w-4 fill-amber-400" />
+                    <span className="text-xs font-extrabold">{preview.offer.score}/100</span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-3 text-xs text-purple-200 space-y-1">
+                  <span className="font-bold block">💡 Diagnóstico do Consultor IA:</span>
+                  <p>{preview.offer.justification}</p>
+                </div>
+
+                <div className="space-y-1.5 text-xs text-slate-300">
+                  <div className="flex justify-between">
+                    <span>Atração de Preço & Valor:</span>
+                    <span className="font-semibold text-emerald-400">★★★★☆</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Atratividade de Desconto:</span>
+                    <span className="font-semibold text-emerald-400">★★★★★</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Potencial de Conversão:</span>
+                    <span className="font-semibold text-emerald-400">92%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Social Copy Inspector & Selector */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xl space-y-4">
+                {/* Social Channel Selector */}
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
+                  <button
+                    onClick={() => setActiveChannel('whatsapp')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${activeChannel === 'whatsapp' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                  </button>
+                  <button
+                    onClick={() => setActiveChannel('telegram')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${activeChannel === 'telegram' ? 'bg-sky-600 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                  >
+                    <Send className="h-3.5 w-3.5" /> Telegram
+                  </button>
+                  <button
+                    onClick={() => setActiveChannel('instagram')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${activeChannel === 'instagram' ? 'bg-pink-600 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                  >
+                    <Heart className="h-3.5 w-3.5" /> Instagram
+                  </button>
+                </div>
+
+                {/* Editable Copy Area */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-slate-300">Copy Formatada para {activeChannel.toUpperCase()}</label>
+                    <button
+                      onClick={() => handleCopyText(editWhatsapp)}
+                      className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-700"
+                    >
+                      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      <span>{copied ? 'Copiado!' : 'Copiar Texto'}</span>
+                    </button>
+                  </div>
+
+                  <textarea
+                    rows={8}
+                    value={editWhatsapp}
+                    onChange={(e) => setEditWhatsapp(e.target.value)}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-white leading-relaxed focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Inline Editables (Title & CTA) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="text-xs font-medium text-slate-400">Título Editável</label>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-400">Chamada para Ação (CTA)</label>
+                    <input
+                      type="text"
+                      value={editCta}
+                      onChange={(e) => setEditCta(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Alternate Style Selector */}
+                <div className="border-t border-slate-800 pt-3">
+                  <span className="text-xs font-semibold text-slate-300 block mb-2">Alternar Estilo de Copy:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {STYLE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => handleGenerateAlternative(opt.id)}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-medium border transition-all ${style === opt.id ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-bold' : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* ── Action buttons ────────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          {/* Approve & Save */}
+      {/* ── STEP DONE ── */}
+      {step === 'done' && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-12 text-center shadow-2xl">
+          <CheckCircle2 className="h-16 w-16 text-emerald-400 mb-4 animate-bounce" />
+          <h3 className="text-2xl font-extrabold text-white">Oferta Salva com Sucesso!</h3>
+          <p className="mt-2 text-sm text-slate-300 max-w-md">A oferta foi registrada no seu banco de dados Firestore e está pronta para divulgação.</p>
           <button
-            type="button"
-            onClick={handleApprove}
-            disabled={isSaving}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-lg shadow-emerald-500/20"
-          >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {isSaving ? 'Salvando…' : '✅ Aprovar e Salvar'}
-          </button>
-
-          {/* Edit toggle */}
-          <button
-            type="button"
-            disabled={isSaving}
-            onClick={() => setStep(isEditing ? 'preview' : 'editing')}
-            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition"
-          >
-            <Edit3 className="h-3.5 w-3.5" />
-            {isEditing ? 'Concluir edição' : '✏️ Editar'}
-          </button>
-
-          {/* Regenerate same style */}
-          <button
-            type="button"
-            disabled={isSaving}
-            onClick={() => handleRegenerate()}
-            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-            🔄 Nova oferta
-          </button>
-
-          {/* Cancel */}
-          <button
-            type="button"
-            disabled={isSaving}
             onClick={handleReset}
-            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-semibold transition"
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-xs font-bold text-white shadow-lg hover:bg-blue-500"
           >
-            <X className="h-3.5 w-3.5" />
-            ❌ Cancelar
+            <Sparkles className="h-4 w-4" />
+            <span>Criar Nova Oferta</span>
           </button>
         </div>
-      </div>
-    );
-  }
-
-  return null;
+      )}
+    </div>
+  );
 }

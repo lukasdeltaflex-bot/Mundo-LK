@@ -19,38 +19,44 @@ export class GenericMarketplaceAdapter implements IMarketplaceAdapter {
     const cleanUrl = url.trim();
     const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
 
-    if (metadata && metadata.title.length > 2) {
+    const domainName = this.extractDomain(cleanUrl);
+
+    if (metadata && metadata.title.length > 5) {
       return {
         title:           metadata.title,
         description:     metadata.description || `Produto disponível em ${cleanUrl}`,
         brand:           metadata.brand || 'Desconhecida',
-        categoryName:    metadata.category || undefined,
+        categoryName:    metadata.category || 'Geral',
         mainImage:       metadata.image || '',
         gallery:         metadata.image ? [metadata.image] : [],
         currentPrice:    metadata.price ?? 0,
         previousPrice:   metadata.previousPrice ?? null,
-        storeName:       this.marketplaceName,
-        storeReputation: undefined,
-        reviewsRating:   undefined,
+        storeName:       domainName,
         originalUrl:     cleanUrl,
+        confidenceScore: metadata.confidenceScore,
+        confidenceItems: metadata.confidenceItems,
       };
     }
 
-    // Try extracting title from URL domain/path
-    const domainName = this.extractDomain(cleanUrl);
     return {
-      title:           `Produto ${domainName}`,
-      description:     `Produto extraído do link ${cleanUrl}`,
-      brand:           'Desconhecida',
-      categoryName:    undefined,
+      title:           '',
+      description:     `Link de produto de ${domainName} recebido: ${cleanUrl}`,
+      brand:           'Não identificada',
+      categoryName:    'Geral',
       mainImage:       '',
       gallery:         [],
       currentPrice:    0,
       previousPrice:   null,
       storeName:       domainName,
-      storeReputation: undefined,
-      reviewsRating:   undefined,
       originalUrl:     cleanUrl,
+      confidenceScore: 30, // Trigger <80% Safety Gate
+      confidenceItems: [
+        { label: 'Título oficial do anúncio', found: false, weight: 30 },
+        { label: 'Preço atual', found: false, weight: 25 },
+        { label: 'Imagem principal do produto', found: false, weight: 20 },
+        { label: 'Categoria ou Marca', found: false, weight: 15 },
+        { label: 'Descrição / Detalhes', found: false, weight: 10 },
+      ],
     };
   }
 

@@ -1,14 +1,14 @@
+import { ConfidenceCheckItem } from '../../../core/domain/ports/marketplaces/IMarketplaceAdapter';
+
 /**
  * ProductPageScraper — Server-side HTML fetcher + metadata extractor.
  *
  * Fetches the raw HTML of a product URL and extracts data from:
  *  1. JSON-LD structured data (schema.org/Product)
  *  2. Open Graph meta tags (og:title, og:description, og:image, og:price:amount)
- *  3. Twitter Card meta tags
- *  4. Common marketplace HTML patterns (title tag, price selectors)
+ *  3. Microdata & HTML patterns
  *
- * This runs exclusively in the Node.js server environment (server actions / API routes).
- * It handles errors gracefully and NEVER throws unhandled exceptions.
+ * Computes exact Confidence Score % (0 to 100).
  */
 export interface RawProductMetadata {
   title: string;
@@ -18,8 +18,16 @@ export interface RawProductMetadata {
   previousPrice: number | null;
   brand: string;
   category: string;
+  subCategory?: string;
+  rating?: number;
+  reviewsCount?: number;
+  salesCount?: string;
+  shippingInfo?: string;
+  couponInfo?: string;
+  sellerName?: string;
   url: string;
-  confidence: 'high' | 'medium' | 'low';
+  confidenceScore: number;
+  confidenceItems: ConfidenceCheckItem[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -31,6 +39,17 @@ function normalizeUrlString(rawUrl: string): string {
     trimmed = `https://${trimmed}`;
   }
   return trimmed;
+}
+
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
 }
 
 function extractMeta(html: string, property: string): string {
@@ -57,17 +76,6 @@ function parsePrice(raw: string): number | null {
   const cleaned = raw.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
   const n = parseFloat(cleaned);
   return isNaN(n) || n <= 0 ? null : n;
-}
-
-function decodeHtmlEntities(str: string): string {
-  return str
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
 }
 
 function extractJsonLd(html: string): Record<string, unknown> | null {
@@ -138,7 +146,7 @@ export async function fetchProductMetadata(url: string, marketplaceSlug: string)
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4_000); // 4s timeout max
+    const timeout = setTimeout(() => controller.abort(), 6_000); // 6s timeout max
 
     const response = await fetch(cleanUrl, {
       signal: controller.signal,
@@ -189,12 +197,16 @@ export async function fetchProductMetadata(url: string, marketplaceSlug: string)
     const brand = extractBrand(jsonLd, html);
     const category = extractCategory(jsonLd, html);
 
-    const hasTitle = title.length > 3;
-    const hasPrice = price !== null;
-    const hasJsonLd = jsonLd !== null;
-    const confidence: 'high' | 'medium' | 'low' =
-      hasTitle && hasPrice && hasJsonLd ? 'high' :
-      hasTitle && (hasPrice || hasJsonLd) ? 'medium' : 'low';
+    // Calculate Confidence Items & Score %
+    const items: ConfidenceCheckItem[] = [
+      { label: 'Título oficial do anúncio', found: title.length > 5, weight: 30 },
+      { label: 'Preço atual', found: price !== null && price > 0, weight: 25 },
+      { label: 'Imagem principal do produto', found: image.length > 10, weight: 20 },
+      { label: 'Categoria ou Marca', found: (category.length > 2 || brand.length > 2), weight: 15 },
+      { label: 'Descrição / Detalhes', found: description.length > 15, weight: 10 },
+    ];
+
+    const score = items.reduce((acc, item) => acc + (item.found ? item.weight : 0), 0);
 
     return {
       title,
@@ -205,7 +217,8 @@ export async function fetchProductMetadata(url: string, marketplaceSlug: string)
       brand,
       category,
       url: cleanUrl,
-      confidence,
+      confidenceScore: score,
+      confidenceItems: items,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

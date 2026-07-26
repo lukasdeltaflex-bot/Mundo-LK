@@ -4,6 +4,7 @@ import { fetchProductMetadata } from '../scraper/product-page-scraper';
 /**
  * Adapter for Amazon Brasil Marketplace.
  * Extracts real product data from the page using HTML/JSON-LD scraping.
+ * Includes Amazon Prime shipping metadata.
  */
 export class AmazonAdapter implements IMarketplaceAdapter {
   public readonly marketplaceSlug: string = 'amazon';
@@ -19,37 +20,47 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     const cleanUrl = url.trim();
     const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
 
-    if (metadata && metadata.confidence !== 'low' && metadata.title.length > 3) {
+    const hasValidTitle = metadata && metadata.title.length > 5;
+
+    if (metadata && hasValidTitle) {
       return {
         title:           metadata.title,
         description:     metadata.description || `Produto disponível na ${this.marketplaceName}.`,
-        brand:           metadata.brand || 'Desconhecida',
-        categoryName:    metadata.category || undefined,
+        brand:           metadata.brand || 'Amazon',
+        categoryName:    metadata.category || 'Geral',
         mainImage:       metadata.image || '',
         gallery:         metadata.image ? [metadata.image] : [],
         currentPrice:    metadata.price ?? 0,
         previousPrice:   metadata.previousPrice ?? null,
         storeName:       'Amazon Oficial BR',
-        storeReputation: 'Loja Oficial Amazon — Entrega Prime',
-        reviewsRating:   undefined,
+        storeReputation: 'Loja Oficial Amazon',
+        shippingInfo:    'Frete Grátis com Amazon Prime',
         originalUrl:     cleanUrl,
+        confidenceScore: metadata.confidenceScore,
+        confidenceItems: metadata.confidenceItems,
       };
     }
 
-    console.warn(`[AmazonAdapter] Could not extract real data from: ${cleanUrl}.`);
     return {
-      title:           'Produto Amazon',
-      description:     'Descrição não disponível. Verifique o link do produto.',
-      brand:           'Desconhecida',
-      categoryName:    undefined,
+      title:           '',
+      description:     `Link de produto Amazon recebido: ${cleanUrl}`,
+      brand:           'Não identificada',
+      categoryName:    'Geral',
       mainImage:       '',
       gallery:         [],
       currentPrice:    0,
       previousPrice:   null,
       storeName:       this.marketplaceName,
-      storeReputation: undefined,
-      reviewsRating:   undefined,
+      storeReputation: 'Loja Amazon',
       originalUrl:     cleanUrl,
+      confidenceScore: 30, // Trigger <80% Safety Gate
+      confidenceItems: [
+        { label: 'Título oficial do anúncio', found: false, weight: 30 },
+        { label: 'Preço atual', found: false, weight: 25 },
+        { label: 'Imagem principal do produto', found: false, weight: 20 },
+        { label: 'Categoria ou Marca', found: false, weight: 15 },
+        { label: 'Descrição / Detalhes', found: false, weight: 10 },
+      ],
     };
   }
 

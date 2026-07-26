@@ -4,6 +4,7 @@ import { fetchProductMetadata } from '../scraper/product-page-scraper';
 /**
  * Adapter for Shopee Marketplace.
  * Extracts real product data from the page using HTML/JSON-LD scraping.
+ * Guarantees zero fake product fallbacks.
  */
 export class ShopeeAdapter implements IMarketplaceAdapter {
   public readonly marketplaceSlug: string = 'shopee';
@@ -19,30 +20,31 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     const cleanUrl = url.trim();
     const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
 
-    const hasValidTitle = metadata && metadata.title.length > 3 && !/mkt\s*single\s*page|error_page|shopecdn/i.test(metadata.title);
+    const hasValidTitle = metadata && metadata.title.length > 5 && !/mkt\s*single\s*page|error_page|shopecdn/i.test(metadata.title);
 
-    if (hasValidTitle) {
+    if (metadata && hasValidTitle) {
       return {
         title:           metadata.title,
         description:     metadata.description || `Produto disponível na ${this.marketplaceName}.`,
         brand:           metadata.brand || 'Desconhecida',
-        categoryName:    metadata.category || undefined,
+        categoryName:    metadata.category || 'Geral',
         mainImage:       metadata.image || '',
         gallery:         metadata.image ? [metadata.image] : [],
         currentPrice:    metadata.price ?? 0,
         previousPrice:   metadata.previousPrice ?? null,
         storeName:       this.marketplaceName,
         storeReputation: 'Loja Shopee',
-        reviewsRating:   undefined,
         originalUrl:     cleanUrl,
+        confidenceScore: metadata.confidenceScore,
+        confidenceItems: metadata.confidenceItems,
       };
     }
 
-    // Friendly fallback for shortened affiliate links (s.shopee.com.br / shope.ee)
+    // Unverified link fallback: Low confidence score (<80%) to trigger manual confirmation screen
     return {
-      title:           'Produto Afiliado Shopee',
-      description:     `Oferta imperdível da Shopee extraída do link de afiliado: ${cleanUrl}`,
-      brand:           'Shopee',
+      title:           '',
+      description:     `Link de produto Shopee recebido: ${cleanUrl}`,
+      brand:           'Não identificada',
       categoryName:    'Geral',
       mainImage:       '',
       gallery:         [],
@@ -50,8 +52,15 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
       previousPrice:   null,
       storeName:       this.marketplaceName,
       storeReputation: 'Loja Shopee',
-      reviewsRating:   undefined,
       originalUrl:     cleanUrl,
+      confidenceScore: 35, // Trigger <80% Safety Gate
+      confidenceItems: [
+        { label: 'Título oficial do anúncio', found: false, weight: 30 },
+        { label: 'Preço atual', found: false, weight: 25 },
+        { label: 'Imagem principal do produto', found: false, weight: 20 },
+        { label: 'Categoria ou Marca', found: false, weight: 15 },
+        { label: 'Descrição / Detalhes', found: false, weight: 10 },
+      ],
     };
   }
 
