@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Sparkles, Edit3, ArrowRight, Image as ImageIcon, Tag, DollarSign, ExternalLink } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Sparkles, Upload, ArrowRight, Image as ImageIcon, Tag, DollarSign, Truck, Star, Layers } from 'lucide-react';
 import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
 
 interface ProductConfirmationModalProps {
@@ -11,6 +11,21 @@ interface ProductConfirmationModalProps {
   onConfirm: (confirmedData: ExtractedProductData) => void;
   onCancel: () => void;
 }
+
+const CATEGORY_OPTIONS = [
+  'Casa e Cozinha',
+  'Eletrônicos & Celulares',
+  'Áudio & Fones',
+  'Beleza & Perfumaria',
+  'Moda & Acessórios',
+  'Ferramentas & Construção',
+  'Pet Shop',
+  'Infantil & Brinquedos',
+  'Automotivo',
+  'Esportes & Lazer',
+  'Games & Consoles',
+  'Geral',
+];
 
 export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> = ({
   data,
@@ -25,16 +40,31 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   const [image, setImage] = useState(data.mainImage || '');
   const [brand, setBrand] = useState(data.brand || '');
   const [category, setCategory] = useState(data.categoryName || 'Geral');
-  const [shipping, setShipping] = useState(data.shippingInfo || 'Frete Padrão');
-  const [isEditing, setIsEditing] = useState(data.confidenceScore < 80);
+  const [rating, setRating] = useState(data.reviewsRating ? String(data.reviewsRating) : '4.8');
+  const [shipping, setShipping] = useState(data.shippingInfo || 'Frete Grátis disponível');
 
   const isHighConfidence = data.confidenceScore >= 80;
+
+  // Handle local file upload (converts to Data URL)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setImage(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleConfirmSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const numericPrice = parseFloat(price.replace(/[^\d.,]/g, '').replace(',', '.'));
     const numericPrevPrice = parseFloat(prevPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
+    const numericRating = parseFloat(rating);
 
     const confirmed: ExtractedProductData = {
       ...data,
@@ -44,8 +74,9 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
       mainImage: image.trim(),
       brand: brand.trim() || 'Desconhecida',
       categoryName: category.trim() || 'Geral',
+      reviewsRating: isNaN(numericRating) ? 4.8 : numericRating,
       shippingInfo: shipping.trim(),
-      confidenceScore: 100, // Manually verified by user
+      confidenceScore: 100, // Manually verified & destravado pelo usuário
     };
 
     onConfirm(confirmed);
@@ -53,7 +84,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl transition-all">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl transition-all">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
@@ -61,59 +92,65 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
               {isHighConfidence ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Conferência dos Dados do Anúncio</h2>
-              <p className="text-xs text-slate-400">Verifique os dados reais do produto antes da IA criar a copy de alta conversão.</p>
+              <h2 className="text-lg font-bold text-white">
+                {isHighConfidence ? 'Conferência dos Dados do Anúncio' : '⚠️ Precisamos confirmar alguns dados do produto'}
+              </h2>
+              <p className="text-xs text-slate-400">
+                {isHighConfidence
+                  ? 'Verifique os dados reais extraídos antes da IA gerar a copy de alta conversão.'
+                  : 'O marketplace bloqueou parte das informações automáticas deste link. Confirme os dados abaixo para liberar a criação da oferta com IA.'}
+              </p>
             </div>
           </div>
 
           {/* Confidence Badge */}
-          <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${isHighConfidence ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
+          <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shrink-0 ${isHighConfidence ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
             <span className={`h-2 w-2 rounded-full ${isHighConfidence ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
             Confiança: {data.confidenceScore}%
           </div>
         </div>
 
-        {/* Warning if confidence < 80% */}
-        {!isHighConfidence && (
-          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
-            <div className="flex items-center gap-2 font-semibold">
-              <ShieldAlert className="h-4 w-4 text-amber-400" />
-              <span>Atenção: A extração automática ficou abaixo de 80%</span>
-            </div>
-            <p className="mt-1 text-slate-300">
-              O link encurtado ou a página possui proteção. Por favor, confirme o título, preço e imagem abaixo antes de liberar a IA.
-            </p>
-          </div>
-        )}
-
         {/* Form Body */}
         <form onSubmit={handleConfirmSubmit} className="mt-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Image Preview & Input */}
+            {/* 🖼️ Image Section (URL or File Upload) */}
             <div className="md:col-span-1 flex flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-950 p-3 text-center">
+              <span className="text-[11px] font-semibold text-slate-400 mb-2 flex items-center gap-1">
+                🖼️ Imagem do Produto
+              </span>
               {image ? (
-                <img src={image} alt="Produto" className="h-36 w-full object-contain rounded-lg" />
+                <img src={image} alt="Produto" className="h-36 w-full object-contain rounded-lg bg-slate-900 p-1" />
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-slate-500">
-                  <ImageIcon className="h-8 w-8 mb-2 opacity-50" />
+                <div className="flex flex-col items-center justify-center py-6 text-slate-500">
+                  <ImageIcon className="h-8 w-8 mb-1 opacity-50" />
                   <span className="text-xs">Sem Imagem</span>
                 </div>
               )}
-              {isEditing && (
+
+              <div className="mt-2 w-full space-y-1.5">
                 <input
                   type="url"
                   placeholder="URL da Imagem..."
-                  value={image}
+                  value={image.startsWith('data:') ? '' : image}
                   onChange={(e) => setImage(e.target.value)}
-                  className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-              )}
+
+                <label className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-700 bg-slate-900 py-1.5 text-[11px] font-medium text-slate-300 cursor-pointer hover:border-blue-500 hover:text-white">
+                  <Upload className="h-3.5 w-3.5 text-blue-400" />
+                  <span>Upload de Foto</span>
+                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                </label>
+              </div>
             </div>
 
             {/* Product Metadata Inputs */}
             <div className="md:col-span-2 space-y-3">
+              {/* 📌 Title */}
               <div>
-                <label className="text-xs font-medium text-slate-300">Título Oficial do Produto *</label>
+                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                  📌 Nome Oficial do Produto *
+                </label>
                 <input
                   type="text"
                   required
@@ -124,33 +161,53 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                 />
               </div>
 
+              {/* 💰 Prices */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-300">Preço Atual (R$) *</label>
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                    💰 Preço Atual (R$) *
+                  </label>
                   <input
                     type="text"
                     required
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="99,90"
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-emerald-400 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-300">Preço Anterior (R$)</label>
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                    🏷️ Preço Anterior (R$)
+                  </label>
                   <input
                     type="text"
                     value={prevPrice}
                     onChange={(e) => setPrevPrice(e.target.value)}
-                    placeholder="149,90"
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300 focus:border-blue-500 focus:outline-none"
+                    placeholder="149,90 (Opcional)"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-400 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
 
+              {/* 📂 Category & Marca */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-300">Marca</label>
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                    📂 Categoria
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+                  >
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300">Marca / Fabricante</label>
                   <input
                     type="text"
                     value={brand}
@@ -159,14 +216,32 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                     className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* ⭐ Ratings & 🚚 Shipping */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-300">Categoria</label>
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                    ⭐ Avaliação dos Compradores
+                  </label>
                   <input
                     type="text"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="Ex: Casa e Cozinha"
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
+                    value={rating}
+                    onChange={(e) => setRating(e.target.value)}
+                    placeholder="Ex: 4.8"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                    🚚 Informações de Frete
+                  </label>
+                  <input
+                    type="text"
+                    value={shipping}
+                    onChange={(e) => setShipping(e.target.value)}
+                    placeholder="Ex: Frete Grátis / Envio FULL"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -175,7 +250,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
 
           {/* Checklist de Itens Extraídos */}
           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-            <span className="text-xs font-medium text-slate-400">Checklist de Integridade da Extração:</span>
+            <span className="text-xs font-medium text-slate-400">Checklist de Integridade da Extração Automática:</span>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {data.confidenceItems.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-1.5 text-xs text-slate-300">
@@ -202,10 +277,10 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
             <button
               type="submit"
               disabled={!title.trim() || title.length < 3}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" />
-              <span>Confirmar Dados e Gerar Oferta com IA</span>
+              <span>Confirmar Dados e Gerar Oferta com IA ✨</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
