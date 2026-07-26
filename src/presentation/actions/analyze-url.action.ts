@@ -2,76 +2,90 @@
 
 import { initializeMarketplaceRegistry } from '@/infrastructure/marketplaces';
 import { AIProviderFactory } from '@/infrastructure/ai/factory/ai-provider.factory';
+import { GeminiAIAdapter, type OfferStyle, type GeminiOfferAnalysis } from '@/infrastructure/ai/providers/gemini.adapter';
 import { Product } from '@/core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-objects';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Public Types ─────────────────────────────────────────────────────────────
+
+export type { OfferStyle };
 
 export interface OfferPreview {
-  /** Serialized product data (plain object, safe for client-side) */
   product: {
-    id: string;
-    title: string;
-    description: string;
-    brand: string;
-    price: string;          // formatted BRL
-    priceAmount: number;    // raw number for saving
-    previousPrice?: string;
+    id:              string;
+    title:           string;
+    description:     string;
+    brand:           string;
+    price:           string;
+    priceAmount:     number;
+    previousPrice?:  string;
     discountPercent: string;
-    imageUrl: string;
-    originalUrl: string;
-    affiliateUrl: string;
+    imageUrl:        string;
+    originalUrl:     string;
+    affiliateUrl:    string;
     marketplaceSlug: string;
-    categoryId: string;
+    categoryId:      string;
   };
-  /** Generated AI offer content */
+  /** AI Marketing Analysis — shown in the review step */
+  analysis: {
+    publicoAlvo:        string;
+    dorQueResolve:      string;
+    beneficioPrincipal: string;
+    argumentoComercial: string;
+    anguloDeVenda:      string;
+    emocaoDeCompra:     string;
+  };
   offer: {
-    score: number;
-    scoreLabel: string;
+    score:         number;
+    scoreLabel:    string;
     justification: string;
-    cta: string;
-    hashtags: string[];
-    emojis: string[];
-    whatsAppText: string;
-    telegramText: string;
+    cta:           string;
+    hashtags:      string[];
+    emojis:        string[];
+    whatsAppText:  string;
+    telegramText:  string;
     instagramText: string;
-    facebookText: string;
-    channelText: string;
+    facebookText:  string;
+    channelText:   string;
+    storyText:     string;
+    style:         OfferStyle;
   };
 }
 
 // ─── Action ───────────────────────────────────────────────────────────────────
 
 /**
- * Analyzes a product URL and generates an offer preview.
- * DOES NOT save anything to Firestore — purely read + AI generation.
+ * Analyzes a product URL and generates an AI offer preview.
+ * DOES NOT save anything to Firestore.
  */
 export async function analyzeProductUrlAction(input: {
-  url: string;
+  url:          string;
   affiliateTag?: string;
-  userId?: string;
+  userId?:       string;
+  style?:        OfferStyle;
 }): Promise<{ success: true; data: OfferPreview } | { success: false; error: string }> {
   try {
+    const style = input.style ?? 'padrao';
+
     const registry = initializeMarketplaceRegistry();
-    const aiProvider = AIProviderFactory.getProvider('gemini');
 
-    // 1. Resolve adapter
-    const adapter = registry.getAdapterForUrl(input.url);
+    // 1. Resolve marketplace adapter
+    const adapter = registry.getAdapterForUrl(input.url.trim());
 
-    // 2. Extract real product data from URL
-    const extracted = await adapter.extractProductData(input.url);
+    // 2. Extract real product data
+    const extracted = await adapter.extractProductData(input.url.trim());
 
     // 3. Build affiliate URL
     const affiliateUrlString = await adapter.buildAffiliateLink(
-      input.url,
+      input.url.trim(),
       input.affiliateTag || 'mundolk'
     );
 
-    // 4. Construct temporary Product entity (not persisted)
-    const currentPrice    = Price.create(extracted.currentPrice || 0);
-    const previousPrice   = extracted.previousPrice ? Price.create(extracted.previousPrice) : null;
-    const discountPct     = DiscountPercentage.calculate(currentPrice, previousPrice);
-    const affiliateLink   = AffiliateLink.create(affiliateUrlString);
+    // 4. Build temporary Product entity (not persisted)
+    const currentPrice  = Price.create(extracted.currentPrice || 0);
+    const previousPrice = extracted.previousPrice ? Price.create(extracted.previousPrice) : null;
+    const discountPct   = DiscountPercentage.calculate(currentPrice, previousPrice);
+    const affiliateLink = AffiliateLink.create(affiliateUrlString);
 
     const tempProduct = new Product({
       id:                 `preview_${Date.now()}`,
@@ -92,10 +106,32 @@ export async function analyzeProductUrlAction(input: {
       updatedAt:          new Date(),
     });
 
-    // 5. Generate AI offer content (no save)
-    const aiResult = await aiProvider.generateOfferContent(tempProduct);
+    // 5. Call real AI with style preference
+    const geminiAdapter = new GeminiAIAdapter();
+    const aiResult      = await geminiAdapter.generateOfferContent(tempProduct, style);
 
-    // 6. Return serialized preview (plain objects, no class instances)
+    // 6. Extract rich analysis (or fallback to empty)
+    const analysis: GeminiOfferAnalysis = (aiResult as { analysis?: GeminiOfferAnalysis }).analysis ?? {
+      publicoAlvo:        '—',
+      dorQueResolve:      '—',
+      beneficioPrincipal: '—',
+      argumentoComercial: '—',
+      anguloDeVenda:      '—',
+      emocaoDeCompra:     '—',
+      categoria:          tempProduct.categoryId,
+      whatsAppText:       aiResult.copies.copies.whatsAppText,
+      telegramText:       aiResult.copies.copies.telegramText,
+      instagramText:      aiResult.copies.copies.instagramText,
+      facebookText:       aiResult.copies.copies.facebookText,
+      channelText:        aiResult.copies.copies.channelText,
+      storyText:          '',
+      cta:                aiResult.cta,
+      hashtags:           aiResult.hashtags,
+      emojis:             aiResult.emojis,
+      scoreValue:         aiResult.score.value,
+      scoreJustification: aiResult.score.justification,
+    };
+
     return {
       success: true,
       data: {
@@ -112,7 +148,15 @@ export async function analyzeProductUrlAction(input: {
           originalUrl:     extracted.originalUrl,
           affiliateUrl:    affiliateUrlString,
           marketplaceSlug: adapter.marketplaceSlug,
-          categoryId:      extracted.categoryName || 'Geral',
+          categoryId:      analysis.categoria || tempProduct.categoryId,
+        },
+        analysis: {
+          publicoAlvo:        analysis.publicoAlvo,
+          dorQueResolve:      analysis.dorQueResolve,
+          beneficioPrincipal: analysis.beneficioPrincipal,
+          argumentoComercial: analysis.argumentoComercial,
+          anguloDeVenda:      analysis.anguloDeVenda,
+          emocaoDeCompra:     analysis.emocaoDeCompra,
         },
         offer: {
           score:         aiResult.score.value,
@@ -126,6 +170,8 @@ export async function analyzeProductUrlAction(input: {
           instagramText: aiResult.copies.copies.instagramText,
           facebookText:  aiResult.copies.copies.facebookText,
           channelText:   aiResult.copies.copies.channelText,
+          storyText:     aiResult.copies.copies.storyText || '',
+          style,
         },
       },
     };

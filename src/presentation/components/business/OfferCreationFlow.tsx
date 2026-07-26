@@ -5,36 +5,56 @@ import {
   Link as LinkIcon, Sparkles, Loader2, CheckCircle2,
   Edit3, RefreshCcw, X, Save, Copy, Check,
   Tag, Image as ImageIcon, ArrowRight,
-  MessageCircle, Send,
+  MessageCircle, Send, Brain, Target, Heart,
+  TrendingUp, Zap, Crown, ShoppingCart, Minimize2,
 } from 'lucide-react';
-import { Button } from '../ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { Badge } from '../ui/Badge';
-import { analyzeProductUrlAction, type OfferPreview } from '@/presentation/actions/analyze-url.action';
+import { analyzeProductUrlAction, type OfferPreview, type OfferStyle } from '@/presentation/actions/analyze-url.action';
 import { saveApprovedOfferAction } from '@/presentation/actions/save-offer.action';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 
-// ─── Step Types ───────────────────────────────────────────────────────────────
+// ─── Style options ────────────────────────────────────────────────────────────
+
+interface StyleOption {
+  id:       OfferStyle;
+  label:    string;
+  desc:     string;
+  icon:     React.ElementType;
+  color:    string;
+  border:   string;
+}
+
+const STYLE_OPTIONS: StyleOption[] = [
+  { id: 'padrao',    label: 'Padrão',      desc: 'Equilibrado e persuasivo',      icon: Sparkles,    color: 'text-blue-400',   border: 'border-blue-500/40'   },
+  { id: 'elegante',  label: 'Elegante',    desc: 'Sofisticado e premium',         icon: Crown,       color: 'text-purple-400', border: 'border-purple-500/40' },
+  { id: 'urgencia',  label: 'Urgência',    desc: 'Escassez e oportunidade única', icon: Zap,         color: 'text-amber-400',  border: 'border-amber-500/40'  },
+  { id: 'promocao',  label: 'Promoção',    desc: 'Foco no preço e desconto',      icon: TrendingUp,  color: 'text-emerald-400',border: 'border-emerald-500/40'},
+  { id: 'minimalista',label: 'Minimalista',desc: 'Conciso e direto',              icon: Minimize2,   color: 'text-slate-300',  border: 'border-slate-500/40'  },
+  { id: 'emocional', label: 'Emocional',   desc: 'Apelo ao sonho e transformação',icon: Heart,       color: 'text-rose-400',   border: 'border-rose-500/40'   },
+];
+
+// ─── Flow steps ───────────────────────────────────────────────────────────────
 
 type FlowStep = 'input' | 'analyzing' | 'preview' | 'editing' | 'saving' | 'done';
 
-// ─── Copy button ──────────────────────────────────────────────────────────────
+const ANALYSIS_STEPS = [
+  { icon: '🌐', text: 'Acessando página do produto…' },
+  { icon: '🔍', text: 'Extraindo nome, imagem e preço…' },
+  { icon: '🧠', text: 'IA analisando público e benefícios…' },
+  { icon: '✍️', text: 'Criando oferta personalizada…' },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function CopyBtn({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* ignore */ }
-  };
   return (
     <button
       type="button"
-      onClick={handleCopy}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 transition"
+      onClick={async () => {
+        try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* */ }
+      }}
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
     >
       {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
       {copied ? 'Copiado!' : label}
@@ -42,24 +62,35 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
   );
 }
 
-// ─── Score badge ──────────────────────────────────────────────────────────────
-
 function ScorePill({ score, label }: { score: number; label: string }) {
-  const color =
-    score >= 80 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' :
-    score >= 50 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
-                  'bg-red-500/15 text-red-400 border-red-500/30';
+  const color = score >= 80 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+              : score >= 50 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+              :               'bg-red-500/15 text-red-400 border-red-500/30';
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold ${color}`}>
-      {score}/100 · {label}
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${color}`}>
+      {score}/100 · {label === 'EXCELLENT' ? 'Excelente' : label === 'GOOD' ? 'Boa oferta' : 'Regular'}
     </span>
+  );
+}
+
+function AnalysisCard({ icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  const Icon = icon;
+  return (
+    <div className="flex gap-2.5 p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+      <div className="mt-0.5 shrink-0">
+        <Icon className="h-4 w-4 text-blue-400" />
+      </div>
+      <div>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{label}</p>
+        <p className="text-xs text-slate-200 leading-relaxed">{value || '—'}</p>
+      </div>
+    </div>
   );
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export interface OfferCreationFlowProps {
-  /** Called after the offer is successfully saved */
   onSaved?: (productId: string, offerId: string) => void;
 }
 
@@ -67,28 +98,30 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [step, setStep]         = useState<FlowStep>('input');
-  const [url, setUrl]           = useState('');
-  const [tag, setTag]           = useState('');
-  const [error, setError]       = useState<string | null>(null);
-  const [preview, setPreview]   = useState<OfferPreview | null>(null);
+  const [step,    setStep]    = useState<FlowStep>('input');
+  const [url,     setUrl]     = useState('');
+  const [tag,     setTag]     = useState('');
+  const [style,   setStyle]   = useState<OfferStyle>('padrao');
+  const [error,   setError]   = useState<string | null>(null);
+  const [preview, setPreview] = useState<OfferPreview | null>(null);
 
-  // Editable fields
+  // Editable overrides
   const [editTitle, setEditTitle] = useState('');
   const [editCta,   setEditCta]   = useState('');
 
   const [savedIds, setSavedIds] = useState<{ productId: string; offerId: string } | null>(null);
 
-  // ── Step 1→2: Analyze URL ─────────────────────────────────────────────────
-  const handleAnalyze = useCallback(async () => {
+  // ── Analyze ───────────────────────────────────────────────────────────────
+  const handleAnalyze = useCallback(async (overrideStyle?: OfferStyle) => {
     if (!url.trim()) { setError('Cole a URL do produto.'); return; }
     setError(null);
     setStep('analyzing');
 
     const result = await analyzeProductUrlAction({
-      url: url.trim(),
+      url:          url.trim(),
       affiliateTag: tag.trim() || 'mundolk',
-      userId: user?.uid,
+      userId:       user?.uid,
+      style:        overrideStyle ?? style,
     });
 
     if (!result.success) {
@@ -100,10 +133,17 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     setPreview(result.data);
     setEditTitle(result.data.product.title);
     setEditCta(result.data.offer.cta);
+    setStyle(overrideStyle ?? style);
     setStep('preview');
-  }, [url, tag, user]);
+  }, [url, tag, user, style]);
 
-  // ── Step 3: Approve & Save ────────────────────────────────────────────────
+  // Regenerate with same or different style
+  const handleRegenerate = useCallback((newStyle?: OfferStyle) => {
+    if (newStyle) setStyle(newStyle);
+    handleAnalyze(newStyle ?? style);
+  }, [handleAnalyze, style]);
+
+  // ── Save ──────────────────────────────────────────────────────────────────
   const handleApprove = useCallback(async () => {
     if (!preview || !user) return;
     setStep('saving');
@@ -111,7 +151,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
     const result = await saveApprovedOfferAction({
       preview,
-      userId: user.uid,
+      userId:      user.uid,
       editedTitle: editTitle !== preview.product.title ? editTitle : undefined,
       editedCta:   editCta   !== preview.offer.cta    ? editCta   : undefined,
     });
@@ -129,34 +169,32 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     onSaved?.(result.productId, result.offerId);
   }, [preview, user, editTitle, editCta, queryClient, onSaved]);
 
-  // ── Reset ─────────────────────────────────────────────────────────────────
   const handleReset = () => {
-    setStep('input');
-    setUrl('');
-    setTag('');
-    setPreview(null);
-    setError(null);
-    setSavedIds(null);
+    setStep('input'); setUrl(''); setTag('');
+    setPreview(null); setError(null); setSavedIds(null);
   };
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ──────────────────────────────────────────────────────────────────────────
 
-  // Step: Input
+  // ── Step: Input ──────────────────────────────────────────────────────────
   if (step === 'input') {
     return (
-      <Card className="p-6 border-blue-500/20 bg-slate-900/90">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400">
-            <Sparkles className="h-5 w-5" />
+      <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-6 space-y-5 shadow-xl">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 border border-blue-500/20">
+            <Brain className="h-5 w-5 text-blue-400" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Criar Nova Oferta com IA</h3>
-            <p className="text-xs text-slate-400">Cole o link de afiliado — a IA analisa o produto e gera o anúncio completo para revisão.</p>
+            <h3 className="text-sm font-bold text-white">Criar Nova Oferta com IA Real</h3>
+            <p className="text-xs text-slate-400 mt-0.5">A IA analisa o produto individualmente e cria uma oferta única — nunca genérica.</p>
           </div>
         </div>
 
+        {/* URL */}
         <div className="space-y-3">
-          {/* URL */}
           <div className="relative">
             <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <input
@@ -164,121 +202,148 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-              placeholder="https://mercadolivre.com.br/produto... ou shopee.com.br/..."
+              placeholder="https://mercadolivre.com.br/... ou shopee.com.br/..."
               className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>
-
-          {/* Affiliate tag (optional) */}
           <div className="relative">
             <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <input
               type="text"
               value={tag}
               onChange={(e) => setTag(e.target.value)}
-              placeholder="Tag de afiliado (opcional — ex: mundolk)"
+              placeholder="Tag de afiliado (opcional)"
               className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>
+        </div>
 
-          {error && (
-            <p className="text-xs text-red-400 font-medium">{error}</p>
-          )}
-
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="primary"
-              className="text-xs font-bold px-6"
-              onClick={handleAnalyze}
-              rightIcon={<ArrowRight className="h-4 w-4" />}
-            >
-              Analisar Produto
-            </Button>
+        {/* Style selector */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 mb-2.5 flex items-center gap-1.5">
+            <Target className="h-3.5 w-3.5" />
+            Estilo da oferta
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {STYLE_OPTIONS.map((s) => {
+              const Icon    = s.icon;
+              const active  = style === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setStyle(s.id)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition ${
+                    active
+                      ? `${s.border} bg-slate-800 ${s.color}`
+                      : 'border-slate-800 bg-slate-950/50 text-slate-500 hover:border-slate-700 hover:text-slate-300'
+                  }`}
+                >
+                  <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? s.color : 'text-slate-600'}`} />
+                  <span className="text-[11px] font-semibold leading-tight">{s.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
-      </Card>
+
+        {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => handleAnalyze()}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-lg shadow-blue-500/20"
+          >
+            <Brain className="h-4 w-4" />
+            Analisar com IA
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     );
   }
 
-  // Step: Analyzing
+  // ── Step: Analyzing ──────────────────────────────────────────────────────
   if (step === 'analyzing') {
-    const steps = [
-      'Acessando página do produto…',
-      'Extraindo nome, imagem e preço…',
-      'Identificando categoria…',
-      'Gerando anúncio com IA…',
-    ];
     return (
-      <Card className="p-6 border-blue-500/20 bg-slate-900/90">
-        <div className="flex items-center gap-3 mb-6">
+      <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-6 space-y-4 shadow-xl">
+        <div className="flex items-center gap-3">
           <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-          <h3 className="text-sm font-bold text-white">Analisando produto…</h3>
+          <h3 className="text-sm font-bold text-white">IA analisando produto…</h3>
         </div>
-        <div className="space-y-2">
-          {steps.map((s, i) => (
-            <div key={i} className="flex items-center gap-2.5 text-xs text-slate-400">
-              <Loader2 className="h-3 w-3 animate-spin text-blue-400 shrink-0" style={{ animationDelay: `${i * 0.3}s` }} />
-              {s}
+        <div className="space-y-2.5">
+          {ANALYSIS_STEPS.map((s, i) => (
+            <div key={i} className="flex items-center gap-3 text-xs">
+              <span className="text-base">{s.icon}</span>
+              <span className="text-slate-400">{s.text}</span>
+              <Loader2 className="h-3 w-3 animate-spin text-blue-400 ml-auto" style={{ animationDelay: `${i * 0.4}s` }} />
             </div>
           ))}
         </div>
-      </Card>
+        <div className="text-[11px] text-slate-500 pt-1">
+          Estilo selecionado: <span className="font-semibold text-blue-400">{STYLE_OPTIONS.find(s => s.id === style)?.label}</span>
+        </div>
+      </div>
     );
   }
 
-  // Step: Done
+  // ── Step: Done ───────────────────────────────────────────────────────────
   if (step === 'done' && savedIds) {
     return (
-      <Card className="p-6 border-emerald-500/30 bg-emerald-500/5">
-        <div className="flex items-center gap-3 mb-4">
-          <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <CheckCircle2 className="h-8 w-8 text-emerald-400 shrink-0" />
           <div>
             <h3 className="text-base font-bold text-white">Oferta salva com sucesso!</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Produto e anúncio foram salvos e já aparecem em Minhas Ofertas.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Produto e anúncio já aparecem no Dashboard e Minhas Ofertas.</p>
           </div>
         </div>
-        <div className="text-xs text-slate-500 font-mono mb-4">
-          Produto: {savedIds.productId} · Oferta: {savedIds.offerId}
-        </div>
-        <Button type="button" variant="secondary" className="text-xs" onClick={handleReset}>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 text-xs font-semibold hover:bg-slate-800 transition"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
           Criar outra oferta
-        </Button>
-      </Card>
+        </button>
+      </div>
     );
   }
 
-  // Step: Preview / Editing
+  // ── Step: Preview / Editing / Saving ─────────────────────────────────────
   if ((step === 'preview' || step === 'editing' || step === 'saving') && preview) {
-    const p = preview.product;
-    const o = preview.offer;
+    const p        = preview.product;
+    const a        = preview.analysis;
+    const o        = preview.offer;
     const isEditing = step === 'editing';
     const isSaving  = step === 'saving';
+
+    const currentStyleOption = STYLE_OPTIONS.find(s => s.id === o.style)!;
 
     return (
       <div className="space-y-4">
 
-        {/* ── Header ───────────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-blue-400" />
-            Prévia da Oferta — Revisar antes de salvar
+            <Brain className="h-4 w-4 text-blue-400" />
+            Análise da IA — Revisar antes de salvar
           </h3>
-          <button type="button" onClick={handleReset} className="text-slate-500 hover:text-slate-300 transition">
+          <button type="button" onClick={handleReset} className="text-slate-500 hover:text-slate-300 transition p-1">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-medium text-red-400">
-            {error}
-          </div>
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-medium text-red-400">{error}</div>
         )}
 
-        <Card className="p-5 border-blue-500/20 bg-slate-900/90">
+        {/* ── Product Card ─────────────────────────────────────────────── */}
+        <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-5 space-y-4">
 
-          {/* ── Product image + title ─────────────────────────────── */}
-          <div className="flex gap-4 mb-5">
+          {/* Image + Title + Price */}
+          <div className="flex gap-4">
             {p.imageUrl ? (
               <img
                 src={p.imageUrl}
@@ -292,7 +357,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
               </div>
             )}
 
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-1.5 min-w-0">
               {isEditing ? (
                 <input
                   type="text"
@@ -301,48 +366,57 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                   className="w-full bg-slate-950 border border-blue-500 rounded-lg px-3 py-2 text-sm font-bold text-white"
                 />
               ) : (
-                <p className="text-sm font-bold text-white leading-snug">{editTitle}</p>
+                <p className="text-sm font-bold text-white leading-snug line-clamp-2">{editTitle}</p>
               )}
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="info">{p.marketplaceSlug}</Badge>
-                <Badge variant="neutral">{p.categoryId}</Badge>
-                <ScorePill score={o.score} label={o.scoreLabel} />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded-full bg-blue-600/15 border border-blue-500/20 text-[10px] font-semibold text-blue-300">{p.marketplaceSlug}</span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-700 border border-slate-600 text-[10px] font-semibold text-slate-300">{p.categoryId}</span>
+                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${currentStyleOption.border} ${currentStyleOption.color}`}>
+                  {currentStyleOption.label}
+                </span>
               </div>
 
               <div className="flex items-baseline gap-2">
                 <span className="text-lg font-bold text-emerald-400">{p.price}</span>
-                {p.discountPercent && p.discountPercent !== '0%' && (
-                  <span className="text-xs text-slate-400 line-through">{p.previousPrice}</span>
-                )}
-                {p.discountPercent && p.discountPercent !== '0%' && (
-                  <span className="text-xs font-bold text-emerald-400">-{p.discountPercent}</span>
+                {p.previousPrice && p.discountPercent !== '0%' && (
+                  <>
+                    <span className="text-xs text-slate-500 line-through">{p.previousPrice}</span>
+                    <span className="text-xs font-bold text-emerald-400">-{p.discountPercent}</span>
+                  </>
                 )}
               </div>
+
+              <ScorePill score={o.score} label={o.scoreLabel} />
             </div>
           </div>
 
-          {/* ── Category + Brand ─────────────────────────────────────── */}
-          <div className="grid grid-cols-2 gap-3 mb-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
-            <div>
-              <span className="text-slate-500 block mb-0.5">Categoria</span>
-              <span className="font-semibold text-slate-200">{p.categoryId}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block mb-0.5">Marca</span>
-              <span className="font-semibold text-slate-200">{p.brand || '—'}</span>
+          {/* ── AI REASONING SECTION ─────────────────────────────────── */}
+          <div className="rounded-xl border border-blue-500/15 bg-blue-950/20 p-4 space-y-2">
+            <p className="text-xs font-bold text-blue-400 flex items-center gap-2 mb-3">
+              <Brain className="h-3.5 w-3.5" />
+              Raciocínio da IA sobre este produto
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <AnalysisCard icon={Target}     label="Público-alvo"       value={a.publicoAlvo} />
+              <AnalysisCard icon={Heart}      label="Dor que resolve"    value={a.dorQueResolve} />
+              <AnalysisCard icon={TrendingUp} label="Benefício principal" value={a.beneficioPrincipal} />
+              <AnalysisCard icon={Sparkles}   label="Ângulo de venda"    value={a.anguloDeVenda} />
+              <AnalysisCard icon={Brain}      label="Emoção de compra"   value={a.emocaoDeCompra} />
+              <AnalysisCard icon={ShoppingCart} label="Argumento principal" value={a.argumentoComercial} />
             </div>
           </div>
 
-          {/* ── AI Diagnosis ─────────────────────────────────────────── */}
-          <div className="mb-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <span className="text-xs font-semibold text-blue-400 block mb-1">Diagnóstico IA:</span>
+          {/* ── Score justification ───────────────────────────────────── */}
+          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Avaliação da Oferta</p>
             <p className="text-xs text-slate-300 leading-relaxed">{o.justification}</p>
           </div>
 
           {/* ── CTA ──────────────────────────────────────────────────── */}
-          <div className="mb-4">
-            <span className="text-xs font-semibold text-slate-300 block mb-1.5">Chamada para Ação (CTA):</span>
+          <div>
+            <p className="text-xs font-semibold text-slate-400 mb-1.5">Chamada para Ação:</p>
             {isEditing ? (
               <input
                 type="text"
@@ -351,46 +425,48 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                 className="w-full bg-slate-950 border border-blue-500 rounded-lg px-3 py-2 text-xs text-white"
               />
             ) : (
-              <p className="text-xs text-slate-200 font-medium">{editCta}</p>
+              <p className="text-sm font-semibold text-white">{editCta}</p>
             )}
           </div>
 
-          {/* ── Hashtags + Emojis ─────────────────────────────────────── */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
+          {/* ── Hashtags + Emojis ──────────────────────────────────────── */}
+          <div className="flex flex-wrap gap-1.5">
+            {o.emojis.map((e, i) => (
+              <span key={i} className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-sm">{e}</span>
+            ))}
             {o.hashtags.map((h) => (
               <span key={h} className="px-2 py-0.5 rounded-full bg-blue-600/10 border border-blue-500/20 text-[11px] text-blue-400 font-mono">{h}</span>
             ))}
-            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px] text-slate-300">{o.emojis.join(' ')}</span>
           </div>
 
-          {/* ── Copies preview ───────────────────────────────────────── */}
-          <div className="space-y-3 mb-5">
-            <span className="text-xs font-semibold text-slate-300">Textos gerados pela IA:</span>
-
+          {/* ── Copies ───────────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-400">Copys geradas pela IA:</p>
             {[
-              { label: '📱 WhatsApp',  text: o.whatsAppText,  channel: 'WhatsApp'  },
-              { label: '✈️ Telegram',  text: o.telegramText,  channel: 'Telegram'  },
-              { label: '📸 Instagram', text: o.instagramText, channel: 'Instagram' },
-            ].map(({ label, text, channel }) => (
-              <div key={channel} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+              { icon: '📱', label: 'WhatsApp',  text: o.whatsAppText,  ch: 'WhatsApp'  },
+              { icon: '✈️', label: 'Telegram',  text: o.telegramText,  ch: 'Telegram'  },
+              { icon: '📸', label: 'Instagram', text: o.instagramText, ch: 'Instagram' },
+              { icon: '📢', label: 'Canal',     text: o.channelText,   ch: 'Canal'     },
+            ].map(({ icon, label, text, ch }) => (
+              <div key={ch} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold text-slate-400">{label}</span>
-                  <CopyBtn text={text} label={`Copiar ${channel}`} />
+                  <span className="text-[11px] font-bold text-slate-400">{icon} {label}</span>
+                  <CopyBtn text={text} label={`Copiar`} />
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-line line-clamp-4">{text || '—'}</p>
               </div>
             ))}
           </div>
 
-          {/* ── Share buttons ───────────────────────────────────────── */}
-          <div className="flex flex-wrap gap-2 mb-5 pt-3 border-t border-slate-800">
+          {/* ── Quick share ───────────────────────────────────────────── */}
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-800">
             <button
               type="button"
               onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(o.whatsAppText)}`, '_blank')}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition"
             >
               <MessageCircle className="h-3.5 w-3.5" />
-              Enviar WhatsApp
+              WhatsApp
             </button>
             <button
               type="button"
@@ -398,57 +474,87 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white transition"
             >
               <Send className="h-3.5 w-3.5" />
-              Enviar Telegram
+              Telegram
             </button>
           </div>
+        </div>
 
-          {/* ── Action buttons ───────────────────────────────────────── */}
-          <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-slate-800">
-            {/* Approve & Save */}
-            <button
-              type="button"
-              onClick={handleApprove}
-              disabled={isSaving}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-lg shadow-emerald-500/20"
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isSaving ? 'Salvando…' : '✅ Aprovar e Salvar'}
-            </button>
-
-            {/* Edit */}
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={() => setStep(isEditing ? 'preview' : 'editing')}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition"
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-              {isEditing ? 'Concluir Edição' : '✏️ Editar Oferta'}
-            </button>
-
-            {/* Regenerate */}
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={handleAnalyze}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition"
-            >
-              <RefreshCcw className="h-3.5 w-3.5" />
-              🔄 Nova Descrição
-            </button>
-
-            {/* Cancel */}
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={handleReset}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-semibold transition"
-            >
-              <X className="h-3.5 w-3.5" />
-              ❌ Cancelar
-            </button>
+        {/* ── Style switcher ────────────────────────────────────────────── */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
+          <p className="text-xs font-bold text-slate-300 flex items-center gap-2">
+            <RefreshCcw className="h-3.5 w-3.5 text-blue-400" />
+            🎯 Alterar estilo e gerar nova abordagem:
+          </p>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {STYLE_OPTIONS.map((s) => {
+              const Icon   = s.icon;
+              const active = o.style === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => handleRegenerate(s.id)}
+                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition text-[10px] font-semibold ${
+                    active
+                      ? `${s.border} bg-slate-800 ${s.color}`
+                      : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700 hover:text-slate-300'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${active ? s.color : 'text-slate-600'}`} />
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
-        </Card>
+        </div>
+
+        {/* ── Action buttons ────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Approve & Save */}
+          <button
+            type="button"
+            onClick={handleApprove}
+            disabled={isSaving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-lg shadow-emerald-500/20"
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {isSaving ? 'Salvando…' : '✅ Aprovar e Salvar'}
+          </button>
+
+          {/* Edit toggle */}
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => setStep(isEditing ? 'preview' : 'editing')}
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+            {isEditing ? 'Concluir edição' : '✏️ Editar'}
+          </button>
+
+          {/* Regenerate same style */}
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => handleRegenerate()}
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition"
+          >
+            <RefreshCcw className="h-3.5 w-3.5" />
+            🔄 Nova oferta
+          </button>
+
+          {/* Cancel */}
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={handleReset}
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-semibold transition"
+          >
+            <X className="h-3.5 w-3.5" />
+            ❌ Cancelar
+          </button>
+        </div>
       </div>
     );
   }

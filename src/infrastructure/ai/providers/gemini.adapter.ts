@@ -3,325 +3,291 @@ import { Product } from '../../../core/domain/entities/product.entity';
 import { ChannelContent } from '../../../core/domain/value-objects/channel-content.vo';
 import { AICost } from '../../../core/domain/value-objects/ai-cost.vo';
 import { Score } from '../../../core/domain/entities/score.entity';
-import { AIMemoryService } from '../strategies/ai-memory.service';
 
-// ─── Category Classification ──────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface CategoryProfile {
-  name: string;
-  keywords: string[];
+export type OfferStyle =
+  | 'padrao'
+  | 'elegante'
+  | 'urgencia'
+  | 'promocao'
+  | 'minimalista'
+  | 'emocional';
+
+export interface GeminiOfferAnalysis {
+  /** Internal reasoning — shown in preview UI */
+  publicoAlvo: string;
+  dorQueResolve: string;
+  beneficioPrincipal: string;
+  argumentoComercial: string;
+  anguloDeVenda: string;
+  emocaoDeCompra: string;
+
+  /** Generated content */
+  categoria: string;
+  whatsAppText: string;
+  telegramText: string;
+  instagramText: string;
+  facebookText: string;
+  channelText: string;
+  storyText: string;
+  cta: string;
+  hashtags: string[];
   emojis: string[];
-  sellingPoints: string[];
-  audience: string;
-  ctaStyle: string;
+  scoreValue: number;
+  scoreJustification: string;
 }
 
-const CATEGORY_PROFILES: CategoryProfile[] = [
-  {
-    name: 'Casa e Cozinha',
-    keywords: [
-      'garrafa', 'térmica', 'copo', 'panela', 'frigideira', 'cafeteira', 'liquidificador',
-      'batedeira', 'torradeira', 'chaleira', 'coador', 'escorredor', 'bowl', 'prato',
-      'caneca', 'cozinha', 'doméstico', 'utensílio', 'forma', 'assadeira', 'faca',
-      'tábua', 'tempero', 'garrafa', 'squeeze', 'jarra', 'porta', 'organizador',
-    ],
-    emojis: ['☕', '🍳', '🏠', '💧', '🫙', '🍽️'],
-    sellingPoints: ['hidratação', 'praticidade no dia a dia', 'qualidade doméstica', 'facilidade de uso', 'durabilidade'],
-    audience: 'donas de casa, cozinheiros amadores, amantes de cozinha',
-    ctaStyle: 'Ideal para sua cozinha! Aproveite antes que esgote!',
-  },
-  {
-    name: 'Eletrodomésticos',
-    keywords: [
-      'air fryer', 'fritadeira', 'micro-ondas', 'geladeira', 'fogão', 'forno', 'lava-louças',
-      'máquina de lavar', 'secadora', 'purificador', 'aspirador', 'ferro', 'lavadora',
-      'depurador', 'climatizador', 'ventilador', 'ar-condicionado', 'eletrodoméstico',
-    ],
-    emojis: ['🏠', '⚡', '🔌', '🌡️', '✨'],
-    sellingPoints: ['economia de energia', 'tecnologia avançada', 'facilidade de uso', 'desempenho superior', 'garantia do fabricante'],
-    audience: 'famílias, novos lares, quem está reformando a cozinha',
-    ctaStyle: 'Transforme sua casa! Oferta por tempo limitado!',
-  },
-  {
-    name: 'Eletrônicos',
-    keywords: [
-      'smartphone', 'celular', 'iphone', 'samsung', 'xiaomi', 'notebook', 'computador',
-      'tablet', 'ipad', 'monitor', 'teclado', 'mouse', 'headset', 'placa', 'processador',
-      'ssd', 'hd', 'memória', 'ram', 'gpu', 'impressora', 'scanner', 'projetor', 'tv',
-      'televisão', 'smart tv', 'controle', 'câmera', 'câmara digital', 'smartwatch',
-    ],
-    emojis: ['📱', '💻', '⚡', '🔋', '🖥️'],
-    sellingPoints: ['alta performance', 'tecnologia de ponta', 'conectividade', 'tela de qualidade', 'bateria duradoura'],
-    audience: 'gamers, profissionais de tecnologia, entusiastas de gadgets',
-    ctaStyle: 'Tecnologia incrível pelo melhor preço! Compre agora!',
-  },
-  {
-    name: 'Áudio e Fones',
-    keywords: [
-      'fone', 'headphone', 'earphone', 'earbuds', 'headset', 'bluetooth', 'sem fio',
-      'caixa de som', 'speaker', 'soundbar', 'anc', 'noise cancelling', 'hi-fi',
-      'áudio', 'som', 'musical', 'reprodutor',
-    ],
-    emojis: ['🎧', '🎶', '🔊', '🎵', '🎤'],
-    sellingPoints: ['som de alta qualidade', 'cancelamento de ruído', 'bateria longa', 'conforto ergonômico', 'conexão estável'],
-    audience: 'amantes de música, gamers, trabalhadores remotos',
-    ctaStyle: 'Som incrível na sua vida! Aproveite o desconto!',
-  },
-  {
-    name: 'Moda e Vestuário',
-    keywords: [
-      'camiseta', 'camisa', 'calça', 'jeans', 'bermuda', 'vestido', 'blusa', 'saia',
-      'jaqueta', 'casaco', 'moletom', 'shorts', 'pijama', 'roupa', 'roupas', 'moda',
-      'conjunto', 'suit', 'terno', 'gravata', 'meias', 'cueca', 'calcinha', 'sutiã',
-    ],
-    emojis: ['👗', '👕', '👖', '✨', '🛍️'],
-    sellingPoints: ['estilo moderno', 'conforto no uso', 'material de qualidade', 'caimento perfeito', 'versatilidade'],
-    audience: 'fashionistas, pessoas que buscam conforto e estilo',
-    ctaStyle: 'Vista-se com estilo! Oferta imperdível!',
-  },
-  {
-    name: 'Calçados',
-    keywords: [
-      'tênis', 'sapato', 'sandália', 'chinelo', 'bota', 'coturnos', 'mocassim', 'sapatênis',
-      'salto', 'scarpin', 'rasteira', 'alpargata', 'calçado', 'solado', 'palmilha',
-    ],
-    emojis: ['👟', '👠', '👞', '🏃', '✨'],
-    sellingPoints: ['conforto nos pés', 'solado resistente', 'design moderno', 'durabilidade', 'estilo versátil'],
-    audience: 'esportistas, fashionistas, trabalhadores ativos',
-    ctaStyle: 'Pise com estilo! Garanta o seu par agora!',
-  },
-  {
-    name: 'Beleza e Perfumaria',
-    keywords: [
-      'perfume', 'colônia', 'desodorante', 'creme', 'hidratante', 'protetor solar', 'maquiagem',
-      'batom', 'base', 'pó', 'rímel', 'delineador', 'sombra', 'shampoo', 'condicionador',
-      'sérum', 'tônico', 'máscara facial', 'esfoliante', 'beleza', 'cosmético', 'skin care',
-    ],
-    emojis: ['💄', '✨', '🌸', '💆', '💅'],
-    sellingPoints: ['pele radiante', 'fragrância envolvente', 'formulação premium', 'resultados visíveis', 'ingredientes naturais'],
-    audience: 'mulheres modernas, entusiastas de beleza, quem cuida da aparência',
-    ctaStyle: 'Cuide-se com o melhor! Aproveite a promoção!',
-  },
-  {
-    name: 'Esporte e Fitness',
-    keywords: [
-      'academia', 'halteres', 'barra', 'kettlebell', 'esteira', 'bicicleta', 'ergométrica',
-      'elastico', 'faixa', 'tatame', 'tapete', 'luva', 'cotoveleira', 'joelheira', 'protetor',
-      'suplemento', 'whey', 'creatina', 'proteína', 'pré-treino', 'vitamina', 'fitness', 'treino',
-    ],
-    emojis: ['💪', '🏋️', '🏃', '⚡', '🎯'],
-    sellingPoints: ['máximo desempenho', 'recuperação acelerada', 'resistência superior', 'resultados comprovados', 'qualidade profissional'],
-    audience: 'atletas, frequentadores de academia, pessoas ativas',
-    ctaStyle: 'Evolua seus resultados! Oferta por tempo limitado!',
-  },
-  {
-    name: 'Infantil e Bebê',
-    keywords: [
-      'bebê', 'criança', 'infantil', 'brinquedo', 'boneca', 'carrinho', 'puzzle', 'jogo',
-      'lego', 'pelúcia', 'fraldas', 'mamadeira', 'chupeta', 'berço', 'cercadinho',
-      'andador', 'banheira', 'escorregador', 'balanço',
-    ],
-    emojis: ['👶', '🧸', '🎈', '🌈', '⭐'],
-    sellingPoints: ['segurança certificada', 'material atóxico', 'estimula o desenvolvimento', 'durabilidade para brincadeiras', 'diversão garantida'],
-    audience: 'pais, mães, avós, familiares com crianças',
-    ctaStyle: 'A melhor escolha para seu pequeno! Aproveite!',
-  },
-  {
-    name: 'Automotivo',
-    keywords: [
-      'carro', 'auto', 'veículo', 'pneu', 'rodas', 'óleo', 'filtro', 'bateria',
-      'som automotivo', 'câmera de ré', 'gps', 'suporte veicular', 'carregador veicular',
-      'tapete automotivo', 'acessório automotivo',
-    ],
-    emojis: ['🚗', '⚙️', '🔧', '🛞', '⚡'],
-    sellingPoints: ['performance do veículo', 'segurança na estrada', 'instalação fácil', 'compatibilidade universal', 'qualidade certificada'],
-    audience: 'motoristas, entusiastas de automóveis, mecânicos',
-    ctaStyle: 'Melhore seu carro agora! Não perca essa oferta!',
-  },
-];
+// ─── Prompt Builder ───────────────────────────────────────────────────────────
 
-const GENERIC_PROFILE: CategoryProfile = {
-  name: 'Geral',
-  keywords: [],
-  emojis: ['🔥', '💥', '🛒', '⚡', '😱'],
-  sellingPoints: ['ótimo custo-benefício', 'qualidade garantida', 'entrega rápida', 'produto original'],
-  audience: 'consumidores em geral',
-  ctaStyle: 'Aproveite essa oferta antes que esgote!',
-};
+function buildMarketingPrompt(product: Product, style: OfferStyle): string {
+  const stylePtBR: Record<OfferStyle, string> = {
+    padrao:     'equilibrado e persuasivo, com apelo emocional e racional combinados',
+    elegante:   'sofisticado, premium, voltado para status e qualidade — sem exageros',
+    urgencia:   'gerando senso de urgência extremo, escassez e oportunidade única',
+    promocao:   'focado no preço, desconto e valor de custo-benefício',
+    minimalista:'conciso, direto, sem floreios — máximo impacto com poucas palavras',
+    emocional:  'apela à emoção, sonhos, aspirações e transformação de vida do comprador',
+  };
 
-/**
- * Classifies a product title into a known category.
- * Returns the category profile and a confidence score (0–1).
- */
-function classifyProduct(title: string, description: string, categoryName: string): { profile: CategoryProfile; confidence: number } {
-  const searchText = `${title} ${description} ${categoryName}`.toLowerCase();
-  const tokens = searchText.split(/\s+/);
+  const price    = product.currentPrice.formatBRL();
+  const discount = product.discountPercentage.hasDiscount()
+    ? `${product.discountPercentage.formatString()} OFF (de ${product.previousPrice?.formatBRL() ?? '?'} por ${price})`
+    : `preço atual: ${price}`;
 
-  let bestProfile = GENERIC_PROFILE;
-  let bestScore = 0;
+  return `Você é uma especialista em marketing digital, copywriting e psicologia do consumidor brasileiro.
+Sua tarefa é analisar um produto de afiliado e criar uma oferta ÚNICA e PERSONALIZADA para ele.
 
-  for (const profile of CATEGORY_PROFILES) {
-    let hits = 0;
-    let totalWeight = 0;
+PRODUTO PARA ANÁLISE:
+Nome: ${product.title}
+Descrição: ${product.description || 'Não disponível'}
+Marca: ${product.brand || 'Não informada'}
+Categoria registrada: ${product.categoryId || 'Não definida'}
+Preço: ${discount}
+Marketplace: ${product.marketplaceSlug}
 
-    for (const keyword of profile.keywords) {
-      const kwTokens = keyword.toLowerCase().split(/\s+/);
-      totalWeight++;
-      // multi-word keyword matching
-      if (kwTokens.length > 1) {
-        if (searchText.includes(keyword.toLowerCase())) {
-          hits += 2; // multi-word match is stronger
-          totalWeight++;
-        }
-      } else {
-        if (tokens.some((t) => t === kwTokens[0] || t.startsWith(kwTokens[0]))) {
-          hits++;
-        }
-      }
-    }
+━━━ INSTRUÇÕES DE ANÁLISE ━━━
 
-    const score = totalWeight > 0 ? hits / totalWeight : 0;
-    if (score > bestScore) {
-      bestScore = score;
-      bestProfile = profile;
-    }
+PASSO 1 — ENTENDER O PRODUTO
+Analise profundamente o produto acima. Pense:
+- O que esse produto FAZ de verdade?
+- Qual DOR ou NECESSIDADE ele resolve?
+- Quem seria o comprador ideal?
+- Por que essa pessoa compraria HOJE?
+- Qual é o argumento mais forte para vender esse produto?
+- Qual emoção leva à compra (medo de perder, desejo, praticidade, status, economia)?
+
+PASSO 2 — CRIAR A OFERTA
+Com base na análise, crie textos ÚNICOS para esse produto.
+Estilo da oferta: ${stylePtBR[style]}
+
+NÃO use:
+- Frases genéricas como "produto de alta qualidade"
+- Estruturas repetitivas como "Produto X com características Y e Z"
+- Linguagem de catálogo
+
+USE:
+- Linguagem de vendedor consultivo brasileiro
+- Apelo ao benefício real, não à característica
+- Emojis estratégicos (não excessivos)
+- Chamada para ação irresistível
+- Tom adequado para WhatsApp, Telegram e Instagram
+
+━━━ RESPOSTA OBRIGATÓRIA EM JSON ━━━
+
+Responda SOMENTE com este JSON válido, sem markdown, sem explicações:
+
+{
+  "publicoAlvo": "descrição precisa de quem compraria esse produto (ex: mães de crianças pequenas, universitários, profissionais que viajam muito...)",
+  "dorQueResolve": "problema real que o produto resolve na vida dessa pessoa",
+  "beneficioPrincipal": "o maior benefício percebido pelo comprador",
+  "argumentoComercial": "o argumento de venda mais forte para esse produto específico",
+  "anguloDeVenda": "nome do ângulo escolhido (ex: conveniência, status, economia, transformação, urgência...)",
+  "emocaoDeCompra": "emoção principal que leva à compra desse produto",
+  "categoria": "categoria correta do produto em português (ex: Casa e Cozinha, Eletrônicos, Moda, Beleza, Esporte, Infantil, Automotivo, etc.)",
+  "whatsAppText": "texto completo para WhatsApp com emojis, máximo 300 caracteres, inclui link de afiliado no final usando: ${product.affiliateUrl.url}",
+  "telegramText": "texto para Telegram com HTML básico (<b>negrito</b>) e link ao final",
+  "instagramText": "legenda para Instagram com emojis e hashtags no final, até 5 hashtags",
+  "facebookText": "post para Facebook, mais descritivo, 2-3 parágrafos",
+  "channelText": "anúncio para canal/grupo de afiliados, objetivo e direto",
+  "storyText": "texto curto para story Instagram/WhatsApp, máximo 80 caracteres + emoji",
+  "cta": "chamada para ação principal, máximo 12 palavras",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6", "#tag7", "#tag8"],
+  "emojis": ["emoji1", "emoji2", "emoji3", "emoji4"],
+  "scoreValue": numero de 0 a 100 representando o potencial de venda desta oferta,
+  "scoreJustification": "justificativa em 1-2 frases de por que esse score"
+}`;
+}
+
+// ─── Gemini API caller ────────────────────────────────────────────────────────
+
+async function callGeminiAPI(prompt: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || apiKey.startsWith('demo_')) {
+    throw new Error('GEMINI_API_KEY não configurada. Adicione a chave no arquivo .env.local');
   }
 
-  // Normalize confidence to 0.50–0.99 range when there's any match, else 0.30
-  const confidence = bestScore > 0 ? Math.min(0.50 + bestScore * 1.5, 0.99) : 0.30;
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature:     0.85,   // Criatividade alta para cópias únicas
+          maxOutputTokens: 2048,
+          topP:            0.95,
+          topK:            40,
+        },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+        ],
+      }),
+    }
+  );
 
-  return { profile: bestProfile, confidence };
+  if (!response.ok) {
+    const errText = await response.text().catch(() => response.statusText);
+    throw new Error(`Gemini API error ${response.status}: ${errText}`);
+  }
+
+  const data = await response.json() as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    error?: { message: string };
+  };
+
+  if (data.error) throw new Error(`Gemini API: ${data.error.message}`);
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  if (!text) throw new Error('Gemini retornou resposta vazia.');
+  return text;
 }
 
-// ─── Copy Generator (category-aware) ─────────────────────────────────────────
+function parseGeminiJSON(raw: string): GeminiOfferAnalysis {
+  // Strip potential markdown code fences
+  const clean = raw
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
 
-function buildCopies(product: Product, profile: CategoryProfile, formattedPrice: string, discountText: string) {
-  const emoji1 = profile.emojis[0] || '🔥';
-  const emoji2 = profile.emojis[1] || '💥';
-  const emoji3 = profile.emojis[2] || '🛒';
-  const sellingPt = profile.sellingPoints.slice(0, 2).join(', ');
-  const cta = `${emoji3} ${profile.ctaStyle}`;
+  try {
+    return JSON.parse(clean) as GeminiOfferAnalysis;
+  } catch {
+    // Try to extract JSON from the middle of the response
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]) as GeminiOfferAnalysis;
+    }
+    throw new Error('Resposta da IA não é um JSON válido.');
+  }
+}
+
+// ─── Fallback (when API key not set) ─────────────────────────────────────────
+
+function buildFallbackAnalysis(product: Product): GeminiOfferAnalysis {
+  const title    = product.title;
+  const price    = product.currentPrice.formatBRL();
+  const discount = product.discountPercentage.hasDiscount()
+    ? ` com ${product.discountPercentage.formatString()} de desconto`
+    : '';
   const url = product.affiliateUrl.url;
 
   return {
-    shortText: `${emoji1} ${product.title} por apenas ${formattedPrice}${discountText}!`,
-    mediumText: `${emoji2} ${product.title}\n\n💰 Por apenas: *${formattedPrice}*${discountText}\n✅ ${sellingPt}\n\n${cta}`,
-    longText: `${emoji1} OFERTA IMPERDÍVEL!\n\n${product.title}\n\n📦 Destaques:\n${profile.sellingPoints.map((p) => `• ${p}`).join('\n')}\n\n💰 Preço: ${formattedPrice}${discountText}\n\n🔗 ${url}`,
-    whatsAppText: `${emoji1} *OFERTA ${profile.name.toUpperCase()}!*\n\n*${product.title}*\n\n${product.previousPrice ? `💰 De: ~${product.previousPrice.formatBRL()}~\n` : ''}💥 Por apenas: *${formattedPrice}* ${discountText}\n\n✅ ${sellingPt}\n\n🛒 *Compre aqui:* ${url}`,
-    telegramText: `${emoji1} <b>OFERTA ${profile.name.toUpperCase()}!</b>\n\n<b>${product.title}</b>\n\n${product.previousPrice ? `💰 De: <s>${product.previousPrice.formatBRL()}</s>\n` : ''}💥 Por: <b>${formattedPrice}</b> ${discountText}\n\n✅ ${sellingPt}\n\n🔗 <a href="${url}">CLIQUE AQUI PARA COMPRAR</a>`,
-    instagramText: `${emoji1} ${product.title} por ${formattedPrice}${discountText}!\n\n✅ ${sellingPt}\n\nLink no story e na bio! 🛍️`,
-    facebookText: `${emoji2} Oferta de ${profile.name}! ${product.title} por ${formattedPrice}. ${profile.ctaStyle} Link: ${url}`,
-    threadsText: `${product.title} de ${profile.name} por ${formattedPrice} agora! ${cta} Link: ${url}`,
-    pinterestText: `${product.title} – ${profile.name} por ${formattedPrice}. ${sellingPt}. Clique para conferir!`,
-    tikTokText: `${emoji2} Olha esse ${profile.name.toLowerCase()}: ${product.title} por ${formattedPrice}! Link na bio.`,
-    storyText: `${emoji1} OFERTA: ${product.title} por ${formattedPrice}${discountText}. Arraste para cima!`,
-    channelText: `📢 ${profile.name.toUpperCase()}: ${product.title} por apenas ${formattedPrice}! ${cta} Link: ${url}`,
+    publicoAlvo:        'Pessoas que buscam qualidade e praticidade no dia a dia',
+    dorQueResolve:      'Necessidade não atendida que esse produto resolve',
+    beneficioPrincipal: 'Qualidade e conveniência combinadas',
+    argumentoComercial: `${title}${discount} — aproveite enquanto tem!`,
+    anguloDeVenda:      'Conveniência',
+    emocaoDeCompra:     'Satisfação e praticidade',
+    categoria:          product.categoryId || 'Geral',
+    whatsAppText:       `🔥 ${title}${discount} por apenas ${price}!\n\n✅ Entrega rápida e garantia\n\n🛒 Compre agora: ${url}`,
+    telegramText:       `🔥 <b>${title}</b>${discount}\n\n💰 Por apenas <b>${price}</b>\n\n<a href="${url}">CLIQUE AQUI PARA COMPRAR</a>`,
+    instagramText:      `🔥 ${title}${discount} por ${price}!\n\nLink na bio! 🛍️\n\n#oferta #desconto #achadinhos #promoção`,
+    facebookText:       `🔥 Oferta incrível! ${title}${discount} por apenas ${price}. Clique no link para garantir o seu: ${url}`,
+    channelText:        `📢 OFERTA: ${title}${discount} por ${price}! Link: ${url}`,
+    storyText:          `🔥 ${title} por ${price}${discount}!`,
+    cta:                'Aproveite essa oferta agora!',
+    hashtags:           ['#oferta', '#promoção', '#desconto', '#achadinhos', '#compraonline', '#mundolk'],
+    emojis:             ['🔥', '💥', '🛒', '✅'],
+    scoreValue:         65,
+    scoreJustification: 'Análise básica — configure GEMINI_API_KEY para análise completa com IA.',
   };
-}
-
-// ─── Hashtag Generator ────────────────────────────────────────────────────────
-
-function buildHashtags(profile: CategoryProfile, marketplace: string): string[] {
-  const categorySlug = profile.name.toLowerCase().replace(/\s+&\s+/g, '').replace(/\s+/g, '');
-  return [
-    '#oferta',
-    '#desconto',
-    '#promocao',
-    `#${categorySlug}`,
-    `#${marketplace}`,
-    '#achadinhos',
-    '#compraonline',
-    '#mundolk',
-  ];
-}
-
-// ─── Score Calculator ─────────────────────────────────────────────────────────
-
-function calculateScore(product: Product, confidence: number): { value: number; justification: string } {
-  const hasDiscount = product.discountPercentage.hasDiscount();
-  const discountValue = hasDiscount ? parseFloat(product.discountPercentage.formatString()) : 0;
-
-  let value = 60;
-  if (discountValue >= 30) value += 20;
-  else if (discountValue >= 15) value += 10;
-  else if (discountValue > 0) value += 5;
-
-  if (confidence > 0.80) value += 10;
-  else if (confidence > 0.60) value += 5;
-
-  if (product.brand && product.brand !== 'Desconhecida') value += 5;
-
-  value = Math.min(value, 99);
-
-  const justification = hasDiscount
-    ? `Oferta com ${product.discountPercentage.formatString()} de desconto (${product.currentPrice.formatBRL()}). Classificação automática com ${(confidence * 100).toFixed(0)}% de confiança.`
-    : `Produto sem desconto identificado. Classificação automática com ${(confidence * 100).toFixed(0)}% de confiança.`;
-
-  return { value, justification };
 }
 
 // ─── Adapter ──────────────────────────────────────────────────────────────────
 
 /**
- * Gemini AI Adapter — Category-Aware Offer Generator.
+ * GeminiAIAdapter — Real AI-powered offer generator.
  *
- * Instead of calling the Gemini API for each offer (expensive, slow),
- * this adapter performs intelligent classification locally using product
- * data already extracted by the marketplace adapter, then generates
- * category-specific copy, emojis, hashtags and score.
+ * Uses the Gemini 2.0 Flash API to analyze each product individually
+ * and generate unique, context-aware marketing copy.
  *
- * When a real Gemini API key is configured via GEMINI_API_KEY env var,
- * the classification step can be upgraded to use the model for borderline cases.
+ * The AI reasons like a marketing specialist:
+ * - Who would buy this?
+ * - What pain does it solve?
+ * - What emotion drives purchase?
+ * - What's the strongest selling argument?
+ *
+ * Falls back to structured templates if GEMINI_API_KEY is not set.
  */
 export class GeminiAIAdapter implements IAIProviderAdapter {
-  public readonly providerName: string = 'gemini-2.5-flash';
-  private memoryService = AIMemoryService.getInstance();
+  public readonly providerName: string = 'gemini-2.0-flash';
 
-  public async generateOfferContent(product: Product): Promise<AIOfferGenerationResult> {
-    // Load user memory context (for future prompt enrichment)
-    await this.memoryService.getMemoryForUser(product.userId);
+  public async generateOfferContent(
+    product: Product,
+    style: OfferStyle = 'padrao'
+  ): Promise<AIOfferGenerationResult & { analysis?: GeminiOfferAnalysis }> {
+    let analysis: GeminiOfferAnalysis;
 
-    const formattedPrice = product.currentPrice.formatBRL();
-    const discountText = product.discountPercentage.hasDiscount()
-      ? ` (${product.discountPercentage.formatString()})`
-      : '';
+    try {
+      const prompt  = buildMarketingPrompt(product, style);
+      const rawText = await callGeminiAPI(prompt);
+      analysis      = parseGeminiJSON(rawText);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
 
-    // 1. Classify the product based on real extracted data
-    const { profile, confidence } = classifyProduct(
-      product.title,
-      product.description,
-      product.categoryId,
-    );
+      // Log but don't crash — fall back to structured output
+      console.warn('[GeminiAIAdapter] API call failed, using fallback:', msg);
+      analysis = buildFallbackAnalysis(product);
+    }
 
-    // 2. Build category-specific copy
-    const copyData = buildCopies(product, profile, formattedPrice, discountText);
-    const copies = ChannelContent.create(copyData);
+    // Build domain value objects from AI response
+    const copies = ChannelContent.create({
+      whatsAppText:  analysis.whatsAppText,
+      telegramText:  analysis.telegramText,
+      instagramText: analysis.instagramText,
+      facebookText:  analysis.facebookText,
+      channelText:   analysis.channelText,
+      storyText:     analysis.storyText,
+    });
 
-    // 3. Build category-specific hashtags
-    const hashtags = buildHashtags(profile, product.marketplaceSlug);
-
-    // 4. Calculate real score
-    const { value: scoreValue, justification } = calculateScore(product, confidence);
     const score = new Score({
-      value: scoreValue,
-      justification,
+      value:         Math.min(100, Math.max(0, analysis.scoreValue || 70)),
+      justification: analysis.scoreJustification || '',
       factors: [
-        { name: 'Desconto',               weight: 35, score: product.discountPercentage.hasDiscount() ? 90 : 50, reason: product.discountPercentage.formatString() },
-        { name: 'Confiança na Categoria', weight: 30, score: Math.round(confidence * 100), reason: `Categoria detectada: ${profile.name}` },
-        { name: 'Dados do Produto',       weight: 20, score: product.brand !== 'Desconhecida' ? 85 : 60, reason: 'Marca e título identificados' },
-        { name: 'Qualidade do Anúncio',   weight: 15, score: 80, reason: 'Copy gerado com emojis e CTA contextualizados' },
+        { name: 'Análise de Produto',  weight: 30, score: 90, reason: 'IA analisou produto individualmente' },
+        { name: 'Ângulo de Venda',     weight: 25, score: 90, reason: analysis.anguloDeVenda || '—' },
+        { name: 'Desconto',            weight: 25, score: product.discountPercentage.hasDiscount() ? 90 : 55, reason: product.discountPercentage.formatString() },
+        { name: 'Qualidade do Copy',   weight: 20, score: 85, reason: 'Gerado por IA com contexto real do produto' },
       ],
     });
 
-    const cost = AICost.create(120, 180, this.providerName, 0.00004);
+    const cost = AICost.create(500, 800, this.providerName, 0.0001);
 
     return {
       copies,
-      hashtags,
-      emojis: profile.emojis,
-      cta: `${profile.emojis[2] || '👉'} ${profile.ctaStyle}`,
+      hashtags: Array.isArray(analysis.hashtags) ? analysis.hashtags.slice(0, 10) : [],
+      emojis:   Array.isArray(analysis.emojis)   ? analysis.emojis.slice(0, 5)    : ['🔥'],
+      cta:      analysis.cta || 'Aproveite agora!',
       score,
       cost,
+      analysis, // Extra field for rich preview
     };
   }
 }
