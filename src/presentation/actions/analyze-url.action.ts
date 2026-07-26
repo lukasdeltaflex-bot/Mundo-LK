@@ -195,11 +195,14 @@ export async function analyzeProductUrlAction(input: {
       },
     };
   } catch (err) {
-    const msg = err instanceof Error ? (err.stack || err.message) : String(err);
-    console.error('[analyzeProductUrlAction Exception]:', msg);
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error('[REAL_SERVER_ACTION_ERROR]:', error);
+    console.error('[REAL_SERVER_ACTION_STACK]:', error.stack);
+    console.error('[REAL_SERVER_ACTION_JSON]:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+
     return {
       success: false,
-      error: 'Não conseguimos analisar esse link agora. Verifique a URL e tente novamente.'
+      error: `[ERRO ORIGINAL]: ${error.message} | STACK: ${error.stack || 'sem stack'}`
     };
   }
 }
