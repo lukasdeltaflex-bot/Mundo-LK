@@ -117,10 +117,16 @@ Responda SOMENTE com este JSON válido, sem markdown, sem explicações:
 }`;
 }
 
-// ─── Gemini API caller with strict timeout ────────────────────────────────────
+// ─── Gemini API caller with strict timeout & diagnostic logging ───────────────
 
 async function callGeminiAPI(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
+  const envMode = process.env.NODE_ENV || process.env.NEXT_PUBLIC_APP_ENV || 'development';
+
+  // Server-side diagnostic log (never logs key value)
+  console.log(`[Gemini Diagnosis] GEMINI_API_KEY encontrada: ${apiKey ? 'SIM' : 'NÃO'}`);
+  console.log(`[Gemini Diagnosis] Comprimento da chave: ${apiKey ? apiKey.length : 0}`);
+  console.log(`[Gemini Diagnosis] Ambiente: ${envMode}`);
 
   if (!apiKey || apiKey.startsWith('demo_')) {
     throw new Error('GEMINI_API_KEY não configurada. Adicione a chave no arquivo .env.local');
@@ -199,7 +205,6 @@ function buildFallbackAnalysis(product: Product): GeminiOfferAnalysis {
     : '';
   const url = product.affiliateUrl?.url || '';
 
-  // Classify category by title keywords
   const titleLower = title.toLowerCase();
   let cat = 'Geral';
   let dor = 'Praticidade no dia a dia e economia de tempo';
@@ -252,7 +257,7 @@ function buildFallbackAnalysis(product: Product): GeminiOfferAnalysis {
     facebookText: `🔥 Oferta incrível! ${title}${discount} por apenas ${price}. ${ben}. Clique no link para garantir o seu: ${url}`,
     channelText: `📢 OFERTA: ${title}${discount} por apenas ${price}! Link: ${url}`,
     storyText: `🔥 ${title} por apenas ${price}!`,
-    cta: `Ganta o seu ${title} pelo melhor preço!`,
+    cta: `Garanta o seu ${title} pelo melhor preço!`,
     hashtags: ['#oferta', '#promoção', '#desconto', '#achadinhos', '#mundolk'],
     emojis: ['🔥', '💥', '🛒', '⚡'],
     scoreValue: 78,
