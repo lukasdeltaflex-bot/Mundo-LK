@@ -1,152 +1,136 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/presentation/components/ui/Card';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
-import { ExternalLink, Copy, Tag as TagIcon } from 'lucide-react';
+import { ExternalLink, Copy, Tag as TagIcon, ShoppingBag, Plus, Sparkles, Layers } from 'lucide-react';
+import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
+import { useProducts } from '@/presentation/hooks/useProducts';
 
 export default function ProdutosPage() {
-  const [selectedTag, setSelectedTag] = useState<string>('TODAS');
+  const [selectedCategory, setSelectedCategory] = useState<string>('TODAS');
+  const { data: userProducts, isLoading } = useProducts();
 
-  const smartTags = [
-    'TODAS', 'Frete Grátis', 'Cupom', 'Oferta Relâmpago', 'Loja Oficial',
-    'Mais Vendido', 'Menor Preço', 'Excelente Avaliação', 'Original', 'Premium'
-  ];
+  const categories = ['TODAS', ...PRODUCT_CATEGORIES];
 
-  const products = [
-    {
-      id: 'prod_1',
-      title: 'Smartphone Xiaomi Redmi Note 13 256GB 8GB RAM',
-      brand: 'Xiaomi',
-      store: 'Shopee',
-      currentPrice: 'R$ 1.199,00',
-      previousPrice: 'R$ 1.899,00',
-      discount: '36% OFF',
-      tags: ['Frete Grátis', 'Menor Preço', 'Original', 'Premium', 'Loja Oficial'],
-      url: 'https://shopee.com.br/product/...',
-    },
-    {
-      id: 'prod_2',
-      title: 'Fritadeira Eletrica Air Fryer Mondo 4L Inox 1500W',
-      brand: 'Mondo Home',
-      store: 'Mercado Livre',
-      currentPrice: 'R$ 299,90',
-      previousPrice: 'R$ 499,90',
-      discount: '40% OFF',
-      tags: ['Frete Grátis', 'Oferta Relâmpago', 'Cupom', 'Excelente Avaliação'],
-      url: 'https://mercadolivre.com.br/...',
-    },
-    {
-      id: 'prod_3',
-      title: 'Fone de Ouvido Bluetooth Sem Fio Noise Cancelling',
-      brand: 'AudioTech',
-      store: 'Amazon BR',
-      currentPrice: 'R$ 349,00',
-      previousPrice: 'R$ 599,00',
-      discount: '41% OFF',
-      tags: ['Frete Grátis', 'Oferta Relâmpago', 'Mais Vendido'],
-      url: 'https://amazon.com.br/...',
-    },
-    {
-      id: 'prod_4',
-      title: 'Smart TV 55 polegadas 4K UHD Wi-Fi Bluetooth',
-      brand: 'Samsung',
-      store: 'Magazine Luiza',
-      currentPrice: 'R$ 2.499,00',
-      previousPrice: 'R$ 3.299,00',
-      discount: '24% OFF',
-      tags: ['Frete Grátis', 'Premium', 'Original', 'Loja Oficial'],
-      url: 'https://magazineluiza.com.br/...',
-    },
-  ];
+  const productsList = userProducts || [];
 
-  const filteredProducts = selectedTag === 'TODAS'
-    ? products
-    : products.filter((p) => p.tags.includes(selectedTag));
+  const filteredProducts = selectedCategory === 'TODAS'
+    ? productsList
+    : productsList.filter((p) => p.brand === selectedCategory || p.title.includes(selectedCategory));
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <TagIcon className="h-6 w-6 text-blue-400" />
-          <span>Catálogo Inteligente com Smart Tags</span>
-        </h1>
-        <p className="text-sm text-slate-400">Produtos categorizados automaticamente por gatilhos de conversão.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            <ShoppingBag className="h-6 w-6 text-blue-400" />
+            <span>Catálogo Inteligente de Produtos</span>
+          </h1>
+          <p className="text-sm text-slate-400">Produtos cadastrados automaticamente a partir de URLs dos marketplaces.</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard">
+            <Button size="sm" variant="primary" className="text-xs" leftIcon={<Plus className="h-3.5 w-3.5" />}>
+              Adicionar Produto por URL
+            </Button>
+          </Link>
+          <Link href="/lote">
+            <Button size="sm" variant="secondary" className="text-xs" leftIcon={<Layers className="h-3.5 w-3.5" />}>
+              Importar em Lote
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Smart Tags Pills */}
+      {/* Category Pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
-        {smartTags.map((tag) => (
+        {categories.map((cat) => (
           <button
-            key={tag}
-            onClick={() => setSelectedTag(tag)}
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
-              selectedTag === tag
+              selectedCategory === cat
                 ? 'bg-blue-600 text-white shadow-md'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            {tag}
+            {cat}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredProducts.map((p) => (
-          <Card key={p.id} className="p-5">
-            <CardHeader className="mb-2 p-0">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <Badge variant="info" className="mb-2">{p.store}</Badge>
-                  <CardTitle className="text-base">{p.title}</CardTitle>
-                  <CardDescription className="text-xs mt-1">Marca: {p.brand}</CardDescription>
+      {isLoading ? (
+        <div className="text-center py-16 text-slate-400 text-xs">Carregando seu catálogo...</div>
+      ) : filteredProducts.length === 0 ? (
+        /* Clean Empty State */
+        <Card className="p-12 text-center border-dashed border-slate-800 bg-slate-900/40">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20 mx-auto mb-4">
+            <ShoppingBag className="h-8 w-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-1">Você ainda não possui produtos cadastrados.</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto mb-6">
+            Cole a URL de qualquer produto da Shopee, Mercado Livre, Amazon ou Magalu no Dashboard para cadastrá-lo automaticamente no seu catálogo.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <Link href="/dashboard">
+              <Button variant="primary" size="sm" className="text-xs" leftIcon={<Sparkles className="h-3.5 w-3.5" />}>
+                Importar 1º Produto Agora
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredProducts.map((p) => (
+            <Card key={p.id} className="p-5">
+              <CardHeader className="mb-2 p-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <Badge variant="info" className="mb-2">{p.marketplaceSlug}</Badge>
+                    <CardTitle className="text-base">{p.title}</CardTitle>
+                    <CardDescription className="text-xs mt-1">Marca: {p.brand}</CardDescription>
+                  </div>
+                  <Badge variant="success">{p.discountPercentage}</Badge>
                 </div>
-                <Badge variant="success">{p.discount}</Badge>
-              </div>
+              </CardHeader>
 
-              {/* Tags Badges */}
-              <div className="flex flex-wrap gap-1 mt-3">
-                {p.tags.map((t, idx) => (
-                  <span key={idx} className="text-[10px] bg-slate-800 text-blue-300 px-2 py-0.5 rounded border border-slate-700 font-medium">
-                    #{t}
-                  </span>
-                ))}
-              </div>
-            </CardHeader>
+              <CardContent className="p-0 pt-3">
+                <div className="flex items-baseline gap-2 mb-4">
+                  <span className="text-xl font-bold text-emerald-400">{p.currentPrice}</span>
+                  {p.previousPrice && (
+                    <span className="text-xs text-slate-500 line-through">{p.previousPrice}</span>
+                  )}
+                </div>
 
-            <CardContent className="p-0 pt-3">
-              <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-xl font-bold text-emerald-400">{p.currentPrice}</span>
-                {p.previousPrice && (
-                  <span className="text-xs text-slate-500 line-through">{p.previousPrice}</span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="flex-1 text-xs"
-                  leftIcon={<Copy className="h-3.5 w-3.5" />}
-                  onClick={() => navigator.clipboard.writeText(p.url)}
-                >
-                  Copiar Link
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                  leftIcon={<ExternalLink className="h-3.5 w-3.5" />}
-                  onClick={() => window.open(p.url, '_blank')}
-                >
-                  Abrir
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex-1 text-xs"
+                    leftIcon={<Copy className="h-3.5 w-3.5" />}
+                    onClick={() => navigator.clipboard.writeText(p.affiliateUrl)}
+                  >
+                    Copiar Link
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs"
+                    leftIcon={<ExternalLink className="h-3.5 w-3.5" />}
+                    onClick={() => window.open(p.affiliateUrl, '_blank')}
+                  >
+                    Abrir
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

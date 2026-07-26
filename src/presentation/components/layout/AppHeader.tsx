@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Bell, Search, User as UserIcon, LogOut, Settings, Sparkles } from 'lucide-react';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { Badge } from '../ui/Badge';
@@ -56,20 +57,22 @@ export const AppHeader: React.FC = () => {
                 <p className="text-xs font-semibold text-white">{user?.name}</p>
                 <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
               </div>
-              <button
+              <Link
+                href="/perfil"
                 onClick={() => setDropdownOpen(false)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition"
               >
                 <UserIcon className="h-3.5 w-3.5" />
                 <span>Meu Perfil</span>
-              </button>
-              <button
+              </Link>
+              <Link
+                href="/configuracoes"
                 onClick={() => setDropdownOpen(false)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition"
               >
                 <Settings className="h-3.5 w-3.5" />
                 <span>Configurações</span>
-              </button>
+              </Link>
               <button
                 onClick={() => {
                   setDropdownOpen(false);
