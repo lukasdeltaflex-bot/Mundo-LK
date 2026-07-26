@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/presentation/context/AuthContext';
 import { AppearanceProvider } from '@/presentation/context/AppearanceContext';
+import { MenuOrderProvider } from '@/presentation/context/MenuOrderContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -24,7 +25,9 @@ export default function RootLayout({
       <body className={`${inter.className} bg-slate-950 text-slate-100 antialiased min-h-screen`}>
         <AuthProvider>
           <AppearanceProvider>
-            {children}
+            <MenuOrderProvider>
+              {children}
+            </MenuOrderProvider>
           </AppearanceProvider>
         </AuthProvider>
       </body>

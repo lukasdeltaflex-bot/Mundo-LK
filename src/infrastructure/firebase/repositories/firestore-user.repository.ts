@@ -1,17 +1,28 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
-import { User, UserProps } from '../../../core/domain/entities/user.entity';
+import { User } from '../../../core/domain/entities/user.entity';
 
 export interface FirestoreUserDoc {
   uid: string;
   name: string;
   email: string;
   photoURL?: string | null;
+  phone?: string;
+  jobTitle?: string;
+  companyName?: string;
+  companyCnpj?: string;
+  bio?: string;
   role: 'ADMIN' | 'AFFILIATE';
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
   updatedAt: string;
   lastLogin: string;
+  notifications?: {
+    emailAlerts: boolean;
+    whatsAppAlerts: boolean;
+    soundEffects: boolean;
+    highDiscountAlerts: boolean;
+  };
 }
 
 export class FirestoreUserRepository {
@@ -24,39 +35,31 @@ export class FirestoreUserRepository {
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const d = snap.data() as FirestoreUserDoc;
-        return new User({
-          uid: d.uid,
-          name: d.name,
-          email: d.email,
-          photoURL: d.photoURL,
-          role: d.role,
-          status: d.status,
-          createdAt: new Date(d.createdAt),
-          updatedAt: new Date(d.updatedAt),
-          lastLogin: new Date(d.lastLogin),
-        });
+        return this.toDomain(d);
       }
     } catch {
       const mem = this.memoryStore.get(uid);
-      if (mem) {
-        return new User({
-          uid: mem.uid,
-          name: mem.name,
-          email: mem.email,
-          photoURL: mem.photoURL,
-          role: mem.role,
-          status: mem.status,
-          createdAt: new Date(mem.createdAt),
-          updatedAt: new Date(mem.updatedAt),
-          lastLogin: new Date(mem.lastLogin),
-        });
+      if (mem) return this.toDomain(mem);
+    }
+    return null;
+  }
+
+  public async findDocByUid(uid: string): Promise<FirestoreUserDoc | null> {
+    try {
+      const ref = doc(db, this.collectionName, uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        return snap.data() as FirestoreUserDoc;
       }
+    } catch {
+      const mem = this.memoryStore.get(uid);
+      if (mem) return mem;
     }
     return null;
   }
 
   public async save(user: User): Promise<void> {
-    const docData: FirestoreUserDoc = {
+    const raw: FirestoreUserDoc = {
       uid: user.uid,
       name: user.name,
       email: user.email,
@@ -68,13 +71,55 @@ export class FirestoreUserRepository {
       lastLogin: user.lastLogin.toISOString(),
     };
 
-    this.memoryStore.set(user.uid, docData);
+    this.memoryStore.set(user.uid, raw);
 
     try {
       const ref = doc(db, this.collectionName, user.uid);
-      await setDoc(ref, docData, { merge: true });
+      await setDoc(ref, raw, { merge: true });
     } catch (error) {
-      console.warn('[FirestoreUserRepository] Fallback to memory due to network/config:', error);
+      console.warn('[FirestoreUserRepository] Memory fallback used:', error);
     }
+  }
+
+  public async saveDoc(data: Partial<FirestoreUserDoc> & { uid: string }): Promise<void> {
+    const existing = this.memoryStore.get(data.uid) || {
+      uid: data.uid,
+      name: data.name || 'Usuário Afiliado',
+      email: data.email || 'usuario@mundolk.com',
+      role: 'AFFILIATE',
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+    };
+
+    const updated: FirestoreUserDoc = {
+      ...existing,
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.memoryStore.set(data.uid, updated);
+
+    try {
+      const ref = doc(db, this.collectionName, data.uid);
+      await setDoc(ref, updated, { merge: true });
+    } catch (error) {
+      console.warn('[FirestoreUserRepository] Memory fallback used:', error);
+    }
+  }
+
+  private toDomain(d: FirestoreUserDoc): User {
+    return new User({
+      uid: d.uid,
+      name: d.name,
+      email: d.email,
+      photoURL: d.photoURL,
+      role: d.role,
+      status: d.status,
+      createdAt: new Date(d.createdAt),
+      updatedAt: new Date(d.updatedAt),
+      lastLogin: new Date(d.lastLogin),
+    });
   }
 }
