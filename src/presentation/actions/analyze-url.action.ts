@@ -93,6 +93,7 @@ export async function analyzeProductUrlAction(input: {
 
   const executionPromise = (async (): Promise<{ success: true; data: OfferPreview } | { success: false; error: string }> => {
     try {
+      console.log('[3] Link recebido no servidor:', cleanUrl);
       const style = input.style ?? 'padrao';
       const registry = initializeMarketplaceRegistry();
 
@@ -134,8 +135,10 @@ export async function analyzeProductUrlAction(input: {
       });
 
       // 5. Call AI with style preference
+      console.log('[4] Gemini chamado para produto:', tempProduct.title);
       const geminiAdapter = new GeminiAIAdapter();
       const aiResult      = await geminiAdapter.generateOfferContent(tempProduct, style);
+      console.log('[5] Resposta recebida da IA com sucesso.');
 
       // 6. Extract rich analysis
       const analysis: GeminiOfferAnalysis = (aiResult as { analysis?: GeminiOfferAnalysis }).analysis ?? {
@@ -159,6 +162,7 @@ export async function analyzeProductUrlAction(input: {
         scoreJustification: aiResult.score.justification,
       };
 
+      console.log('[6] Retornando ao frontend com sucesso.');
       return {
         success: true,
         data: {

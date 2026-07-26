@@ -114,16 +114,19 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   // ── Analyze ───────────────────────────────────────────────────────────────
   const handleAnalyze = useCallback(async (overrideStyle?: OfferStyle) => {
     const rawUrl = url.trim();
+    console.log('[1] Botão clicado - URL:', rawUrl);
+
     if (!rawUrl) {
+      console.warn('[Validação Frontend] URL vazia ou inválida.');
       setError('Cole a URL do produto para continuar.');
       return;
     }
 
     setError(null);
     setStep('analyzing');
+    console.log('[2] Server Action iniciada - chamando analyzeProductUrlAction...');
 
     try {
-      // Execute action with 14s safety timeout
       const result = await analyzeProductUrlAction({
         url:          rawUrl,
         affiliateTag: tag.trim() || 'mundolk',
@@ -131,20 +134,25 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
         style:        overrideStyle ?? style,
       });
 
+      console.log('[6] Retornando ao frontend - Resultado:', result.success ? 'SUCESSO' : 'FALHA');
+
       if (!result.success) {
+        console.error('[ERRO SERVER ACTION]:', result.error);
         setError(result.error || 'Não conseguimos analisar esse link agora. Tente novamente.');
         setStep('input');
         return;
       }
 
+      console.log('[7] Renderizando prévia da oferta na tela');
       setPreview(result.data);
       setEditTitle(result.data.product.title);
       setEditCta(result.data.offer.cta);
       setStyle(overrideStyle ?? style);
       setStep('preview');
+      console.log('[8] Finalizado - Prévia renderizada com sucesso!');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[OfferCreationFlow] Analyze error:', msg);
+      console.error('[EXCEÇÃO FRONTEND]:', msg);
       setError('Não conseguimos analisar esse link agora. Verifique a URL e tente novamente.');
       setStep('input');
     }

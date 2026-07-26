@@ -129,6 +129,7 @@ async function callGeminiAPI(prompt: string): Promise<string> {
   const timeoutId = setTimeout(() => controller.abort(), 20_000); // 20-second timeout
 
   try {
+    console.log('[4.1] Enviando requisição HTTP para a API do Google Gemini (gemini-2.5-flash)...');
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
@@ -150,8 +151,11 @@ async function callGeminiAPI(prompt: string): Promise<string> {
 
     if (!response.ok) {
       const errText = await response.text().catch(() => response.statusText);
+      console.error(`[4.ERR] Gemini API HTTP ${response.status}:`, errText);
       throw new Error(`Gemini API error ${response.status}: ${errText}`);
     }
+
+    console.log('[5.0] Resposta HTTP 200 OK recebida do Gemini com sucesso!');
 
     const data = await response.json() as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
