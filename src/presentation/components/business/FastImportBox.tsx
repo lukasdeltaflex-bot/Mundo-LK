@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Sparkles, Link as LinkIcon, Tag, ArrowRight, Loader2 } from 'lucide-react';
+import { Sparkles, Link as LinkIcon, Tag, ArrowRight, Loader2, Check } from 'lucide-react';
 import { ImportUrlSchema, ImportUrlFormData } from '@/shared/validators/import-url.validator';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
+import { CategorySuggesterService } from '@/core/domain/services/category-suggester.service';
 import { Button } from '../ui/Button';
 
 export interface FastImportBoxProps {
@@ -16,15 +17,28 @@ export interface FastImportBoxProps {
 export const FastImportBox: React.FC<FastImportBoxProps> = ({ onImport, isLoading }) => {
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('Eletrônicos');
+  const [isAiSuggested, setIsAiSuggested] = useState<boolean>(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
+    watch,
   } = useForm<ImportUrlFormData>({
     resolver: zodResolver(ImportUrlSchema as unknown as Parameters<typeof zodResolver>[0]) as unknown as ReturnType<typeof useForm<ImportUrlFormData>>['formState']['errors'] extends undefined ? undefined : ReturnType<typeof useForm<ImportUrlFormData>>['control']['_options']['resolver'],
   });
+
+  const urlValue = watch('url');
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val.trim().length > 10) {
+      const suggested = CategorySuggesterService.suggestCategory(val);
+      setSelectedCategory(suggested);
+      setIsAiSuggested(true);
+    }
+  };
 
   const onSubmit = async (data: ImportUrlFormData) => {
     try {
@@ -58,8 +72,8 @@ export const FastImportBox: React.FC<FastImportBoxProps> = ({ onImport, isLoadin
           <Sparkles className="h-5 w-5" />
         </div>
         <div>
-          <h3 className="text-base font-bold text-white">Importação em 1-Clique com Inteligência Artificial</h3>
-          <p className="text-xs text-slate-400">Cole o link do produto para cadastrar no catálogo e gerar todas as copys automaticamente.</p>
+          <h3 className="text-base font-bold text-white">Importação Inteligente com Detecção de Categoria</h3>
+          <p className="text-xs text-slate-400">A IA analisa o link e sugere a categoria ideal para contextualização.</p>
         </div>
       </div>
 
@@ -71,6 +85,10 @@ export const FastImportBox: React.FC<FastImportBoxProps> = ({ onImport, isLoadin
               <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
               <input
                 {...register('url')}
+                onChange={(e) => {
+                  register('url').onChange(e);
+                  handleUrlChange(e);
+                }}
                 type="url"
                 placeholder="https://shopee.com.br/product/... ou https://mercadolivre.com.br/..."
                 className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
@@ -79,13 +97,16 @@ export const FastImportBox: React.FC<FastImportBoxProps> = ({ onImport, isLoadin
             {errors.url && <p className="text-[11px] text-red-400 mt-1">{errors.url.message}</p>}
           </div>
 
-          {/* Category Dropdown */}
+          {/* Category Dropdown with AI Suggestion indicator */}
           <div className="relative">
             <div className="relative">
               <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setIsAiSuggested(false);
+                }}
                 className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-blue-500 transition"
               >
                 {PRODUCT_CATEGORIES.map((cat) => (
@@ -95,6 +116,11 @@ export const FastImportBox: React.FC<FastImportBoxProps> = ({ onImport, isLoadin
                 ))}
               </select>
             </div>
+            {isAiSuggested && (
+              <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+                <Check className="h-3 w-3" /> Categoria sugerida pela IA
+              </span>
+            )}
           </div>
         </div>
 

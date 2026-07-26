@@ -16,6 +16,7 @@ import {
   Layers,
   Calendar,
   Database,
+  Palette,
 } from 'lucide-react';
 import { useAuth } from '@/presentation/context/AuthContext';
 
@@ -33,6 +34,7 @@ export const AppSidebar: React.FC = () => {
     { name: 'Smart Intelligence', href: '/inteligencia', icon: BrainCircuit },
     { name: 'Prompts Manager', href: '/prompts', icon: Terminal },
     { name: 'Backup Manager', href: '/backup', icon: Database },
+    { name: 'Aparência', href: '/configuracoes/aparencia', icon: Palette },
   ];
 
   return (
