@@ -120,16 +120,16 @@ Responda SOMENTE com este JSON válido, sem markdown, sem explicações:
 // ─── Gemini API caller with strict timeout & diagnostic logging ───────────────
 
 async function callGeminiAPI(prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   const envMode = process.env.NODE_ENV || process.env.NEXT_PUBLIC_APP_ENV || 'development';
 
   // Server-side diagnostic log (never logs key value)
-  console.log(`[Gemini Diagnosis] GEMINI_API_KEY encontrada: ${apiKey ? 'SIM' : 'NÃO'}`);
+  console.log(`[Gemini Diagnosis] GEMINI_API_KEY / GOOGLE_API_KEY encontrada: ${apiKey ? 'SIM' : 'NÃO'}`);
   console.log(`[Gemini Diagnosis] Comprimento da chave: ${apiKey ? apiKey.length : 0}`);
   console.log(`[Gemini Diagnosis] Ambiente: ${envMode}`);
 
   if (!apiKey || apiKey.startsWith('demo_')) {
-    throw new Error('GEMINI_API_KEY não configurada. Adicione a chave no arquivo .env.local');
+    throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada. Adicione a chave no arquivo .env.local');
   }
 
   const controller = new AbortController();
