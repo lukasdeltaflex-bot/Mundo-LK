@@ -19,7 +19,9 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     const cleanUrl = url.trim();
     const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
 
-    if (metadata && metadata.confidence !== 'low' && metadata.title.length > 3) {
+    const hasValidTitle = metadata && metadata.title.length > 3 && !/mkt\s*single\s*page|error_page|shopecdn/i.test(metadata.title);
+
+    if (hasValidTitle) {
       return {
         title:           metadata.title,
         description:     metadata.description || `Produto disponível na ${this.marketplaceName}.`,
@@ -36,24 +38,27 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
       };
     }
 
-    console.warn(`[ShopeeAdapter] Could not extract real data from: ${cleanUrl}.`);
+    // Friendly fallback for shortened affiliate links (s.shopee.com.br / shope.ee)
     return {
-      title:           'Produto Shopee',
-      description:     'Descrição não disponível. Verifique o link do produto.',
-      brand:           'Desconhecida',
-      categoryName:    undefined,
+      title:           'Produto Afiliado Shopee',
+      description:     `Oferta imperdível da Shopee extraída do link de afiliado: ${cleanUrl}`,
+      brand:           'Shopee',
+      categoryName:    'Geral',
       mainImage:       '',
       gallery:         [],
       currentPrice:    0,
       previousPrice:   null,
       storeName:       this.marketplaceName,
-      storeReputation: undefined,
+      storeReputation: 'Loja Shopee',
       reviewsRating:   undefined,
       originalUrl:     cleanUrl,
     };
   }
 
   public async buildAffiliateLink(originalUrl: string, affiliateTag: string): Promise<string> {
+    if (!affiliateTag || originalUrl.includes('s.shopee.com.br') || originalUrl.includes('shope.ee')) {
+      return originalUrl;
+    }
     const cleanUrl = originalUrl.split('?')[0];
     return `${cleanUrl}?utm_source=affiliate&af_siteid=${affiliateTag}&af_click_lookback=7d`;
   }

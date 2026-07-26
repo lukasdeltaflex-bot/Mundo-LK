@@ -138,7 +138,7 @@ export async function fetchProductMetadata(url: string, marketplaceSlug: string)
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6_000); // 6s timeout max
+    const timeout = setTimeout(() => controller.abort(), 4_000); // 4s timeout max
 
     const response = await fetch(cleanUrl, {
       signal: controller.signal,
@@ -162,7 +162,13 @@ export async function fetchProductMetadata(url: string, marketplaceSlug: string)
 
     const ogTitle = extractMeta(html, 'og:title');
     const htmlTitle = extractTitle(html);
-    const rawTitle = jsonLd?.name ? String(jsonLd.name) : (ogTitle || htmlTitle);
+    let rawTitle = jsonLd?.name ? String(jsonLd.name) : (ogTitle || htmlTitle);
+    
+    // Ignore generic SPA or error titles
+    if (/mkt\s*single\s*page|error_page|shopecdn/i.test(rawTitle)) {
+      rawTitle = '';
+    }
+
     const title = cleanTitle(rawTitle, marketplaceSlug);
 
     const ogDesc = extractMeta(html, 'og:description');

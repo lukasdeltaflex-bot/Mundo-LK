@@ -81,14 +81,14 @@ export async function analyzeProductUrlAction(input: {
     };
   }
 
-  // Enforce a strict 12-second total action execution limit
+  // Enforce a strict 30-second total action execution limit
   const timeoutPromise = new Promise<{ success: false; error: string }>((resolve) => {
     setTimeout(() => {
       resolve({
         success: false,
         error: 'A análise deste produto demorou mais que o esperado. Por favor, verifique o link e tente novamente.'
       });
-    }, 12_000);
+    }, 30_000);
   });
 
   const executionPromise = (async (): Promise<{ success: true; data: OfferPreview } | { success: false; error: string }> => {
