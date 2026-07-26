@@ -153,6 +153,13 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[EXCEÇÃO FRONTEND]:', msg);
+      if (msg.includes('was not found on the server') || msg.includes('Server Action')) {
+        setError('O sistema foi atualizado! Recarregando a página em instantes para aplicar a nova versão...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        return;
+      }
       setError('Não conseguimos analisar esse link agora. Verifique a URL e tente novamente.');
       setStep('input');
     }
