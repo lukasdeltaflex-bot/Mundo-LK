@@ -5,224 +5,162 @@ import { useAuth } from './AuthContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/infrastructure/firebase/config/firebase.config';
 
-export interface FullAppearanceSettings {
-  theme: 'dark' | 'light' | 'auto';
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type ThemeOption = 'dark' | 'light';
+export type FontOption = 'Inter' | 'Roboto' | 'Poppins' | 'Arial';
+
+export interface AppearanceSettings {
+  theme: ThemeOption;
+  fontFamily: FontOption;
   primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  sidebarBg: string;
-  cardBg: string;
-  fontFamily: 'Inter' | 'Roboto' | 'Poppins' | 'Montserrat' | 'Nunito' | 'Open Sans';
-  fontSize: 'Compacto' | 'Normal' | 'Grande';
-  fontWeight: 'Leve' | 'Normal' | 'Semibold' | 'Negrito';
-  layoutSpacing: 'Compacto' | 'Normal' | 'Espaçoso';
-  cardRadius: 'Quadrado' | 'Moderado' | 'Arredondado';
-  cardShadow: 'Nenhuma' | 'Suave' | 'Marcada' | 'Elevada';
-  buttonStyle: 'Reto' | 'Arredondado' | 'Pílula';
-  sidebarMode: 'Expandido' | 'Compacto';
-  animations: boolean;
 }
 
-export const defaultFullSettings: FullAppearanceSettings = {
+export const defaultSettings: AppearanceSettings = {
   theme: 'dark',
-  primaryColor: '#2563EB',
-  secondaryColor: '#1E40AF',
-  accentColor: '#10B981',
-  sidebarBg: '#0F172A',
-  cardBg: '#1E293B',
   fontFamily: 'Inter',
-  fontSize: 'Normal',
-  fontWeight: 'Normal',
-  layoutSpacing: 'Normal',
-  cardRadius: 'Moderado',
-  cardShadow: 'Marcada',
-  buttonStyle: 'Arredondado',
-  sidebarMode: 'Expandido',
-  animations: true,
+  primaryColor: '#2563EB',
 };
 
-const LOCAL_STORAGE_KEY = 'mundo_lk_appearance_prefs';
+const LS_KEY = 'mundo_lk_appearance_prefs';
+const FIRESTORE_COLLECTION = 'user_preferences';
+
+// ─── Context Interface ────────────────────────────────────────────────────────
 
 interface AppearanceContextType {
-  settings: FullAppearanceSettings;
-  updateSettings: (newSettings: Partial<FullAppearanceSettings>) => Promise<void>;
+  settings: AppearanceSettings;
+  updateSettings: (patch: Partial<AppearanceSettings>) => Promise<void>;
   resetToDefault: () => Promise<void>;
   isLoading: boolean;
 }
 
 const AppearanceContext = createContext<AppearanceContextType>({
-  settings: defaultFullSettings,
+  settings: defaultSettings,
   updateSettings: async () => {},
   resetToDefault: async () => {},
   isLoading: false,
 });
 
-export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const [settings, setSettings] = useState<FullAppearanceSettings>(defaultFullSettings);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+// ─── Helper: apply settings to DOM ───────────────────────────────────────────
 
-  // 1. Initial Load from LocalStorage fallback for instant UI load
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached) as FullAppearanceSettings;
-          setSettings((prev) => ({ ...prev, ...parsed }));
-        }
-      } catch (e) {
-        console.warn('Erro ao carregar cache do localStorage:', e);
-      }
-    }
-  }, []);
+function applyToDom(s: AppearanceSettings) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
 
-  // 2. Sync with Firebase Firestore for user-scoped settings
-  useEffect(() => {
-    async function loadFirebasePreferences() {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
+  // ── Theme (dark / light) ──────────────────────────────────────────────────
+  if (s.theme === 'light') {
+    root.classList.remove('dark');
+    root.classList.add('light');
+  } else {
+    root.classList.remove('light');
+    root.classList.add('dark');
+  }
 
-      try {
-        const docRef = doc(db, 'user_preferences', user.uid);
-        const snap = await getDoc(docRef);
+  // ── Primary Color → CSS variable ─────────────────────────────────────────
+  root.style.setProperty('--primary-color', s.primaryColor);
 
-        if (snap.exists()) {
-          const remote = snap.data() as FullAppearanceSettings;
-          const merged = { ...defaultFullSettings, ...remote };
-          setSettings(merged);
+  // Derive a lighter tint for hover states (opacity trick via alpha channel)
+  root.style.setProperty('--primary-color-10', s.primaryColor + '1A'); // ~10% opacity
 
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
-          }
-        }
-      } catch (err) {
-        console.warn('Erro ao carregar user_preferences do Firestore:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadFirebasePreferences();
-  }, [user]);
-
-  // 3. Real-time DOM CSS Variables & Classes injection
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const root = document.documentElement;
-
-    // Theme (Dark / Light / Auto)
-    if (settings.theme === 'light') {
-      root.classList.remove('dark');
-      root.classList.add('light');
-    } else if (settings.theme === 'dark') {
-      root.classList.remove('light');
-      root.classList.add('dark');
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        root.classList.remove('light');
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-        root.classList.add('light');
-      }
-    }
-
-    // Google Fonts Loader
-    const fontName = settings.fontFamily.replace(/\s+/g, '+');
+  // ── Font ──────────────────────────────────────────────────────────────────
+  if (s.fontFamily === 'Arial') {
+    // Arial is system font — remove any loaded Google Font
+    document.body.style.fontFamily = 'Arial, Helvetica, sans-serif';
+    root.style.setProperty('--font-sans', 'Arial, Helvetica, sans-serif');
+  } else {
+    // Load Google Font dynamically
+    const fontSlug = s.fontFamily.replace(/\s+/g, '+');
     const linkId = 'google-font-dynamic';
     let linkEl = document.getElementById(linkId) as HTMLLinkElement | null;
-
     if (!linkEl) {
       linkEl = document.createElement('link');
       linkEl.id = linkId;
       linkEl.rel = 'stylesheet';
       document.head.appendChild(linkEl);
     }
-    linkEl.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@300;400;500;600;700&display=swap`;
+    linkEl.href = `https://fonts.googleapis.com/css2?family=${fontSlug}:wght@300;400;500;600;700&display=swap`;
+    document.body.style.fontFamily = `'${s.fontFamily}', sans-serif`;
+    root.style.setProperty('--font-sans', `'${s.fontFamily}', sans-serif`);
+  }
+}
 
-    // Font Family & Weight
-    root.style.setProperty('--font-sans', `'${settings.fontFamily}', sans-serif`);
-    document.body.style.fontFamily = `'${settings.fontFamily}', sans-serif`;
+// ─── Provider ────────────────────────────────────────────────────────────────
 
-    let weightVal = '400';
-    if (settings.fontWeight === 'Leve') weightVal = '300';
-    if (settings.fontWeight === 'Semibold') weightVal = '600';
-    if (settings.fontWeight === 'Negrito') weightVal = '700';
-    document.body.style.fontWeight = weightVal;
+export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  const [settings, setSettings] = useState<AppearanceSettings>(defaultSettings);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-    // Font Size Scale
-    if (settings.fontSize === 'Compacto') {
-      root.style.fontSize = '13px';
-    } else if (settings.fontSize === 'Grande') {
-      root.style.fontSize = '16px';
-    } else {
-      root.style.fontSize = '14px';
+  // Step 1 — Instant hydration from localStorage (prevents flash on reload)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const cached = localStorage.getItem(LS_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as Partial<AppearanceSettings>;
+        const merged = { ...defaultSettings, ...parsed };
+        setSettings(merged);
+        applyToDom(merged);
+      }
+    } catch {
+      // ignore
     }
+  }, []);
 
-    // CSS Color Variables
-    root.style.setProperty('--primary-color', settings.primaryColor);
-    root.style.setProperty('--secondary-color', settings.secondaryColor);
-    root.style.setProperty('--accent-color', settings.accentColor);
-    root.style.setProperty('--sidebar-bg', settings.sidebarBg);
-    root.style.setProperty('--card-bg', settings.cardBg);
+  // Step 2 — Sync from Firestore after login (source of truth)
+  useEffect(() => {
+    async function load() {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const ref = doc(db, FIRESTORE_COLLECTION, user.uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data();
+          const remote: AppearanceSettings = {
+            theme: data.theme ?? defaultSettings.theme,
+            fontFamily: data.fontFamily ?? defaultSettings.fontFamily,
+            primaryColor: data.primaryColor ?? defaultSettings.primaryColor,
+          };
+          setSettings(remote);
+          applyToDom(remote);
+          localStorage.setItem(LS_KEY, JSON.stringify(remote));
+        }
+      } catch (err) {
+        console.warn('[AppearanceContext] Erro ao carregar Firestore:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, [user]);
 
-    // Card Radius
-    let radius = '0.75rem';
-    if (settings.cardRadius === 'Arredondado') radius = '1.5rem';
-    if (settings.cardRadius === 'Quadrado') radius = '0.125rem';
-    root.style.setProperty('--card-radius', radius);
-
-    // Card Shadow
-    let shadow = '0 10px 15px -3px rgba(0,0,0,0.3)';
-    if (settings.cardShadow === 'Nenhuma') shadow = 'none';
-    if (settings.cardShadow === 'Suave') shadow = '0 4px 6px -1px rgba(0,0,0,0.1)';
-    if (settings.cardShadow === 'Elevada') shadow = '0 25px 50px -12px rgba(0,0,0,0.5)';
-    root.style.setProperty('--card-shadow', shadow);
-
-    // Button Radius
-    let btnRadius = '0.5rem';
-    if (settings.buttonStyle === 'Reto') btnRadius = '0.125rem';
-    if (settings.buttonStyle === 'Pílula') btnRadius = '9999px';
-    root.style.setProperty('--btn-radius', btnRadius);
-
-    // Layout Spacing
-    let layoutPadding = '1.5rem';
-    if (settings.layoutSpacing === 'Compacto') layoutPadding = '0.75rem';
-    if (settings.layoutSpacing === 'Espaçoso') layoutPadding = '2.5rem';
-    root.style.setProperty('--layout-padding', layoutPadding);
+  // Step 3 — Re-apply whenever settings change (e.g. live preview while user picks)
+  useEffect(() => {
+    applyToDom(settings);
   }, [settings]);
 
-  const updateSettings = async (newSettings: Partial<FullAppearanceSettings>) => {
-    const updated = { ...settings, ...newSettings };
+  // ─── Actions ───────────────────────────────────────────────────────────────
+
+  const updateSettings = async (patch: Partial<AppearanceSettings>): Promise<void> => {
+    const updated = { ...settings, ...patch };
     setSettings(updated);
+    localStorage.setItem(LS_KEY, JSON.stringify(updated));
 
-    // Immediate LocalStorage save
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-    }
-
-    // Firebase save
     if (user) {
-      try {
-        const docRef = doc(db, 'user_preferences', user.uid);
-        await setDoc(
-          docRef,
-          { ...updated, userId: user.uid, updatedAt: new Date().toISOString() },
-          { merge: true }
-        );
-      } catch (err) {
-        console.error('Erro ao salvar user_preferences no Firebase:', err);
-      }
+      const ref = doc(db, FIRESTORE_COLLECTION, user.uid);
+      await setDoc(
+        ref,
+        { theme: updated.theme, fontFamily: updated.fontFamily, primaryColor: updated.primaryColor, updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
     }
   };
 
-  const resetToDefault = async () => {
-    await updateSettings(defaultFullSettings);
+  const resetToDefault = async (): Promise<void> => {
+    await updateSettings(defaultSettings);
   };
 
   return (
@@ -233,3 +171,6 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 };
 
 export const useAppearance = () => useContext(AppearanceContext);
+
+// Keep a named export for backward-compat if anything imports defaultFullSettings
+export const defaultFullSettings = defaultSettings;

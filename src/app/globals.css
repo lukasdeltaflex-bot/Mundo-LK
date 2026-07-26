@@ -2,13 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── CSS Variables ──────────────────────────────────────────────────────── */
 :root {
   --background: #0f172a;
   --foreground: #f8fafc;
+  --primary-color: #2563EB;
+  --primary-color-10: #2563EB1A;
 }
 
+/* ─── Base body ──────────────────────────────────────────────────────────── */
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ─── Dark mode (default) ────────────────────────────────────────────────── */
+html.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card-bg: #1e293b;
+  --border-color: #334155;
+  --sidebar-bg: #0f172a;
+  --input-bg: #020617;
+  --muted-text: #94a3b8;
+}
+
+html.dark body {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+/* ─── Light mode ─────────────────────────────────────────────────────────── */
+html.light {
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --sidebar-bg: #ffffff;
+  --input-bg: #f8fafc;
+  --muted-text: #64748b;
+}
+
+html.light body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Light mode: sidebar */
+html.light aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Light mode: cards / panels */
+html.light .bg-slate-900,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/90 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-slate-950,
+html.light .bg-slate-950\/60 {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-slate-800,
+html.light .bg-slate-800\/40,
+html.light .bg-slate-800\/60 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Light mode: text */
+html.light .text-slate-100,
+html.light .text-slate-200 {
+  color: #0f172a !important;
+}
+
+html.light .text-slate-300,
+html.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+html.light .text-slate-500,
+html.light .text-slate-600 {
+  color: #64748b !important;
+}
+
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+/* Light mode: borders */
+html.light .border-slate-800,
+html.light .border-slate-700 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Light mode: nav active item */
+html.light .text-slate-400:hover {
+  color: #0f172a !important;
+}
+
+/* ─── Primary Color utility class ────────────────────────────────────────── */
+/* Applied by JS via CSS var. Components that should react to the accent color
+   can use: style={{ backgroundColor: 'var(--primary-color)' }}             */
