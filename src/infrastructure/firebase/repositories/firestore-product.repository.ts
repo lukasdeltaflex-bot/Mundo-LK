@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { IProductRepository } from '../../../core/domain/ports/repositories/IProductRepository';
 import { Product } from '../../../core/domain/entities/product.entity';
@@ -6,8 +6,7 @@ import { ProductMapper, FirestoreProductDoc } from '../mappers/product.mapper';
 
 export class FirestoreProductRepository implements IProductRepository {
   private collectionName = 'products';
-  // In-memory fallback map for dev environment without live Firebase connection
-  private memoryStore: Map<string, FirestoreProductDoc> = new Map();
+  private memoryStore: Map<string, FirestoreProductDoc & { deletedAt?: string; deletionReason?: string }> = new Map();
 
   public async findById(id: string): Promise<Product | null> {
     try {
@@ -17,7 +16,6 @@ export class FirestoreProductRepository implements IProductRepository {
         return ProductMapper.toDomain(snap.data() as FirestoreProductDoc);
       }
     } catch {
-      // Fallback memory check
       const mem = this.memoryStore.get(id);
       if (mem) return ProductMapper.toDomain(mem);
     }
@@ -43,24 +41,100 @@ export class FirestoreProductRepository implements IProductRepository {
     try {
       const q = query(collection(db, this.collectionName), where('userId', '==', userId));
       const snap = await getDocs(q);
-      return snap.docs.map((docSnap) => ProductMapper.toDomain(docSnap.data() as FirestoreProductDoc));
+      return snap.docs
+        .map((docSnap) => docSnap.data() as FirestoreProductDoc)
+        .filter((d) => !d.status || d.status === 'ACTIVE')
+        .map((d) => ProductMapper.toDomain(d));
     } catch {
       const results: Product[] = [];
       for (const item of this.memoryStore.values()) {
-        if (item.userId === userId) results.push(ProductMapper.toDomain(item));
+        if (item.userId === userId && (!item.status || item.status === 'ACTIVE')) {
+          results.push(ProductMapper.toDomain(item));
+        }
       }
       return results;
     }
   }
 
+  public async findTrashed(userId: string): Promise<Array<FirestoreProductDoc & { deletedAt: string; deletionReason: string }>> {
+    try {
+      const q = query(collection(db, this.collectionName), where('userId', '==', userId), where('status', '==', 'TRASHED'));
+      const snap = await getDocs(q);
+      return snap.docs.map((docSnap) => docSnap.data() as FirestoreProductDoc & { deletedAt: string; deletionReason: string });
+    } catch {
+      const results: Array<FirestoreProductDoc & { deletedAt: string; deletionReason: string }> = [];
+      for (const item of this.memoryStore.values()) {
+        if (item.userId === userId && item.status === 'TRASHED') {
+          results.push({
+            ...item,
+            deletedAt: item.deletedAt || new Date().toISOString(),
+            deletionReason: item.deletionReason || 'Não informado',
+            status: 'TRASHED',
+          });
+        }
+      }
+      return results;
+    }
+  }
+
+  public async moveToTrash(id: string, reason: string, userId: string): Promise<void> {
+    const deletedAt = new Date().toISOString();
+    const updateData = {
+      status: 'TRASHED' as const,
+      deletedAt,
+      deletedBy: userId,
+      deletionReason: reason,
+      updatedAt: deletedAt,
+    };
+
+    const mem = this.memoryStore.get(id);
+    if (mem) {
+      this.memoryStore.set(id, { ...mem, ...updateData });
+    }
+
+    try {
+      const ref = doc(db, this.collectionName, id);
+      await updateDoc(ref, updateData);
+
+      const trashRef = doc(db, 'trash_products', id);
+      await setDoc(trashRef, { id, productId: id, userId, reason, deletedAt }, { merge: true });
+    } catch (error) {
+      console.warn('[FirestoreProductRepository] Moved to trash in memory fallback:', error);
+    }
+  }
+
+  public async restoreFromTrash(id: string): Promise<void> {
+    const restoredAt = new Date().toISOString();
+    const updateData = {
+      status: 'ACTIVE' as const,
+      restoredAt,
+      updatedAt: restoredAt,
+    };
+
+    const mem = this.memoryStore.get(id);
+    if (mem) {
+      this.memoryStore.set(id, { ...mem, status: 'ACTIVE' });
+    }
+
+    try {
+      const ref = doc(db, this.collectionName, id);
+      await updateDoc(ref, updateData);
+
+      const trashRef = doc(db, 'trash_products', id);
+      await deleteDoc(trashRef);
+    } catch (error) {
+      console.warn('[FirestoreProductRepository] Restored from trash in memory fallback:', error);
+    }
+  }
+
   public async save(product: Product): Promise<void> {
     const raw = ProductMapper.toPersistence(product);
-    this.memoryStore.set(product.id, raw);
+    this.memoryStore.set(product.id, { ...raw, status: 'ACTIVE' });
     try {
       const ref = doc(db, this.collectionName, product.id);
-      await setDoc(ref, raw, { merge: true });
+      await setDoc(ref, { ...raw, status: 'ACTIVE' }, { merge: true });
     } catch (error) {
-      console.warn('[FirestoreProductRepository] Persisted to memory fallback due to network/config:', error);
+      console.warn('[FirestoreProductRepository] Persisted to memory fallback:', error);
     }
   }
 
@@ -69,8 +143,11 @@ export class FirestoreProductRepository implements IProductRepository {
     try {
       const ref = doc(db, this.collectionName, id);
       await deleteDoc(ref);
+
+      const trashRef = doc(db, 'trash_products', id);
+      await deleteDoc(trashRef);
     } catch (error) {
-      console.warn('[FirestoreProductRepository] Deleted from memory fallback:', error);
+      console.warn('[FirestoreProductRepository] Permanent deletion fallback:', error);
     }
   }
 }

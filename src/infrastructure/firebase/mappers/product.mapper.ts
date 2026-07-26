@@ -15,7 +15,9 @@ export interface FirestoreProductDoc {
   previousPrice?: number | null;
   discountPercentage: number;
   images: string[];
-  status: 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK';
+  status: 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
+  publicationCount?: number;
+  opportunityScore?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,6 +1,6 @@
 import { Price, DiscountPercentage, AffiliateLink } from '../value-objects';
 
-export type ProductStatus = 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK';
+export type ProductStatus = 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
 
 export interface ProductProps {
   id: string;
