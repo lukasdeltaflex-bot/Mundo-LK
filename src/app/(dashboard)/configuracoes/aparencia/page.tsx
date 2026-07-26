@@ -1,32 +1,82 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
-import { Badge } from '@/presentation/components/ui/Badge';
 import { Palette, Moon, Sun, Monitor, Type, Save, CheckCircle2, Loader2 } from 'lucide-react';
+import { useAppearance } from '@/presentation/context/AppearanceContext';
 
 export default function AparenciaPage() {
-  const [themeMode, setThemeMode] = useState<'dark' | 'light' | 'auto'>('dark');
-  const [fontFamily, setFontFamily] = useState<string>('Inter');
-  const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg'>('md');
-  const [accentColor, setAccentColor] = useState<string>('blue');
-  const [cardIntensity, setCardIntensity] = useState<'soft' | 'normal' | 'high'>('normal');
+  const { settings, updateSettings, isLoading } = useAppearance();
+
+  const [themeMode, setThemeMode] = useState<'dark' | 'light' | 'auto'>(settings.theme);
+  const [fontFamily, setFontFamily] = useState<'Inter' | 'Roboto' | 'Open Sans' | 'Poppins' | 'Montserrat'>(settings.fontFamily);
+  const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg'>(settings.fontSize);
+  const [primaryColor, setPrimaryColor] = useState<string>(settings.primaryColor);
+  const [buttonColor, setButtonColor] = useState<string>(settings.buttonColor);
+  const [accentColor, setAccentColor] = useState<string>(settings.accentColor);
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!isLoading) {
+      setThemeMode(settings.theme);
+      setFontFamily(settings.fontFamily);
+      setFontSize(settings.fontSize);
+      setPrimaryColor(settings.primaryColor);
+      setButtonColor(settings.buttonColor);
+      setAccentColor(settings.accentColor);
+    }
+  }, [settings, isLoading]);
+
+  const handleApplyTheme = async (newTheme: 'dark' | 'light' | 'auto') => {
+    setThemeMode(newTheme);
+    await updateSettings({ theme: newTheme });
+  };
+
+  const handleApplyFont = async (newFont: 'Inter' | 'Roboto' | 'Open Sans' | 'Poppins' | 'Montserrat') => {
+    setFontFamily(newFont);
+    await updateSettings({ fontFamily: newFont });
+  };
+
+  const handleApplySize = async (newSize: 'sm' | 'md' | 'lg') => {
+    setFontSize(newSize);
+    await updateSettings({ fontSize: newSize });
+  };
+
+  const handleSaveAll = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSuccessMsg(null);
 
-    setTimeout(() => {
+    try {
+      await updateSettings({
+        theme: themeMode,
+        fontFamily,
+        fontSize,
+        primaryColor,
+        buttonColor,
+        accentColor,
+      });
+
+      setSuccessMsg('Configurações de Aparência salvas no Firebase e aplicadas em tempo real!');
+      setTimeout(() => setSuccessMsg(null), 3500);
+    } catch {
+      setSuccessMsg('Erro ao salvar preferências no Firebase.');
+    } finally {
       setSaving(false);
-      setSuccessMsg('Preferências de aparência salvas com sucesso!');
-      setTimeout(() => setSuccessMsg(null), 3000);
-    }, 600);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 text-slate-400 text-xs">
+        <Loader2 className="h-5 w-5 animate-spin text-blue-500 mr-2" />
+        Carregando preferências de aparência...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -35,7 +85,7 @@ export default function AparenciaPage() {
           <Palette className="h-6 w-6 text-blue-400" />
           <span>Central de Aparência & Personalização Visual</span>
         </h1>
-        <p className="text-sm text-slate-400">Ajuste o tema, tipografia, cores de destaque e estilo dos cards do Mundo LK.</p>
+        <p className="text-sm text-slate-400">Personalização em tempo real com sincronização automática no Firebase.</p>
       </div>
 
       {successMsg && (
@@ -45,19 +95,19 @@ export default function AparenciaPage() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSaveAll} className="space-y-6">
         {/* Theme Selection */}
         <Card className="p-6">
           <CardHeader className="p-0 mb-4">
             <CardTitle className="text-base">Modo de Tema</CardTitle>
-            <CardDescription className="text-xs">Selecione o esquema de cores preferido para a sua navegação</CardDescription>
+            <CardDescription className="text-xs">Selecione o esquema de cores e aplique imediatamente</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { id: 'dark', label: 'Escuro (Dark Mode)', icon: Moon, desc: 'Padrão recomendado para uso contínuo' },
-                { id: 'light', label: 'Claro (Light Mode)', icon: Sun, desc: 'Interface com fundo claro e alto contraste' },
-                { id: 'auto', label: 'Automático', icon: Monitor, desc: 'Sincroniza com as configurações do sistema' },
+                { id: 'dark', label: 'Escuro (Dark Mode)', icon: Moon, desc: 'Fundo escuro recomendado' },
+                { id: 'light', label: 'Claro (Light Mode)', icon: Sun, desc: 'Fundo claro e alto contraste' },
+                { id: 'auto', label: 'Automático', icon: Monitor, desc: 'Sincroniza com o SO' },
               ].map((item) => {
                 const Icon = item.icon;
                 const isSelected = themeMode === item.id;
@@ -65,7 +115,7 @@ export default function AparenciaPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setThemeMode(item.id as 'dark' | 'light' | 'auto')}
+                    onClick={() => handleApplyTheme(item.id as 'dark' | 'light' | 'auto')}
                     className={`p-4 rounded-xl border text-left transition ${
                       isSelected
                         ? 'border-blue-500 bg-blue-600/10 text-white'
@@ -84,12 +134,12 @@ export default function AparenciaPage() {
           </CardContent>
         </Card>
 
-        {/* Typography */}
+        {/* Typography Selection */}
         <Card className="p-6">
           <CardHeader className="p-0 mb-4">
             <div className="flex items-center gap-2">
               <Type className="h-4 w-4 text-blue-400" />
-              <CardTitle className="text-base">Tipografia & Tamanhos</CardTitle>
+              <CardTitle className="text-base">Tipografia & Fonte Global</CardTitle>
             </div>
           </CardHeader>
 
@@ -97,11 +147,11 @@ export default function AparenciaPage() {
             <div className="space-y-1.5">
               <label className="font-semibold text-slate-300">Família de Fonte</label>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {['Inter', 'Roboto', 'Open Sans', 'Poppins', 'Montserrat'].map((f) => (
+                {(['Inter', 'Roboto', 'Open Sans', 'Poppins', 'Montserrat'] as const).map((f) => (
                   <button
                     key={f}
                     type="button"
-                    onClick={() => setFontFamily(f)}
+                    onClick={() => handleApplyFont(f)}
                     className={`py-2 px-3 rounded-lg border text-xs font-medium transition ${
                       fontFamily === f
                         ? 'border-blue-500 bg-blue-600/10 text-blue-300'
@@ -115,17 +165,17 @@ export default function AparenciaPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-semibold text-slate-300">Tamanho da Fonte</label>
+              <label className="font-semibold text-slate-300">Tamanho da Fonte (Escala Global)</label>
               <div className="flex gap-2">
                 {[
-                  { id: 'sm', label: 'Pequeno (12px)' },
-                  { id: 'md', label: 'Médio (Padrão 14px)' },
+                  { id: 'sm', label: 'Pequeno (13px)' },
+                  { id: 'md', label: 'Médio (14px Padrão)' },
                   { id: 'lg', label: 'Grande (16px)' },
                 ].map((s) => (
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => setFontSize(s.id as 'sm' | 'md' | 'lg')}
+                    onClick={() => handleApplySize(s.id as 'sm' | 'md' | 'lg')}
                     className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
                       fontSize === s.id
                         ? 'border-blue-500 bg-blue-600/10 text-blue-300'
@@ -140,59 +190,50 @@ export default function AparenciaPage() {
           </CardContent>
         </Card>
 
-        {/* Accent Colors & Card Intensity */}
+        {/* Custom Colors */}
         <Card className="p-6">
           <CardHeader className="p-0 mb-4">
-            <CardTitle className="text-base">Cores de Destaque & Intensidade dos Cards</CardTitle>
+            <CardTitle className="text-base">Cores Personalizadas CSS (--primary, --button, --accent)</CardTitle>
           </CardHeader>
           <CardContent className="p-0 space-y-4 text-xs">
-            <div className="space-y-1.5">
-              <label className="font-semibold text-slate-300">Cor Principal do Sistema</label>
-              <div className="flex items-center gap-3">
-                {[
-                  { id: 'blue', name: 'Azul Mundo LK', color: 'bg-blue-600' },
-                  { id: 'emerald', name: 'Esmeralda', color: 'bg-emerald-600' },
-                  { id: 'purple', name: 'Roxo VIP', color: 'bg-purple-600' },
-                  { id: 'amber', name: 'Âmbar', color: 'bg-amber-600' },
-                ].map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setAccentColor(c.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition ${
-                      accentColor === c.id
-                        ? 'border-white bg-slate-800 text-white'
-                        : 'border-slate-800 bg-slate-950 text-slate-400'
-                    }`}
-                  >
-                    <span className={`h-3 w-3 rounded-full ${c.color}`} />
-                    <span>{c.name}</span>
-                  </button>
-                ))}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Cor Principal</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    className="h-9 w-12 rounded bg-slate-950 border border-slate-800 cursor-pointer"
+                  />
+                  <span className="font-mono text-slate-300">{primaryColor}</span>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="font-semibold text-slate-300">Intensidade de Brilho dos Cards</label>
-              <div className="flex gap-2">
-                {[
-                  { id: 'soft', label: 'Suave' },
-                  { id: 'normal', label: 'Padrão' },
-                  { id: 'high', label: 'Elevado (Glassmorphism)' },
-                ].map((ci) => (
-                  <button
-                    key={ci.id}
-                    type="button"
-                    onClick={() => setCardIntensity(ci.id as 'soft' | 'normal' | 'high')}
-                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition ${
-                      cardIntensity === ci.id
-                        ? 'border-blue-500 bg-blue-600/10 text-blue-300'
-                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {ci.label}
-                  </button>
-                ))}
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Cor dos Botões</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={buttonColor}
+                    onChange={(e) => setButtonColor(e.target.value)}
+                    className="h-9 w-12 rounded bg-slate-950 border border-slate-800 cursor-pointer"
+                  />
+                  <span className="font-mono text-slate-300">{buttonColor}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Cor dos Destaques</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="h-9 w-12 rounded bg-slate-950 border border-slate-800 cursor-pointer"
+                  />
+                  <span className="font-mono text-slate-300">{accentColor}</span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -205,7 +246,7 @@ export default function AparenciaPage() {
           disabled={saving}
           leftIcon={saving ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : <Save className="h-4 w-4" />}
         >
-          {saving ? 'Salvando Aparência...' : 'Salvar Personalização de Aparência'}
+          {saving ? 'Salvando no Firebase...' : 'Salvar Personalização de Aparência no Firebase'}
         </Button>
       </form>
     </div>
