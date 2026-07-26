@@ -4,6 +4,7 @@ import './globals.css';
 import { AuthProvider } from '@/presentation/context/AuthContext';
 import { AppearanceProvider } from '@/presentation/context/AppearanceContext';
 import { MenuOrderProvider } from '@/presentation/context/MenuOrderContext';
+import { NotificationProvider } from '@/presentation/context/NotificationContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -26,7 +27,9 @@ export default function RootLayout({
         <AuthProvider>
           <AppearanceProvider>
             <MenuOrderProvider>
-              {children}
+              <NotificationProvider>
+                {children}
+              </NotificationProvider>
             </MenuOrderProvider>
           </AppearanceProvider>
         </AuthProvider>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/infrastructure/firebase/config/firebase.config';
@@ -28,26 +28,31 @@ const FIRESTORE_COLLECTION = 'user_preferences';
 // ─── Context Interface ────────────────────────────────────────────────────────
 
 interface AppearanceContextType {
+  /** The last committed (saved) settings — applied globally to the whole app */
   settings: AppearanceSettings;
-  updateSettings: (patch: Partial<AppearanceSettings>) => Promise<void>;
+  /**
+   * Commit a settings patch: persists to localStorage + Firestore and applies
+   * it globally to the DOM. Call this ONLY when the user explicitly saves.
+   */
+  commitSettings: (patch: Partial<AppearanceSettings>) => Promise<void>;
   resetToDefault: () => Promise<void>;
   isLoading: boolean;
 }
 
 const AppearanceContext = createContext<AppearanceContextType>({
   settings: defaultSettings,
-  updateSettings: async () => {},
+  commitSettings: async () => {},
   resetToDefault: async () => {},
   isLoading: false,
 });
 
-// ─── Helper: apply settings to DOM ───────────────────────────────────────────
+// ─── DOM helpers ──────────────────────────────────────────────────────────────
 
 function applyToDom(s: AppearanceSettings) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
 
-  // ── Theme (dark / light) ──────────────────────────────────────────────────
+  // Theme
   if (s.theme === 'light') {
     root.classList.remove('dark');
     root.classList.add('light');
@@ -56,19 +61,15 @@ function applyToDom(s: AppearanceSettings) {
     root.classList.add('dark');
   }
 
-  // ── Primary Color → CSS variable ─────────────────────────────────────────
+  // Primary color
   root.style.setProperty('--primary-color', s.primaryColor);
+  root.style.setProperty('--primary-color-10', s.primaryColor + '1A');
 
-  // Derive a lighter tint for hover states (opacity trick via alpha channel)
-  root.style.setProperty('--primary-color-10', s.primaryColor + '1A'); // ~10% opacity
-
-  // ── Font ──────────────────────────────────────────────────────────────────
+  // Font
   if (s.fontFamily === 'Arial') {
-    // Arial is system font — remove any loaded Google Font
     document.body.style.fontFamily = 'Arial, Helvetica, sans-serif';
     root.style.setProperty('--font-sans', 'Arial, Helvetica, sans-serif');
   } else {
-    // Load Google Font dynamically
     const fontSlug = s.fontFamily.replace(/\s+/g, '+');
     const linkId = 'google-font-dynamic';
     let linkEl = document.getElementById(linkId) as HTMLLinkElement | null;
@@ -90,8 +91,10 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user } = useAuth();
   const [settings, setSettings] = useState<AppearanceSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Track whether Firebase was already loaded for this session (avoid repeat reads)
+  const loadedRef = useRef(false);
 
-  // Step 1 — Instant hydration from localStorage (prevents flash on reload)
+  // Step 1 — Instant hydration from localStorage (no flash on reload, no Firebase round-trip)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -103,19 +106,20 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         applyToDom(merged);
       }
     } catch {
-      // ignore
+      // ignore corrupt cache
     }
   }, []);
 
-  // Step 2 — Sync from Firestore after login (source of truth)
+  // Step 2 — One-time Firestore sync after login (source of truth, only runs once per session)
   useEffect(() => {
-    async function load() {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
+    if (!user || loadedRef.current) {
+      if (!user) setIsLoading(false);
+      return;
+    }
+
+    async function loadFromFirestore() {
       try {
-        const ref = doc(db, FIRESTORE_COLLECTION, user.uid);
+        const ref = doc(db, FIRESTORE_COLLECTION, user!.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = snap.data();
@@ -129,42 +133,58 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           localStorage.setItem(LS_KEY, JSON.stringify(remote));
         }
       } catch (err) {
-        console.warn('[AppearanceContext] Erro ao carregar Firestore:', err);
+        console.warn('[AppearanceContext] Firestore load error:', err);
       } finally {
         setIsLoading(false);
+        loadedRef.current = true;
       }
     }
-    load();
+
+    loadFromFirestore();
   }, [user]);
 
-  // Step 3 — Re-apply whenever settings change (e.g. live preview while user picks)
-  useEffect(() => {
-    applyToDom(settings);
-  }, [settings]);
+  // ─── commitSettings: the ONLY function that writes globally ───────────────
+  const commitSettings = useCallback(
+    async (patch: Partial<AppearanceSettings>): Promise<void> => {
+      const updated = { ...settings, ...patch };
 
-  // ─── Actions ───────────────────────────────────────────────────────────────
+      // 1. Update React state (triggers global re-render with new settings)
+      setSettings(updated);
 
-  const updateSettings = async (patch: Partial<AppearanceSettings>): Promise<void> => {
-    const updated = { ...settings, ...patch };
-    setSettings(updated);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+      // 2. Apply to DOM immediately after commit
+      applyToDom(updated);
 
-    if (user) {
-      const ref = doc(db, FIRESTORE_COLLECTION, user.uid);
-      await setDoc(
-        ref,
-        { theme: updated.theme, fontFamily: updated.fontFamily, primaryColor: updated.primaryColor, updatedAt: new Date().toISOString() },
-        { merge: true }
-      );
-    }
-  };
+      // 3. Persist to localStorage (instant, offline-capable)
+      localStorage.setItem(LS_KEY, JSON.stringify(updated));
 
-  const resetToDefault = async (): Promise<void> => {
-    await updateSettings(defaultSettings);
-  };
+      // 4. Persist to Firestore (async, best-effort)
+      if (user) {
+        try {
+          const ref = doc(db, FIRESTORE_COLLECTION, user.uid);
+          await setDoc(
+            ref,
+            {
+              theme: updated.theme,
+              fontFamily: updated.fontFamily,
+              primaryColor: updated.primaryColor,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (err) {
+          console.error('[AppearanceContext] Firestore save error:', err);
+        }
+      }
+    },
+    [settings, user]
+  );
+
+  const resetToDefault = useCallback(async (): Promise<void> => {
+    await commitSettings(defaultSettings);
+  }, [commitSettings]);
 
   return (
-    <AppearanceContext.Provider value={{ settings, updateSettings, resetToDefault, isLoading }}>
+    <AppearanceContext.Provider value={{ settings, commitSettings, resetToDefault, isLoading }}>
       {children}
     </AppearanceContext.Provider>
   );
@@ -172,5 +192,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
 export const useAppearance = () => useContext(AppearanceContext);
 
-// Keep a named export for backward-compat if anything imports defaultFullSettings
+// Backward-compat alias
 export const defaultFullSettings = defaultSettings;
+// Backward-compat alias for old `updateSettings` callers (maps to commitSettings)
+export { AppearanceContext };
