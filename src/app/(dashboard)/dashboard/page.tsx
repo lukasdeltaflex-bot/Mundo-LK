@@ -1,21 +1,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FastImportBox } from '@/presentation/components/business/FastImportBox';
+import { OfferCreationFlow } from '@/presentation/components/business/OfferCreationFlow';
+import { useAuth } from '@/presentation/context/AuthContext';
+import { ShoppingBag, Sparkles, Edit3, Save, Layers,
+  AlertTriangle, History, Zap, Link as LinkIcon,
+  Package, FileText, Loader2,
+} from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/presentation/components/ui/Card';
+import { Badge } from '@/presentation/components/ui/Badge';
+import { Button } from '@/presentation/components/ui/Button';
 import { OfferScoreBadge } from '@/presentation/components/business/OfferScoreBadge';
 import { ChannelCopyBox } from '@/presentation/components/business/ChannelCopyBox';
 import { OfferRatingWidget } from '@/presentation/components/business/OfferRatingWidget';
 import { MarketplaceBadge } from '@/presentation/components/business/MarketplaceBadge';
-import { Card, CardHeader, CardTitle, CardContent } from '@/presentation/components/ui/Card';
-import { Badge } from '@/presentation/components/ui/Badge';
-import { Button } from '@/presentation/components/ui/Button';
-import { useImportWorkflow } from '@/presentation/hooks/useImportWorkflow';
-import { useAuth } from '@/presentation/context/AuthContext';
-import {
-  ShoppingBag, Sparkles, Edit3, Save, Layers,
-  AlertTriangle, History, Zap, Link as LinkIcon,
-  Package, FileText, Loader2,
-} from 'lucide-react';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { Offer } from '@/core/domain/entities/offer.entity';
@@ -74,7 +72,6 @@ function SectionHeading({ icon: Icon, label, count }: { icon: React.ElementType;
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { importOffer, isLoading: importLoading, data: importData } = useImportWorkflow();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [offers,   setOffers]   = useState<UIProductOffer[]>([]);
@@ -201,38 +198,32 @@ export default function DashboardPage() {
 
       {/* ── Assistente IA — Gerar oferta por URL ───────────────────────── */}
       <section>
-        <SectionHeading icon={Sparkles} label="Assistente IA — Gerar Anúncio por URL" />
-
-        <FastImportBox
-          isLoading={importLoading}
-          onImport={async (formData) => {
-            await importOffer({ url: formData.url, affiliateTag: formData.affiliateTag });
+        <SectionHeading icon={Sparkles} label="Assistente IA — Criar Nova Oferta" />
+        <OfferCreationFlow
+          onSaved={() => {
+            // Refresh data after saving
+            setLoading(true);
+            const uid = user?.uid || 'guest';
+            Promise.all([
+              new (require('@/infrastructure/firebase/repositories/firestore-product.repository').FirestoreProductRepository)().findAll(uid),
+              new (require('@/infrastructure/firebase/repositories/firestore-offer.repository').FirestoreOfferRepository)().findByUserId(uid),
+            ]).then(([prods, offerList]) => {
+              setProducts(prods as Product[]);
+              setOffers((offerList as Offer[]).map((o: Offer) => ({
+                id: o.id, title: 'Oferta de Produto', marketplace: 'Marketplace', price: 'R$ —',
+                status: 'ADICIONADO' as const, publicationCount: 0, lastPublishedAt: 'Nunca',
+                score: o.scoreValue || 0, scoreLabel: o.scoreLabel || '—',
+                justification: o.scoreJustification || '', cta: o.cta || '', hashtags: '',
+                whatsAppText: o.copies?.copies?.whatsAppText || '',
+                telegramText: o.copies?.copies?.telegramText || '',
+                instagramText: o.copies?.copies?.instagramText || '',
+                affiliateUrl: '', history: [{ date: new Date().toLocaleDateString('pt-BR'), text: 'Oferta salva' }],
+              })));
+            }).catch(console.warn).finally(() => setLoading(false));
           }}
         />
-
-        {importData && (
-          <Card className="mt-4 border-blue-500/40 bg-blue-950/20 animate-in fade-in duration-300">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-blue-300">Anúncio Gerado!</CardTitle>
-                  <p className="text-xs text-slate-400 mt-0.5">{importData.title}</p>
-                </div>
-                <OfferScoreBadge score={importData.score} label={importData.scoreLabel} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-lg font-bold text-emerald-400">{importData.price}</div>
-              <ChannelCopyBox
-                whatsAppText={importData.whatsappText}
-                telegramText={importData.telegramText}
-                instagramText={importData.instagramText}
-                affiliateUrl={importData.whatsappText}
-              />
-            </CardContent>
-          </Card>
-        )}
       </section>
+
 
       {/* ── Meus Produtos ──────────────────────────────────────────────── */}
       <section>
