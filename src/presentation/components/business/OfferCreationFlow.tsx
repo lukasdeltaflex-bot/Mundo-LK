@@ -88,44 +88,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   // Stepper messages
   const [stepperMsg, setStepperMsg] = useState('🔎 Identificando marketplace e extraindo informações...');
 
-  // ── Step 1: Start Extraction ──────────────────────────────────────────────
-  const handleStartExtraction = useCallback(async () => {
-    const rawUrl = url.trim();
-    if (!rawUrl) {
-      setError('Cole a URL do produto para continuar.');
-      return;
-    }
-
-    setError(null);
-    setStep('extracting');
-    setStepperMsg('🔎 Identificando marketplace e extraindo informações reais do anúncio...');
-
-    try {
-      const result = await extractProductDetailsAction({
-        url: rawUrl,
-        affiliateTag: tag.trim() || 'mundolk',
-      });
-
-      if (!result.success) {
-        setError(result.error || 'Não foi possível acessar a página do produto.');
-        setStep('input');
-        return;
-      }
-
-      setExtractedData(result.data);
-      setAffiliateUrl(result.affiliateUrl);
-      setMarketplace(result.marketplaceSlug);
-
-      // If high confidence (>=80%), proceed automatically or show confirmation modal if needed
-      setStep('confirming');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`Erro na extração de dados: ${msg}`);
-      setStep('input');
-    }
-  }, [url, tag]);
-
-  // ── Step 2: Generate AI Offer from Confirmed Data ─────────────────────────
+  // ── Step 1: Generate AI Offer from Confirmed Data ────────────────────────
   const handleGenerateAI = useCallback(async (confirmed: ExtractedProductData, overrideStyle?: OfferStyle) => {
     setError(null);
     setStep('analyzing');
@@ -162,6 +125,48 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setStep('confirming');
     }
   }, [url, tag, user, style]);
+
+  // ── Step 2: Start Extraction ──────────────────────────────────────────────
+  const handleStartExtraction = useCallback(async () => {
+    const rawUrl = url.trim();
+    if (!rawUrl) {
+      setError('Cole a URL do produto para continuar.');
+      return;
+    }
+
+    setError(null);
+    setStep('extracting');
+    setStepperMsg('🔎 Identificando marketplace e extraindo informações reais do anúncio...');
+
+    try {
+      const result = await extractProductDetailsAction({
+        url: rawUrl,
+        affiliateTag: tag.trim() || 'mundolk',
+      });
+
+      if (!result.success) {
+        setError(result.error || 'Não foi possível acessar a página do produto.');
+        setStep('input');
+        return;
+      }
+
+      setExtractedData(result.data);
+      setAffiliateUrl(result.affiliateUrl);
+      setMarketplace(result.marketplaceSlug);
+
+      // Modo Automático (>=80%): gera direto com IA
+      if (result.data.confidenceScore >= 80) {
+        handleGenerateAI(result.data);
+      } else {
+        // Modo Assistido (50-79%) ou Manual (<50%): abre tela de recuperação
+        setStep('confirming');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Erro na extração de dados: ${msg}`);
+      setStep('input');
+    }
+  }, [url, tag, handleGenerateAI]);
 
   // Regenerate / Generate alternative variation
   const handleGenerateAlternative = useCallback((newStyle?: OfferStyle) => {

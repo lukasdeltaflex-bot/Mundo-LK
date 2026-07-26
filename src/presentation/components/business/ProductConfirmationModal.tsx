@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Sparkles, Upload, ArrowRight, Image as ImageIcon, Tag, DollarSign, Truck, Star, Layers } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Sparkles, Upload, ArrowRight, Image as ImageIcon, Tag, DollarSign, Truck, Star, Layers, HelpCircle } from 'lucide-react';
 import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
 
 interface ProductConfirmationModalProps {
@@ -43,7 +43,10 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   const [rating, setRating] = useState(data.reviewsRating ? String(data.reviewsRating) : '4.8');
   const [shipping, setShipping] = useState(data.shippingInfo || 'Frete Grátis disponível');
 
-  const isHighConfidence = data.confidenceScore >= 80;
+  const score = data.confidenceScore || 0;
+  const isAutomatic = score >= 80;
+  const isAssisted  = score >= 50 && score < 80;
+  const isManual     = score < 50;
 
   // Handle local file upload (converts to Data URL)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,7 +79,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
       categoryName: category.trim() || 'Geral',
       reviewsRating: isNaN(numericRating) ? 4.8 : numericRating,
       shippingInfo: shipping.trim(),
-      confidenceScore: 100, // Manually verified & destravado pelo usuário
+      confidenceScore: 100, // Destravado e confirmado
     };
 
     onConfirm(confirmed);
@@ -88,25 +91,27 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isHighConfidence ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-              {isHighConfidence ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isAutomatic ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : isAssisted ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+              {isAutomatic ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">
-                {isHighConfidence ? 'Conferência dos Dados do Anúncio' : '⚠️ Precisamos confirmar alguns dados do produto'}
+                {isAutomatic && 'Conferência de Dados (Modo Automático)'}
+                {isAssisted  && '🟡 Confirmação Rápida (Modo Assistido)'}
+                {isManual    && '⚠️ Precisamos confirmar alguns dados do produto (Modo Manual)'}
               </h2>
               <p className="text-xs text-slate-400">
-                {isHighConfidence
-                  ? 'Verifique os dados reais extraídos antes da IA gerar a copy de alta conversão.'
-                  : 'O marketplace bloqueou parte das informações automáticas deste link. Confirme os dados abaixo para liberar a criação da oferta com IA.'}
+                {isAutomatic && 'Dados extraídos com alta confiança. Verifique e confirme para a IA criar a oferta.'}
+                {isAssisted  && 'Metadados parciais encontrados. Faça os ajustes rápidos abaixo.'}
+                {isManual    && 'O marketplace bloqueou as informações automáticas deste link. Confirme os dados abaixo para liberar a criação da oferta com IA.'}
               </p>
             </div>
           </div>
 
           {/* Confidence Badge */}
-          <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shrink-0 ${isHighConfidence ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
-            <span className={`h-2 w-2 rounded-full ${isHighConfidence ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
-            Confiança: {data.confidenceScore}%
+          <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shrink-0 ${isAutomatic ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : isAssisted ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'}`}>
+            <span className={`h-2 w-2 rounded-full ${isAutomatic ? 'bg-emerald-400' : isAssisted ? 'bg-amber-400 animate-pulse' : 'bg-rose-400 animate-pulse'}`} />
+            {score}% Confiança ({isAutomatic ? 'Automático' : isAssisted ? 'Assistido' : 'Manual'})
           </div>
         </div>
 
