@@ -51,14 +51,14 @@ function buildMarketingPrompt(product: Product, style: OfferStyle): string {
   const price    = product.currentPrice.formatBRL();
   const discount = product.discountPercentage.hasDiscount()
     ? `${product.discountPercentage.formatString()} OFF (de ${product.previousPrice?.formatBRL() ?? '?'} por ${price})`
-    : `preço atual: ${price}`;
+    : `preço atual: ${price} (sem desconto informado — foque no valor percebido e oportunidade de preço atual)`;
 
-  return `Você é uma especialista em marketing digital, copywriting e psicologia do consumidor brasileiro.
-Sua tarefa é analisar um produto de afiliado e criar uma oferta ÚNICA e PERSONALIZADA para ele.
+  return `Você é uma especialista de classe mundial em marketing digital, copywriting persuasivo e psicologia do consumidor brasileiro.
+Sua tarefa é analisar um produto de afiliado e criar uma oferta ÚNICA, ALTAMENTE PERSUASIVA e PERSONALIZADA para ele.
 
 PRODUTO PARA ANÁLISE:
 Nome: ${product.title}
-Descrição: ${product.description || 'Não disponível'}
+Descrição: ${product.description || 'Descrição curta — use seu conhecimento prévio sobre este produto/categoria para entender todos os benefícios reais'}
 Marca: ${product.brand || 'Não informada'}
 Categoria registrada: ${product.categoryId || 'Não definida'}
 Preço: ${discount}
@@ -66,54 +66,46 @@ Marketplace: ${product.marketplaceSlug}
 
 ━━━ INSTRUÇÕES DE ANÁLISE ━━━
 
-PASSO 1 — ENTENDER O PRODUTO
-Analise profundamente o produto acima. Pense:
-- O que esse produto FAZ de verdade?
-- Qual DOR ou NECESSIDADE ele resolve?
-- Quem seria o comprador ideal?
-- Por que essa pessoa compraria HOJE?
-- Qual é o argumento mais forte para vender esse produto?
-- Qual emoção leva à compra (medo de perder, desejo, praticidade, status, economia)?
+PASSO 1 — ENTENDER O PRODUTO PROFUNDAMENTE
+- Caso a descrição do produto seja curta ou incompleta, USE SEU CONHECIMENTO GERAL sobre este tipo de item/produto/marca para preencher as lacunas e identificar dores, recursos e benefícios reais.
+- O que esse produto FAZ de verdade no dia a dia do comprador?
+- Qual DOR, DESCONFORTO ou NECESSIDADE ele resolve?
+- Quem é o comprador ideal? (Ex: mães, atletas, profissionais remotos, estudantes, motoristas...)
+- Por que comprar HOJE pelo preço de ${price}?
+- Qual emoção impulsiona a decisão de compra?
 
-PASSO 2 — CRIAR A OFERTA
-Com base na análise, crie textos ÚNICOS para esse produto.
-Estilo da oferta: ${stylePtBR[style]}
+PASSO 2 — CRIAR A OFERTA PERSONALIZADA
+Estilo exigido: ${stylePtBR[style]}
 
-NÃO use:
-- Frases genéricas como "produto de alta qualidade"
-- Estruturas repetitivas como "Produto X com características Y e Z"
-- Linguagem de catálogo
-
-USE:
-- Linguagem de vendedor consultivo brasileiro
-- Apelo ao benefício real, não à característica
-- Emojis estratégicos (não excessivos)
-- Chamada para ação irresistível
-- Tom adequado para WhatsApp, Telegram e Instagram
+REGRAS RÍGIDAS DE COPYWRITING:
+- NUNCA use frases genéricas como "produto de alta qualidade", "excelente opção" ou "compre já".
+- NUNCA repita o mesmo padrão de texto para produtos diferentes.
+- VENDA O BENEFÍCIO REAL e a transformação, não apenas a ficha técnica.
+- Adapte o tom para redes sociais brasileiras (WhatsApp, Telegram, Instagram).
 
 ━━━ RESPOSTA OBRIGATÓRIA EM JSON ━━━
 
-Responda SOMENTE com este JSON válido, sem markdown, sem explicações:
+Responda SOMENTE com um objeto JSON válido, sem comentários:
 
 {
-  "publicoAlvo": "descrição precisa de quem compraria esse produto",
-  "dorQueResolve": "problema real que o produto resolve na vida dessa pessoa",
-  "beneficioPrincipal": "o maior benefício percebido pelo comprador",
-  "argumentoComercial": "o argumento de venda mais forte para esse produto específico",
-  "anguloDeVenda": "nome do ângulo escolhido",
-  "emocaoDeCompra": "emoção principal que leva à compra",
-  "categoria": "categoria correta do produto em português (ex: Casa e Cozinha, Eletrônicos, Moda, Beleza, Esporte, Infantil, Automotivo, etc.)",
-  "whatsAppText": "texto completo para WhatsApp com emojis, máximo 300 caracteres, inclui link: ${product.affiliateUrl.url}",
-  "telegramText": "texto para Telegram com HTML básico (<b>negrito</b>) e link ao final",
-  "instagramText": "legenda para Instagram com emojis e hashtags no final, até 5 hashtags",
-  "facebookText": "post para Facebook, mais descritivo, 2-3 parágrafos",
-  "channelText": "anúncio para canal/grupo de afiliados, objetivo e direto",
-  "storyText": "texto curto para story Instagram/WhatsApp, máximo 80 caracteres + emoji",
-  "cta": "chamada para ação principal, máximo 12 palavras",
+  "publicoAlvo": "descrição precisa de quem compra este produto específico",
+  "dorQueResolve": "problema real que o produto resolve na vida da pessoa",
+  "beneficioPrincipal": "o maior benefício e transformação percebidos",
+  "argumentoComercial": "o argumento de venda mais forte para este produto pelo preço de ${price}",
+  "anguloDeVenda": "nome do ângulo (ex: Conveniência, Status, Economia, Praticidade...)",
+  "emocaoDeCompra": "emoção chave que ativa o clique de compra",
+  "categoria": "categoria precisa em português (ex: Casa e Cozinha, Eletrônicos, Moda, Beleza, Esporte, Infantil, Automotivo, etc.)",
+  "whatsAppText": "texto completo persuasivo para WhatsApp com emojis e link: ${product.affiliateUrl.url}",
+  "telegramText": "texto para Telegram com HTML <b>negrito</b> e link no final",
+  "instagramText": "legenda engajadora para Instagram com emojis e hashtags ao final",
+  "facebookText": "post completo e convincente para Facebook",
+  "channelText": "anúncio objetivo e forte para canal de ofertas",
+  "storyText": "texto curto direto para Story com emoji (máx 80 caracteres)",
+  "cta": "chamada para ação forte e persuasiva (máx 12 palavras)",
   "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
   "emojis": ["emoji1", "emoji2", "emoji3", "emoji4"],
-  "scoreValue": 85,
-  "scoreJustification": "justificativa em 1-2 frases"
+  "scoreValue": 88,
+  "scoreJustification": "justificativa clara de 1-2 frases do score"
 }`;
 }
 
