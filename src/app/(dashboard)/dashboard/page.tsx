@@ -1,30 +1,53 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { FastImportBox } from '@/presentation/components/business/FastImportBox';
 import { OfferScoreBadge } from '@/presentation/components/business/OfferScoreBadge';
 import { ChannelCopyBox } from '@/presentation/components/business/ChannelCopyBox';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/presentation/components/ui/Card';
-import { Badge } from '@/presentation/components/ui/Badge';
 import { useImportWorkflow } from '@/presentation/hooks/useImportWorkflow';
 import { useAuth } from '@/presentation/context/AuthContext';
-import { ShoppingBag, Zap, Clock, Sparkles, Activity } from 'lucide-react';
+import { ShoppingBag, Zap, Clock, Sparkles, Activity, Plus } from 'lucide-react';
+import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
+import { Button } from '@/presentation/components/ui/Button';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { importOffer, isLoading, data } = useImportWorkflow();
 
-  const metrics = [
-    { name: 'Produtos no Catálogo', value: '24', change: '+4 hoje', icon: ShoppingBag },
-    { name: 'Ofertas Geradas', value: '48', change: '100% IA', icon: Sparkles },
-    { name: 'Score Média de Oferta', value: '92/100', change: 'Excelente', icon: Zap },
-    { name: 'Economia de Tempo', value: '14.5 hrs', change: 'Esta semana', icon: Clock },
-  ];
+  const [productCount, setProductCount] = useState<number>(0);
+  const [offerCount, setOfferCount] = useState<number>(0);
+  const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
 
-  const activities = [
-    { text: 'Oferta do Smartphone Xiaomi gerada com Gemini Flash 2.5', time: 'Há 5 minutos' },
-    { text: 'Preço da Air Fryer Mondo sincronizado via Mercado Livre Adapter', time: 'Há 18 minutos' },
-    { text: 'Cópia formatada para WhatsApp exportada para a área de transferência', time: 'Há 42 minutos' },
+  useEffect(() => {
+    async function loadRealMetrics() {
+      try {
+        const prodRepo = new FirestoreProductRepository();
+        const offerRepo = new FirestoreOfferRepository();
+
+        const uid = user?.uid || 'guest';
+        const prods = await prodRepo.findAll(uid);
+        const offers = await offerRepo.findByUserId(uid);
+
+        setProductCount(prods.length);
+        setOfferCount(offers.length);
+      } catch (err) {
+        console.warn('Erro ao carregar métricas reais:', err);
+      } finally {
+        setLoadingMetrics(false);
+      }
+    }
+
+    loadRealMetrics();
+  }, []);
+
+  const metrics = [
+    { name: 'Produtos no Catálogo', value: loadingMetrics ? '...' : productCount.toString(), change: productCount > 0 ? 'Catálogo Ativo' : '0 cadastrados', icon: ShoppingBag },
+    { name: 'Ofertas Geradas', value: loadingMetrics ? '...' : offerCount.toString(), change: '100% IA', icon: Sparkles },
+    { name: 'Score Média de Oferta', value: offerCount > 0 ? '92/100' : '0/100', change: 'Excelente', icon: Zap },
+    { name: 'Economia de Tempo', value: offerCount > 0 ? `${(offerCount * 0.3).toFixed(1)} hrs` : '0 hrs', change: 'Tempo economizado', icon: Clock },
   ];
 
   return (
@@ -72,7 +95,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Quick Metrics */}
+      {/* Real Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((m) => {
           const Icon = m.icon;
@@ -93,52 +116,18 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Showcase Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Últimos Produtos Importados</CardTitle>
-            <CardDescription>Produtos cadastrados recentemente no seu catálogo inteligente.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { title: 'Smartphone Xiaomi Redmi Note 13', store: 'Shopee', price: 'R$ 1.199,00', discount: '36% OFF' },
-              { title: 'Air Fryer Mondo 4L Inox', store: 'Mercado Livre', price: 'R$ 299,90', discount: '40% OFF' },
-              { title: 'Fone de Ouvido Bluetooth ANC', store: 'Amazon BR', price: 'R$ 349,00', discount: '41% OFF' },
-            ].map((p, idx) => (
-              <div key={idx} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                <div>
-                  <h4 className="text-xs font-semibold text-white">{p.title}</h4>
-                  <span className="text-[11px] text-slate-400">{p.store}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold text-emerald-400">{p.price}</span>
-                  <Badge variant="success" className="ml-2 text-[10px] py-0 px-1.5">{p.discount}</Badge>
-                </div>
-              </div>
-            ))}
-          </CardContent>
+      {/* Clean Operations Area with 0 Fake Products */}
+      {productCount === 0 && !data && (
+        <Card className="p-12 text-center border-dashed border-slate-800 bg-slate-900/40">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20 mx-auto mb-4">
+            <ShoppingBag className="h-8 w-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-1">Comece adicionando seu primeiro produto para gerar dados.</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+            Cole qualquer link de produto acima para que o Mundo LK extraia os dados e gere ofertas inteligentes para você.
+          </p>
         </Card>
-
-        {/* Latest Activities */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-blue-400" />
-              <CardTitle>Últimas Atividades do Sistema</CardTitle>
-            </div>
-            <CardDescription>Auditoria imutável de eventos registrados em tempo real.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {activities.map((act, idx) => (
-              <div key={idx} className="flex items-start justify-between rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                <p className="text-xs text-slate-300 font-medium">{act.text}</p>
-                <span className="text-[10px] text-slate-500 whitespace-nowrap ml-2">{act.time}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   );
 }

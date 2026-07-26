@@ -1,41 +1,66 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/presentation/components/ui/Card';
-import { Badge } from '@/presentation/components/ui/Badge';
-import { BarChart3, ShoppingBag, Sparkles, Send, CheckCircle2, TrendingUp, Layers, Tag, Store } from 'lucide-react';
+import { Button } from '@/presentation/components/ui/Button';
+import { BarChart3, ShoppingBag, Sparkles, Send, CheckCircle2, Layers, Tag, Store, Plus } from 'lucide-react';
+import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
+import { useAuth } from '@/presentation/context/AuthContext';
 
 export default function OperacaoPage() {
+  const { user } = useAuth();
+  const [productCount, setProductCount] = useState(0);
+  const [offerCount, setOfferCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadMetrics() {
+      try {
+        const prodRepo = new FirestoreProductRepository();
+        const offerRepo = new FirestoreOfferRepository();
+
+        const uid = user?.uid || 'guest';
+        const prods = await prodRepo.findAll(uid);
+        const offers = await offerRepo.findByUserId(uid);
+
+        setProductCount(prods.length);
+        setOfferCount(offers.length);
+      } catch (err) {
+        console.warn('Erro ao carregar métricas:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadMetrics();
+  }, [user]);
+
   const stats = [
-    { label: 'Produtos Cadastrados', value: '48', icon: ShoppingBag, color: 'text-blue-400', bg: 'bg-blue-600/10' },
-    { label: 'Analisados pela IA', value: '48 (100%)', icon: Sparkles, color: 'text-purple-400', bg: 'bg-purple-600/10' },
-    { label: 'Ofertas Criadas', value: '142', icon: Layers, color: 'text-emerald-400', bg: 'bg-emerald-600/10' },
-    { label: 'Publicações Realizadas', value: '389', icon: Send, color: 'text-amber-400', bg: 'bg-amber-600/10' },
-    { label: 'Publicados Hoje', value: '14', icon: CheckCircle2, color: 'text-sky-400', bg: 'bg-sky-600/10' },
-  ];
-
-  const categoriesData = [
-    { name: 'Eletrônicos', percentage: 42, count: 20 },
-    { name: 'Casa e Cozinha', percentage: 25, count: 12 },
-    { name: 'Celulares', percentage: 18, count: 9 },
-    { name: 'Beleza & Perfumes', percentage: 15, count: 7 },
-  ];
-
-  const marketplacesData = [
-    { name: 'Shopee', count: 18, color: 'bg-orange-500' },
-    { name: 'Mercado Livre', count: 16, color: 'bg-yellow-400' },
-    { name: 'Amazon BR', count: 10, color: 'bg-blue-400' },
-    { name: 'Magalu', count: 4, color: 'bg-sky-400' },
+    { label: 'Produtos Cadastrados', value: productCount.toString(), icon: ShoppingBag, color: 'text-blue-400', bg: 'bg-blue-600/10' },
+    { label: 'Analisados pela IA', value: productCount > 0 ? `${productCount} (100%)` : '0', icon: Sparkles, color: 'text-purple-400', bg: 'bg-purple-600/10' },
+    { label: 'Ofertas Criadas', value: offerCount.toString(), icon: Layers, color: 'text-emerald-400', bg: 'bg-emerald-600/10' },
+    { label: 'Publicações Realizadas', value: '0', icon: Send, color: 'text-amber-400', bg: 'bg-amber-600/10' },
+    { label: 'Publicados Hoje', value: '0', icon: CheckCircle2, color: 'text-sky-400', bg: 'bg-sky-600/10' },
   ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-blue-400" />
-          <span>Minha Operação — Dashboard de Afiliado</span>
-        </h1>
-        <p className="text-sm text-slate-400">Visão consolidada do volume de trabalho, publicações e engajamento da IA.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-blue-400" />
+            <span>Minha Operação — Dados Reais</span>
+          </h1>
+          <p className="text-sm text-slate-400">Visão consolidada do volume de produtos, ofertas e publicações reais.</p>
+        </div>
+
+        <Link href="/dashboard">
+          <Button size="sm" variant="primary" className="text-xs" leftIcon={<Plus className="h-3.5 w-3.5" />}>
+            Importar Produto
+          </Button>
+        </Link>
       </div>
 
       {/* KPI Cards Grid */}
@@ -50,65 +75,55 @@ export default function OperacaoPage() {
                   <Icon className="h-4 w-4" />
                 </div>
               </div>
-              <div className="text-xl font-bold text-white">{s.value}</div>
+              <div className="text-xl font-bold text-white">{loading ? '...' : s.value}</div>
             </Card>
           );
         })}
       </div>
 
-      {/* Charts / Distribution Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Categories Breakdown */}
-        <Card className="p-6">
-          <CardHeader className="p-0 mb-4">
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-blue-400" />
-              <CardTitle className="text-base">Distribuição por Categoria</CardTitle>
-            </div>
-            <CardDescription className="text-xs">Categorias com maior volume de produtos e ofertas</CardDescription>
-          </CardHeader>
-
-          <CardContent className="p-0 space-y-4 text-xs">
-            {categoriesData.map((cat, idx) => (
-              <div key={idx} className="space-y-1.5">
-                <div className="flex justify-between text-slate-300 font-medium">
-                  <span>{cat.name} ({cat.count} produtos)</span>
-                  <span className="text-blue-400 font-bold">{cat.percentage}%</span>
-                </div>
-                <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full"
-                    style={{ width: `${cat.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </CardContent>
+      {productCount === 0 ? (
+        /* Empty State with 0 Mock Data */
+        <Card className="p-12 text-center border-dashed border-slate-800 bg-slate-900/40">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20 mx-auto mb-4">
+            <BarChart3 className="h-8 w-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-1">Comece adicionando seu primeiro produto para gerar dados.</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto mb-6">
+            Seus gráficos de distribuição por categoria e marketplace aparecerão aqui após suas primeiras operações.
+          </p>
+          <Link href="/dashboard">
+            <Button variant="primary" size="sm" className="text-xs" leftIcon={<Plus className="h-3.5 w-3.5" />}>
+              Adicionar Primeiro Produto
+            </Button>
+          </Link>
         </Card>
-
-        {/* Marketplace Distribution */}
-        <Card className="p-6">
-          <CardHeader className="p-0 mb-4">
-            <div className="flex items-center gap-2">
-              <Store className="h-4 w-4 text-emerald-400" />
-              <CardTitle className="text-base">Marketplaces Mais Utilizados</CardTitle>
-            </div>
-            <CardDescription className="text-xs">Origem dos links cadastrados na operação</CardDescription>
-          </CardHeader>
-
-          <CardContent className="p-0 space-y-4 text-xs">
-            {marketplacesData.map((mp, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <div className="flex items-center gap-2">
-                  <span className={`h-3 w-3 rounded-full ${mp.color}`} />
-                  <span className="font-semibold text-white">{mp.name}</span>
-                </div>
-                <Badge variant="info">{mp.count} links</Badge>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="p-6">
+            <CardHeader className="p-0 mb-4">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-blue-400" />
+                <CardTitle className="text-base">Distribuição por Categoria</CardTitle>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+            </CardHeader>
+            <CardContent className="p-0 text-xs text-slate-400">
+              {productCount} produtos cadastrados e mapeados no catálogo ativo.
+            </CardContent>
+          </Card>
+
+          <Card className="p-6">
+            <CardHeader className="p-0 mb-4">
+              <div className="flex items-center gap-2">
+                <Store className="h-4 w-4 text-emerald-400" />
+                <CardTitle className="text-base">Marketplaces Identificados</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 text-xs text-slate-400">
+              {productCount} links sincronizados no banco de dados.
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

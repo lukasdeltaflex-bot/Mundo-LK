@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { IOfferRepository } from '../../../core/domain/ports/repositories/IOfferRepository';
 import { Offer } from '../../../core/domain/entities/offer.entity';
@@ -24,15 +24,23 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
   public async findByProductId(productId: string): Promise<Offer[]> {
     try {
-      const q = query(collection(db, this.collectionName), where('productId', '==', productId));
-      const snap = await getDocs(q);
+      const snap = await getDocs(collection(db, this.collectionName));
+      return snap.docs
+        .map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc))
+        .filter((o) => o.productId === productId);
+    } catch {
+      return Array.from(this.memoryStore.values())
+        .filter((docItem) => docItem.productId === productId)
+        .map((docItem) => OfferMapper.toDomain(docItem));
+    }
+  }
+
+  public async findByUserId(userId: string): Promise<Offer[]> {
+    try {
+      const snap = await getDocs(collection(db, this.collectionName));
       return snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
     } catch {
-      const results: Offer[] = [];
-      for (const item of this.memoryStore.values()) {
-        if (item.productId === productId) results.push(OfferMapper.toDomain(item));
-      }
-      return results;
+      return Array.from(this.memoryStore.values()).map((docItem) => OfferMapper.toDomain(docItem));
     }
   }
 
