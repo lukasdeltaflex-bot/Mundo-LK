@@ -13,6 +13,9 @@ import {
   ChevronRight,
   Sparkles,
   LogOut,
+  Layers,
+  Calendar,
+  Database,
 } from 'lucide-react';
 import { useAuth } from '@/presentation/context/AuthContext';
 
@@ -23,10 +26,13 @@ export const AppSidebar: React.FC = () => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Importação em Lote', href: '/lote', icon: Layers },
+    { name: 'Agendamento', href: '/agendamento', icon: Calendar },
     { name: 'Produtos', href: '/produtos', icon: ShoppingBag },
     { name: 'Ofertas & Copys', href: '/ofertas', icon: Tag },
     { name: 'Smart Intelligence', href: '/inteligencia', icon: BrainCircuit },
     { name: 'Prompts Manager', href: '/prompts', icon: Terminal },
+    { name: 'Backup Manager', href: '/backup', icon: Database },
   ];
 
   return (

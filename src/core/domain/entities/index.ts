@@ -9,3 +9,5 @@ export * from './score.entity';
 export * from './prompt-template.entity';
 export * from './audit-log.entity';
 export * from './user.entity';
+export * from './ai-memory.entity';
+export * from './ai-feedback.entity';

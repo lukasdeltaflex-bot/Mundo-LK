@@ -3,14 +3,19 @@ import { Product } from '../../../core/domain/entities/product.entity';
 import { ChannelContent } from '../../../core/domain/value-objects/channel-content.vo';
 import { AICost } from '../../../core/domain/value-objects/ai-cost.vo';
 import { Score } from '../../../core/domain/entities/score.entity';
+import { AIMemoryService } from '../strategies/ai-memory.service';
 
 /**
- * Gemini AI Provider Adapter (Google Gen AI SDK / REST Engine).
+ * Gemini 2.5 Flash Provider Adapter with Adaptive Memory integration.
  */
 export class GeminiAIAdapter implements IAIProviderAdapter {
   public readonly providerName: string = 'gemini-2.5-flash';
+  private memoryService = AIMemoryService.getInstance();
 
   public async generateOfferContent(product: Product): Promise<AIOfferGenerationResult> {
+    const memory = await this.memoryService.getMemoryForUser(product.userId);
+    const memoryContext = memory.toPromptContext();
+
     const formattedPrice = product.currentPrice.formatBRL();
     const discountText = product.discountPercentage.hasDiscount() ? ` (${product.discountPercentage.formatString()})` : '';
 
