@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -8,76 +8,85 @@ import {
   ShoppingBag,
   Tag,
   BrainCircuit,
-  FolderTree,
-  Store,
   Terminal,
-  Zap,
-  BarChart3,
-  Settings,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
+  LogOut,
 } from 'lucide-react';
-import { cn } from '@/shared/utils/cn';
+import { useAuth } from '@/presentation/context/AuthContext';
 
 export const AppSidebar: React.FC = () => {
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Produtos', href: '/produtos', icon: ShoppingBag },
-    { name: 'Ofertas', href: '/ofertas', icon: Tag },
-    { name: 'Inteligência', href: '/inteligencia', icon: BrainCircuit },
-    { name: 'Categorias', href: '/categorias', icon: FolderTree },
-    { name: 'Plataformas', href: '/plataformas', icon: Store },
-    { name: 'Prompts', href: '/prompts', icon: Terminal },
-    { name: 'Automações', href: '/automacoes', icon: Zap },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-    { name: 'Configurações', href: '/configuracoes', icon: Settings },
+    { name: 'Ofertas & Copys', href: '/ofertas', icon: Tag },
+    { name: 'Smart Intelligence', href: '/inteligencia', icon: BrainCircuit },
+    { name: 'Prompts Manager', href: '/prompts', icon: Terminal },
   ];
 
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-950 p-4 flex flex-col justify-between hidden md:flex min-h-screen">
-      <div>
-        <div className="flex items-center gap-3 px-3 py-4 mb-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-500/20">
-            <Sparkles className="h-5 w-5" />
+    <aside
+      className={`relative flex flex-col border-r border-slate-800 bg-slate-900/90 backdrop-blur transition-all duration-300 ${
+        collapsed ? 'w-20' : 'w-64'
+      }`}
+    >
+      {/* Sidebar Header */}
+      <div className="flex h-16 items-center justify-between px-4 border-b border-slate-800">
+        <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-md shadow-blue-500/20">
+            <Sparkles className="h-5 w-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-base font-bold text-white tracking-tight">AffiliateOS</h1>
-            <span className="text-[10px] uppercase font-semibold text-blue-400 tracking-wider">V4 Personal</span>
-          </div>
-        </div>
-
-        <nav className="space-y-1">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition-all',
-                  isActive
-                    ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 font-semibold'
-                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-                )}
-              >
-                <Icon className={cn('h-4 w-4', isActive ? 'text-blue-400' : 'text-slate-500')} />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
+          {!collapsed && (
+            <div className="flex flex-col">
+              <span className="text-base font-extrabold tracking-tight text-white">Mundo LK</span>
+              <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider">Gestão de Ofertas</span>
+            </div>
+          )}
+        </Link>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 transition"
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </button>
       </div>
 
-      <div className="border-t border-slate-900 pt-4 px-3">
-        <div className="rounded-xl bg-slate-900/80 p-3 border border-slate-800">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Status: Operacional</span>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-400">1-Clique IA Ativada</p>
-        </div>
+      {/* Navigation */}
+      <nav className="flex-1 space-y-1.5 p-3 overflow-y-auto">
+        {navigation.map((item) => {
+          const isActive = pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                isActive
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/30'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+              }`}
+            >
+              <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-blue-400' : 'text-slate-400'}`} />
+              {!collapsed && <span>{item.name}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Logout Footer */}
+      <div className="p-3 border-t border-slate-800">
+        <button
+          onClick={() => logout()}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:bg-red-500/10 transition"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Sair da Conta</span>}
+        </button>
       </div>
     </aside>
   );

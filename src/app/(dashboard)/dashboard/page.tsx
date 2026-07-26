@@ -7,23 +7,37 @@ import { ChannelCopyBox } from '@/presentation/components/business/ChannelCopyBo
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/presentation/components/ui/Card';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { useImportWorkflow } from '@/presentation/hooks/useImportWorkflow';
-import { ShoppingBag, Zap, Clock, Sparkles } from 'lucide-react';
+import { useAuth } from '@/presentation/context/AuthContext';
+import { ShoppingBag, Zap, Clock, Sparkles, Activity } from 'lucide-react';
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const { importOffer, isLoading, data } = useImportWorkflow();
 
   const metrics = [
     { name: 'Produtos no Catálogo', value: '24', change: '+4 hoje', icon: ShoppingBag },
     { name: 'Ofertas Geradas', value: '48', change: '100% IA', icon: Sparkles },
     { name: 'Score Média de Oferta', value: '92/100', change: 'Excelente', icon: Zap },
-    { name: 'Tempo Economizado', value: '14.5 hrs', change: 'Esta semana', icon: Clock },
+    { name: 'Economia de Tempo', value: '14.5 hrs', change: 'Esta semana', icon: Clock },
+  ];
+
+  const activities = [
+    { text: 'Oferta do Smartphone Xiaomi gerada com Gemini Flash 2.5', time: 'Há 5 minutos' },
+    { text: 'Preço da Air Fryer Mondo sincronizado via Mercado Livre Adapter', time: 'Há 18 minutos' },
+    { text: 'Cópia formatada para WhatsApp exportada para a área de transferência', time: 'Há 42 minutos' },
   ];
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Central Operacional do Afiliado</h1>
-        <p className="text-sm text-slate-400">Assistente pessoal de produtividade para automação de ofertas.</p>
+      {/* Welcome Banner */}
+      <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-950/40 via-slate-900 to-indigo-950/40 p-6 shadow-xl">
+        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          <span>Olá, {user?.name || 'Afiliado'}! Bem-vindo ao Mundo LK.</span>
+          <Sparkles className="h-5 w-5 text-blue-400 animate-pulse" />
+        </h1>
+        <p className="text-xs text-slate-300 mt-1">
+          Seu Centro Inteligente de Gestão de Ofertas e Automação para Afiliados de Marketplaces.
+        </p>
       </div>
 
       {/* Fast Import Box */}
@@ -36,11 +50,11 @@ export default function DashboardPage() {
 
       {/* Generated Result Preview */}
       {data && (
-        <Card className="border-blue-500/40 bg-blue-950/20">
+        <Card className="border-blue-500/40 bg-blue-950/20 animate-in fade-in duration-300">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-blue-300">Nova Oferta Gerada com Sucesso!</CardTitle>
+                <CardTitle className="text-blue-300">Nova Oferta Gerada com Sucesso no Mundo LK!</CardTitle>
                 <CardDescription>{data.title}</CardDescription>
               </div>
               <OfferScoreBadge score={data.score} label={data.scoreLabel} />
@@ -106,20 +120,20 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Latest Activities */}
         <Card>
           <CardHeader>
-            <CardTitle>Score das Ofertas Recentes</CardTitle>
-            <CardDescription>Avaliação inteligente do potencial de conversão.</CardDescription>
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-400" />
+              <CardTitle>Últimas Atividades do Sistema</CardTitle>
+            </div>
+            <CardDescription>Auditoria imutável de eventos registrados em tempo real.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[
-              { title: 'Smartphone Xiaomi Redmi Note 13', score: 95, label: 'Excelente' },
-              { title: 'Smart TV 55 4K UHD Samsung', score: 92, label: 'Excelente' },
-              { title: 'Air Fryer Mondo 4L Inox', score: 88, label: 'Boa Oferta' },
-            ].map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                <span className="text-xs font-medium text-slate-200 truncate max-w-[240px]">{item.title}</span>
-                <OfferScoreBadge score={item.score} label={item.label} />
+            {activities.map((act, idx) => (
+              <div key={idx} className="flex items-start justify-between rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                <p className="text-xs text-slate-300 font-medium">{act.text}</p>
+                <span className="text-[10px] text-slate-500 whitespace-nowrap ml-2">{act.time}</span>
               </div>
             ))}
           </CardContent>

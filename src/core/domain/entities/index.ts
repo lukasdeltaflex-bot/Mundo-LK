@@ -8,3 +8,4 @@ export * from './tag.entity';
 export * from './score.entity';
 export * from './prompt-template.entity';
 export * from './audit-log.entity';
+export * from './user.entity';
