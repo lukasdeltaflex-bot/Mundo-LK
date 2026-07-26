@@ -7,8 +7,6 @@ import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-ob
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
-export type { OfferStyle };
-
 export interface OfferPreview {
   product: {
     id:              string;

@@ -8,7 +8,8 @@ import {
   MessageCircle, Send, Brain, Target, Heart,
   TrendingUp, Zap, Crown, ShoppingCart, Minimize2, AlertCircle,
 } from 'lucide-react';
-import { analyzeProductUrlAction, type OfferPreview, type OfferStyle } from '@/presentation/actions/analyze-url.action';
+import { analyzeProductUrlAction, type OfferPreview } from '@/presentation/actions/analyze-url.action';
+import type { OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
 import { saveApprovedOfferAction } from '@/presentation/actions/save-offer.action';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
