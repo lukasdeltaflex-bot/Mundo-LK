@@ -1,8 +1,9 @@
 import { IMarketplaceAdapter, ExtractedProductData } from '../../../core/domain/ports/marketplaces/IMarketplaceAdapter';
+import { fetchProductMetadata } from '../scraper/product-page-scraper';
 
 /**
  * Adapter for Mercado Livre Marketplace.
- * Encapsulates Mercado Livre URL matching, data extraction, and affiliate link generation.
+ * Extracts real product data from the page using HTML/JSON-LD scraping.
  */
 export class MercadoLivreAdapter implements IMarketplaceAdapter {
   public readonly marketplaceSlug: string = 'mercadolivre';
@@ -16,23 +17,56 @@ export class MercadoLivreAdapter implements IMarketplaceAdapter {
 
   public async extractProductData(url: string): Promise<ExtractedProductData> {
     const cleanUrl = url.trim();
+    const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
+
+    if (metadata && metadata.confidence !== 'low' && metadata.title.length > 3) {
+      return {
+        title:           metadata.title,
+        description:     metadata.description || `Produto disponível no ${this.marketplaceName}.`,
+        brand:           metadata.brand || 'Desconhecida',
+        categoryName:    metadata.category || undefined,
+        mainImage:       metadata.image || '',
+        gallery:         metadata.image ? [metadata.image] : [],
+        currentPrice:    metadata.price ?? 0,
+        previousPrice:   metadata.previousPrice ?? null,
+        storeName:       this.marketplaceName,
+        storeReputation: 'MercadoLíder',
+        reviewsRating:   undefined,
+        originalUrl:     cleanUrl,
+      };
+    }
+
+    // Fallback: return placeholder so the workflow doesn't crash,
+    // but signals that data could not be extracted
+    console.warn(`[MercadoLivreAdapter] Could not extract real data from: ${cleanUrl}. Using title from URL slug.`);
+    const slug = this.extractSlugFromUrl(cleanUrl);
     return {
-      title: 'Fritadeira Eletrica Air Fryer Mondo 4L Inox 1500W Antiaderente',
-      description: 'Air Fryer com capacidade de 4 litros, painel touch de alta precisão, controle de temperatura de 80°C a 200°C e cesto removível fácil de limpar.',
-      brand: 'Mondo Home',
-      categoryName: 'Eletrodomésticos & Cozinha',
-      mainImage: 'https://images.unsplash.com/photo-1585515320310-259814833e62?w=600',
-      gallery: [
-        'https://images.unsplash.com/photo-1585515320310-259814833e62?w=600',
-        'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600',
-      ],
-      currentPrice: 299.9,
-      previousPrice: 499.9,
-      storeName: 'Mercado Livre Eletrônicos Direct',
-      storeReputation: 'MercadoLíder Platinum - 4.8 ★★★★★',
-      reviewsRating: 4.8,
-      originalUrl: cleanUrl,
+      title:           slug || 'Produto Mercado Livre',
+      description:     'Descrição não disponível. Verifique o link do produto.',
+      brand:           'Desconhecida',
+      categoryName:    undefined,
+      mainImage:       '',
+      gallery:         [],
+      currentPrice:    0,
+      previousPrice:   null,
+      storeName:       this.marketplaceName,
+      storeReputation: undefined,
+      reviewsRating:   undefined,
+      originalUrl:     cleanUrl,
     };
+  }
+
+  private extractSlugFromUrl(url: string): string {
+    try {
+      const pathname = new URL(url).pathname;
+      const parts = pathname.split('/').filter(Boolean);
+      // ML URLs: /MLB-123456789-produto-slug-_JM
+      const slug = parts.find((p) => p.startsWith('MLB') || p.startsWith('MLB'))
+        ?? parts[parts.length - 1];
+      return slug ? slug.replace(/[-_]+/g, ' ').replace(/MLB\d+\s*/i, '').trim() : '';
+    } catch {
+      return '';
+    }
   }
 
   public async buildAffiliateLink(originalUrl: string, affiliateTag: string): Promise<string> {

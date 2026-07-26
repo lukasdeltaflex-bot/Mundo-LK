@@ -1,8 +1,9 @@
 import { IMarketplaceAdapter, ExtractedProductData } from '../../../core/domain/ports/marketplaces/IMarketplaceAdapter';
+import { fetchProductMetadata } from '../scraper/product-page-scraper';
 
 /**
  * Adapter for Shopee Marketplace.
- * Encapsulates Shopee URL matching, data extraction, and affiliate link generation.
+ * Extracts real product data from the page using HTML/JSON-LD scraping.
  */
 export class ShopeeAdapter implements IMarketplaceAdapter {
   public readonly marketplaceSlug: string = 'shopee';
@@ -15,24 +16,40 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
   }
 
   public async extractProductData(url: string): Promise<ExtractedProductData> {
-    // Structural parser simulating extraction engine
     const cleanUrl = url.trim();
+    const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
+
+    if (metadata && metadata.confidence !== 'low' && metadata.title.length > 3) {
+      return {
+        title:           metadata.title,
+        description:     metadata.description || `Produto disponível na ${this.marketplaceName}.`,
+        brand:           metadata.brand || 'Desconhecida',
+        categoryName:    metadata.category || undefined,
+        mainImage:       metadata.image || '',
+        gallery:         metadata.image ? [metadata.image] : [],
+        currentPrice:    metadata.price ?? 0,
+        previousPrice:   metadata.previousPrice ?? null,
+        storeName:       this.marketplaceName,
+        storeReputation: 'Loja Shopee',
+        reviewsRating:   undefined,
+        originalUrl:     cleanUrl,
+      };
+    }
+
+    console.warn(`[ShopeeAdapter] Could not extract real data from: ${cleanUrl}.`);
     return {
-      title: 'Smartphone Xiaomi Redmi Note 13 256GB 8GB RAM Tela 6.67 Full HD',
-      description: 'Smartphone Xiaomi Redmi Note 13 com processador Snapdragon 685, câmera tripla de 108MP, bateria de 5000mAh e carregamento rápido de 33W.',
-      brand: 'Xiaomi',
-      categoryName: 'Eletrônicos & Celulares',
-      mainImage: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600',
-      gallery: [
-        'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600',
-        'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=600',
-      ],
-      currentPrice: 1199.0,
-      previousPrice: 1899.0,
-      storeName: 'Xiaomi Oficial Shopee',
-      storeReputation: 'Loja Oficial - 4.9 ★★★★★',
-      reviewsRating: 4.9,
-      originalUrl: cleanUrl,
+      title:           'Produto Shopee',
+      description:     'Descrição não disponível. Verifique o link do produto.',
+      brand:           'Desconhecida',
+      categoryName:    undefined,
+      mainImage:       '',
+      gallery:         [],
+      currentPrice:    0,
+      previousPrice:   null,
+      storeName:       this.marketplaceName,
+      storeReputation: undefined,
+      reviewsRating:   undefined,
+      originalUrl:     cleanUrl,
     };
   }
 

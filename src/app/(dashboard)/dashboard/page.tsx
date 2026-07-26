@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { FastImportBox } from '@/presentation/components/business/FastImportBox';
 import { OfferScoreBadge } from '@/presentation/components/business/OfferScoreBadge';
 import { ChannelCopyBox } from '@/presentation/components/business/ChannelCopyBox';
@@ -13,15 +12,17 @@ import { Button } from '@/presentation/components/ui/Button';
 import { useImportWorkflow } from '@/presentation/hooks/useImportWorkflow';
 import { useAuth } from '@/presentation/context/AuthContext';
 import {
-  ShoppingBag, Zap, Clock, Sparkles, Activity,
-  Edit3, Save, Layers, AlertTriangle, History,
-  TrendingUp, BrainCircuit, Plus,
+  ShoppingBag, Sparkles, Edit3, Save, Layers,
+  AlertTriangle, History, Zap, Link as LinkIcon,
+  Package, FileText, Loader2,
 } from 'lucide-react';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { Offer } from '@/core/domain/entities/offer.entity';
+import { Product } from '@/core/domain/entities/product.entity';
+import Link from 'next/link';
 
-// ─── Types (migrated from /ofertas) ──────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UIProductOffer {
   id: string;
@@ -47,12 +48,26 @@ interface UIProductOffer {
 
 function getStatusBadge(status: string) {
   switch (status) {
-    case 'NOVO':       return <Badge variant="info">Novo</Badge>;
-    case 'ADICIONADO': return <Badge variant="neutral">Adicionado</Badge>;
-    case 'PUBLICADO':  return <Badge variant="success">Publicado</Badge>;
-    case 'REPUBLICADO':return <Badge variant="warning">Republicado</Badge>;
-    default:           return <Badge variant="danger">Arquivado</Badge>;
+    case 'NOVO':        return <Badge variant="info">Novo</Badge>;
+    case 'ADICIONADO':  return <Badge variant="neutral">Adicionado</Badge>;
+    case 'PUBLICADO':   return <Badge variant="success">Publicado</Badge>;
+    case 'REPUBLICADO': return <Badge variant="warning">Republicado</Badge>;
+    default:            return <Badge variant="danger">Arquivado</Badge>;
   }
+}
+
+function SectionHeading({ icon: Icon, label, count }: { icon: React.ElementType; label: string; count?: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <Icon className="h-4 w-4 text-blue-400" />
+      <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider">{label}</h2>
+      {count !== undefined && count > 0 && (
+        <span className="rounded-full bg-blue-600/20 border border-blue-500/30 px-2 py-0.5 text-[10px] font-bold text-blue-400">
+          {count}
+        </span>
+      )}
+    </div>
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -61,17 +76,12 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { importOffer, isLoading: importLoading, data: importData } = useImportWorkflow();
 
-  // ── Metrics ──
-  const [productCount, setProductCount]   = useState(0);
-  const [offerCount,   setOfferCount]     = useState(0);
-  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [offers,   setOffers]   = useState<UIProductOffer[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // ── Offers (migrated from /ofertas) ──
-  const [offers,     setOffers]     = useState<UIProductOffer[]>([]);
-  const [loadingOffers, setLoadingOffers] = useState(true);
-  const [editingId,  setEditingId]  = useState<string | null>(null);
-
-  // ── Load everything once ──
+  // ── Load real data once ──────────────────────────────────────────────────
   useEffect(() => {
     async function loadAll() {
       const uid = user?.uid || 'guest';
@@ -84,122 +94,114 @@ export default function DashboardPage() {
           offerRepo.findByUserId(uid),
         ]);
 
-        setProductCount(prods.length);
-        setOfferCount(offerList.length);
-        setLoadingMetrics(false);
+        setProducts(prods);
 
         const formatted: UIProductOffer[] = offerList.map((o: Offer) => ({
-          id: o.id,
-          title: 'Oferta de Produto',
-          marketplace: 'Marketplace',
-          price: 'R$ 0,00',
-          status: 'ADICIONADO',
+          id:              o.id,
+          title:           'Oferta de Produto',
+          marketplace:     'Marketplace',
+          price:           'R$ —',
+          status:          'ADICIONADO',
           publicationCount: 0,
           lastPublishedAt: 'Nunca',
-          score: o.scoreValue || 90,
-          scoreLabel: o.scoreLabel || 'EXCELLENT',
-          justification: o.scoreJustification || 'Oferta gerada com inteligência artificial.',
-          cta: o.cta || '👉 Clique aqui para comprar!',
-          hashtags: o.hashtags ? o.hashtags.join(' ') : '#mundolk',
-          whatsAppText: o.copies?.copies?.whatsAppText || '',
-          telegramText: o.copies?.copies?.telegramText || '',
-          instagramText: o.copies?.copies?.instagramText || '',
-          affiliateUrl: '',
+          score:           o.scoreValue   || 0,
+          scoreLabel:      o.scoreLabel   || '—',
+          justification:   o.scoreJustification || 'Oferta gerada com inteligência artificial.',
+          cta:             o.cta          || '',
+          hashtags:        o.hashtags ? o.hashtags.join(' ') : '',
+          whatsAppText:    o.copies?.copies?.whatsAppText  || '',
+          telegramText:    o.copies?.copies?.telegramText  || '',
+          instagramText:   o.copies?.copies?.instagramText || '',
+          affiliateUrl:    '',
           history: [{ date: new Date().toLocaleDateString('pt-BR'), text: 'Oferta gerada' }],
         }));
 
         setOffers(formatted);
       } catch (err) {
         console.warn('[Dashboard] Erro ao carregar dados:', err);
-        setLoadingMetrics(false);
       } finally {
-        setLoadingOffers(false);
+        setLoading(false);
       }
     }
     loadAll();
   }, [user]);
 
-  // ── Offer actions ──
+  // ── Offer actions ────────────────────────────────────────────────────────
   const handleDuplicate = (id: string) => {
     const o = offers.find((item) => item.id === id);
     if (!o) return;
-    setOffers([{ ...o, id: `off_${Date.now()}`, title: `${o.title} (Cópia)`, status: 'ADICIONADO', publicationCount: 0 }, ...offers]);
+    setOffers([
+      { ...o, id: `dup_${Date.now()}`, title: `${o.title} (Cópia)`, status: 'ADICIONADO', publicationCount: 0 },
+      ...offers,
+    ]);
   };
 
   const handleSave = (id: string, updatedTitle: string, updatedCTA: string) => {
-    setOffers(offers.map((item) => item.id === id ? { ...item, title: updatedTitle, cta: updatedCTA } : item));
+    setOffers(offers.map((item) =>
+      item.id === id ? { ...item, title: updatedTitle, cta: updatedCTA } : item
+    ));
     setEditingId(null);
   };
 
-  // ── Summary metrics ──
-  const metrics = [
-    { name: 'Produtos no Catálogo',  value: loadingMetrics ? '…' : String(productCount), sub: productCount > 0 ? 'Catálogo Ativo' : '0 cadastrados', icon: ShoppingBag },
-    { name: 'Ofertas Geradas',        value: loadingMetrics ? '…' : String(offerCount),   sub: '100% IA',          icon: Sparkles    },
-    { name: 'Score Médio de Oferta',  value: offerCount > 0 ? '92/100' : '—',             sub: 'Excelente',        icon: Zap         },
-    { name: 'Economia de Tempo',      value: offerCount > 0 ? `${(offerCount * 0.3).toFixed(1)}h` : '0h', sub: 'Tempo economizado', icon: Clock },
-  ];
-
-  // ── Intelligence tips (static, could be dynamic later) ──
-  const tips = [
-    { icon: TrendingUp,   color: 'text-emerald-400 bg-emerald-500/10', title: 'Produtos com alto score', desc: 'Seus produtos acima de 90/100 têm 3x mais conversão. Priorize-os.' },
-    { icon: BrainCircuit, color: 'text-blue-400 bg-blue-500/10',       title: 'Otimize suas hashtags',  desc: 'Use de 5 a 10 hashtags específicas por nicho para maior alcance orgânico.' },
-    { icon: Activity,     color: 'text-purple-400 bg-purple-500/10',   title: 'Melhore o CTA',          desc: 'CTAs com emojis e urgência aumentam o CTR em até 40% no WhatsApp.' },
+  // ── Atalhos rápidos ──────────────────────────────────────────────────────
+  const shortcuts = [
+    { label: 'Importação em Lote', href: '/lote',        icon: Layers    },
+    { label: 'Agendamento',        href: '/agendamento', icon: FileText  },
+    { label: 'Meus Links',         href: '/links',       icon: LinkIcon  },
+    { label: 'Coleções',           href: '/colecoes',    icon: Package   },
   ];
 
   return (
     <div className="space-y-10 max-w-7xl mx-auto">
 
-      {/* ═══════════════════════════════════════════════════════════════
-          WELCOME BANNER
-      ═══════════════════════════════════════════════════════════════ */}
+      {/* ── Boas-vindas ────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-950/40 via-slate-900 to-indigo-950/40 p-6 shadow-xl">
         <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          Olá, {user?.name || 'Afiliado'}! Bem-vindo ao Mundo LK.
+          Olá, {user?.name || 'Afiliado'}!
           <Sparkles className="h-5 w-5 text-blue-400 animate-pulse" />
         </h1>
         <p className="text-xs text-slate-300 mt-1">
-          Seu Centro Inteligente de Gestão de Ofertas e Automação para Afiliados de Marketplaces.
+          Central de trabalho — produtos, ofertas e geração de anúncios com IA.
         </p>
+
+        {/* Contadores reais inline no banner */}
+        {!loading && (
+          <div className="flex flex-wrap gap-4 mt-4">
+            <div className="flex items-center gap-2 bg-slate-900/60 rounded-xl px-3 py-2 border border-slate-800">
+              <ShoppingBag className="h-4 w-4 text-blue-400" />
+              <span className="text-xs font-semibold text-white">{products.length}</span>
+              <span className="text-xs text-slate-400">produto{products.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-slate-900/60 rounded-xl px-3 py-2 border border-slate-800">
+              <Sparkles className="h-4 w-4 text-emerald-400" />
+              <span className="text-xs font-semibold text-white">{offers.length}</span>
+              <span className="text-xs text-slate-400">oferta{offers.length !== 1 ? 's' : ''} gerada{offers.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          SEÇÃO 1 — RESUMO GERAL
-      ═══════════════════════════════════════════════════════════════ */}
+      {/* ── Atalhos rápidos ────────────────────────────────────────────── */}
       <section>
-        <div className="flex items-center gap-2 mb-4">
-          <Activity className="h-4 w-4 text-blue-400" />
-          <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Resumo Geral</h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {metrics.map((m) => {
-            const Icon = m.icon;
+        <SectionHeading icon={Zap} label="Atalhos Rápidos" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {shortcuts.map((s) => {
+            const Icon = s.icon;
             return (
-              <Card key={m.name} className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-400">{m.name}</span>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/10 text-blue-400">
-                    <Icon className="h-4 w-4" />
-                  </div>
+              <Link key={s.href} href={s.href}>
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-slate-800 bg-slate-900/80 hover:bg-slate-800/80 hover:border-slate-700 transition cursor-pointer">
+                  <Icon className="h-4 w-4 text-blue-400 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-300">{s.label}</span>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-white">{m.value}</span>
-                  <span className="text-[11px] font-medium text-emerald-400">{m.sub}</span>
-                </div>
-              </Card>
+              </Link>
             );
           })}
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          SEÇÃO 2 — GERAR NOVA OFERTA
-      ═══════════════════════════════════════════════════════════════ */}
+      {/* ── Assistente IA — Gerar oferta por URL ───────────────────────── */}
       <section>
-        <div className="flex items-center gap-2 mb-4">
-          <Zap className="h-4 w-4 text-blue-400" />
-          <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Gerar Nova Oferta por URL</h2>
-        </div>
+        <SectionHeading icon={Sparkles} label="Assistente IA — Gerar Anúncio por URL" />
 
         <FastImportBox
           isLoading={importLoading}
@@ -208,20 +210,19 @@ export default function DashboardPage() {
           }}
         />
 
-        {/* Result after import */}
         {importData && (
           <Card className="mt-4 border-blue-500/40 bg-blue-950/20 animate-in fade-in duration-300">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-blue-300">Nova Oferta Gerada com Sucesso!</CardTitle>
-                  <p className="text-xs text-slate-400 mt-1">{importData.title}</p>
+                  <CardTitle className="text-blue-300">Anúncio Gerado!</CardTitle>
+                  <p className="text-xs text-slate-400 mt-0.5">{importData.title}</p>
                 </div>
                 <OfferScoreBadge score={importData.score} label={importData.scoreLabel} />
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-xl font-bold text-emerald-400">{importData.price}</div>
+              <div className="text-lg font-bold text-emerald-400">{importData.price}</div>
               <ChannelCopyBox
                 whatsAppText={importData.whatsappText}
                 telegramText={importData.telegramText}
@@ -233,47 +234,75 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          SEÇÃO 3 — MINHAS OFERTAS (migrado de /ofertas)
-      ═══════════════════════════════════════════════════════════════ */}
+      {/* ── Meus Produtos ──────────────────────────────────────────────── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Edit3 className="h-4 w-4 text-blue-400" />
-            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Minhas Ofertas</h2>
-            {!loadingOffers && offers.length > 0 && (
-              <span className="rounded-full bg-blue-600/20 border border-blue-500/30 px-2 py-0.5 text-[10px] font-bold text-blue-400">
-                {offers.length}
-              </span>
-            )}
-          </div>
-        </div>
+        <SectionHeading icon={ShoppingBag} label="Meus Produtos" count={products.length} />
 
-        {loadingOffers ? (
-          <div className="text-center py-12 text-slate-500 text-xs">Carregando suas ofertas reais…</div>
-        ) : offers.length === 0 ? (
-          <Card className="p-12 text-center border-dashed border-slate-800 bg-slate-900/40">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20 mx-auto mb-4">
-              <Sparkles className="h-8 w-8" />
-            </div>
-            <h3 className="text-base font-bold text-white mb-1">Nenhuma oferta criada ainda.</h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-              Cole a URL de um produto acima para importar e gerar sua primeira oferta com IA.
-            </p>
+        {loading ? (
+          <div className="flex items-center gap-2 py-10 text-slate-500 text-xs justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando produtos…
+          </div>
+        ) : products.length === 0 ? (
+          <Card className="p-10 text-center border-dashed border-slate-800 bg-slate-900/40">
+            <ShoppingBag className="h-10 w-10 text-slate-700 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-white mb-1">Nenhum produto cadastrado ainda.</p>
+            <p className="text-xs text-slate-400">Cole a URL de um produto no Assistente IA acima para começar.</p>
           </Card>
         ) : (
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {products.map((p) => (
+              <Card key={p.id} className="p-4 flex flex-col gap-2">
+                <p className="text-xs font-semibold text-white line-clamp-2">
+                  {p.title || 'Produto sem título'}
+                </p>
+                {p.currentPrice && p.currentPrice.amount > 0 && (
+                  <span className="text-sm font-bold text-emerald-400">
+                    {p.currentPrice.formatBRL()}
+                  </span>
+                )}
+                {p.originalUrl && (
+                  <a href={p.originalUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 transition truncate">
+                    <LinkIcon className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{p.originalUrl}</span>
+                  </a>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Minhas Ofertas (conteúdos gerados) ────────────────────────── */}
+      <section>
+        <SectionHeading icon={Edit3} label="Conteúdos Gerados — Minhas Ofertas" count={offers.length} />
+
+        {loading ? (
+          <div className="flex items-center gap-2 py-10 text-slate-500 text-xs justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando ofertas…
+          </div>
+        ) : offers.length === 0 ? (
+          <Card className="p-10 text-center border-dashed border-slate-800 bg-slate-900/40">
+            <Sparkles className="h-10 w-10 text-slate-700 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-white mb-1">Nenhuma oferta gerada ainda.</p>
+            <p className="text-xs text-slate-400">Cole uma URL no Assistente IA para gerar seu primeiro anúncio.</p>
+          </Card>
+        ) : (
+          <div className="space-y-5">
             {offers.map((o) => {
               const isEditing = editingId === o.id;
               return (
-                <Card key={o.id} className="p-6 border-slate-800 bg-slate-900/90">
+                <Card key={o.id} className="p-5 border-slate-800 bg-slate-900/90">
                   <CardHeader className="p-0 mb-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      {/* Left: title + badges */}
+                      <div className="flex-1 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <MarketplaceBadge marketplaceSlug={o.marketplace} />
                           {getStatusBadge(o.status)}
+                          {o.score > 0 && <OfferScoreBadge score={o.score} label={o.scoreLabel} />}
                         </div>
+
                         {isEditing ? (
                           <input
                             type="text"
@@ -282,30 +311,42 @@ export default function DashboardPage() {
                             className="w-full bg-slate-950 border border-blue-500 rounded-lg p-2 text-sm text-white font-bold"
                           />
                         ) : (
-                          <CardTitle className="text-lg text-white">{o.title}</CardTitle>
+                          <p className="text-sm font-bold text-white">{o.title}</p>
                         )}
-                        <span className="text-emerald-400 font-bold text-base block">{o.price}</span>
+
+                        {o.price !== 'R$ —' && (
+                          <span className="text-sm font-bold text-emerald-400">{o.price}</span>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <OfferScoreBadge score={o.score} label={o.scoreLabel} />
-                        <Button size="sm" variant="outline" className="text-xs" leftIcon={<Layers className="h-3.5 w-3.5" />} onClick={() => handleDuplicate(o.id)}>
+                      {/* Right: actions */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm" variant="outline" className="text-xs"
+                          leftIcon={<Layers className="h-3.5 w-3.5" />}
+                          onClick={() => handleDuplicate(o.id)}
+                        >
                           Duplicar
                         </Button>
+
                         {isEditing ? (
                           <Button
                             size="sm" variant="primary" className="text-xs"
                             leftIcon={<Save className="h-3.5 w-3.5" />}
                             onClick={() => {
                               const titleEl = document.getElementById(`title_${o.id}`) as HTMLInputElement;
-                              const ctaEl   = document.getElementById(`cta_${o.id}`) as HTMLInputElement;
+                              const ctaEl   = document.getElementById(`cta_${o.id}`)   as HTMLInputElement;
                               handleSave(o.id, titleEl?.value || o.title, ctaEl?.value || o.cta);
                             }}
                           >
                             Salvar
                           </Button>
                         ) : (
-                          <Button size="sm" variant="secondary" className="text-xs" leftIcon={<Edit3 className="h-3.5 w-3.5" />} onClick={() => setEditingId(o.id)}>
+                          <Button
+                            size="sm" variant="secondary" className="text-xs"
+                            leftIcon={<Edit3 className="h-3.5 w-3.5" />}
+                            onClick={() => setEditingId(o.id)}
+                          >
                             Editar
                           </Button>
                         )}
@@ -313,39 +354,49 @@ export default function DashboardPage() {
                     </div>
 
                     {o.publicationCount > 0 && (
-                      <div className="mt-3 bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg flex items-center gap-2 text-xs text-amber-300">
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-                        <span>Publicado <strong>{o.publicationCount}x</strong> (Última: {o.lastPublishedAt}).</span>
+                      <div className="mt-2 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-lg flex items-center gap-2 text-xs text-amber-300">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                        Publicado <strong>{o.publicationCount}x</strong> · Última: {o.lastPublishedAt}
                       </div>
                     )}
 
-                    <div className="mt-2 bg-slate-950/60 p-3 rounded-lg border border-slate-800 text-xs text-slate-400">
-                      <span className="font-semibold text-blue-400">Diagnóstico IA:</span> {o.justification}
-                    </div>
+                    {o.justification && (
+                      <div className="mt-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800 text-xs text-slate-400">
+                        <span className="font-semibold text-blue-400">Diagnóstico IA: </span>
+                        {o.justification}
+                      </div>
+                    )}
                   </CardHeader>
 
-                  <CardContent className="p-0 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl bg-slate-950/80 p-4 border border-slate-800/80 text-xs">
-                      <div>
-                        <span className="font-semibold text-slate-300 block mb-1">CTA Principal:</span>
-                        {isEditing ? (
-                          <input type="text" defaultValue={o.cta} id={`cta_${o.id}`} className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-200" />
-                        ) : (
-                          <p className="text-slate-300">{o.cta}</p>
+                  <CardContent className="p-0 space-y-3">
+                    {/* CTA + Hashtags */}
+                    {(o.cta || o.hashtags) && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl bg-slate-950/80 p-3 border border-slate-800/80 text-xs">
+                        {o.cta && (
+                          <div>
+                            <span className="font-semibold text-slate-300 block mb-1">CTA:</span>
+                            {isEditing ? (
+                              <input type="text" defaultValue={o.cta} id={`cta_${o.id}`} className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-200" />
+                            ) : (
+                              <p className="text-slate-300">{o.cta}</p>
+                            )}
+                          </div>
+                        )}
+                        {o.hashtags && (
+                          <div>
+                            <span className="font-semibold text-slate-300 block mb-1">Hashtags:</span>
+                            <span className="text-blue-400 font-mono break-all">{o.hashtags}</span>
+                          </div>
                         )}
                       </div>
-                      <div>
-                        <span className="font-semibold text-slate-300 block mb-1">Hashtags:</span>
-                        <span className="text-blue-400 font-mono">{o.hashtags}</span>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-xs space-y-2">
-                      <span className="font-semibold text-blue-400 flex items-center gap-1.5">
-                        <History className="h-3.5 w-3.5" />
-                        Linha do Tempo:
+                    {/* History */}
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-xs">
+                      <span className="font-semibold text-blue-400 flex items-center gap-1.5 mb-2">
+                        <History className="h-3.5 w-3.5" /> Histórico
                       </span>
-                      <div className="space-y-1.5 pl-2 border-l-2 border-slate-800">
+                      <div className="space-y-1 pl-2 border-l border-slate-700">
                         {o.history.map((h, idx) => (
                           <div key={idx} className="flex items-center gap-3 text-[11px]">
                             <span className="text-slate-500 font-mono">{h.date}</span>
@@ -355,14 +406,17 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <ChannelCopyBox
-                      whatsAppText={o.whatsAppText}
-                      telegramText={o.telegramText}
-                      instagramText={o.instagramText}
-                      affiliateUrl={o.affiliateUrl}
-                    />
+                    {/* Copy boxes — only render if there's actual content */}
+                    {(o.whatsAppText || o.telegramText || o.instagramText) && (
+                      <ChannelCopyBox
+                        whatsAppText={o.whatsAppText}
+                        telegramText={o.telegramText}
+                        instagramText={o.instagramText}
+                        affiliateUrl={o.affiliateUrl}
+                      />
+                    )}
 
-                    <div className="pt-2 flex justify-end">
+                    <div className="flex justify-end pt-1">
                       <OfferRatingWidget offerId={o.id} />
                     </div>
                   </CardContent>
@@ -371,31 +425,6 @@ export default function DashboardPage() {
             })}
           </div>
         )}
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          SEÇÃO 4 — INTELIGÊNCIA & SUGESTÕES
-      ═══════════════════════════════════════════════════════════════ */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <BrainCircuit className="h-4 w-4 text-blue-400" />
-          <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Inteligência & Sugestões</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {tips.map((tip) => {
-            const Icon = tip.icon;
-            return (
-              <Card key={tip.title} className="p-5">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl mb-3 ${tip.color}`}>
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">{tip.title}</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">{tip.desc}</p>
-              </Card>
-            );
-          })}
-        </div>
       </section>
 
     </div>

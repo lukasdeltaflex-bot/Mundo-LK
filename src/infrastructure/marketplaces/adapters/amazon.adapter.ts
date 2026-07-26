@@ -1,8 +1,9 @@
 import { IMarketplaceAdapter, ExtractedProductData } from '../../../core/domain/ports/marketplaces/IMarketplaceAdapter';
+import { fetchProductMetadata } from '../scraper/product-page-scraper';
 
 /**
- * Adapter for Amazon Marketplace.
- * Encapsulates Amazon URL matching, data extraction, and affiliate link generation.
+ * Adapter for Amazon Brasil Marketplace.
+ * Extracts real product data from the page using HTML/JSON-LD scraping.
  */
 export class AmazonAdapter implements IMarketplaceAdapter {
   public readonly marketplaceSlug: string = 'amazon';
@@ -16,22 +17,39 @@ export class AmazonAdapter implements IMarketplaceAdapter {
 
   public async extractProductData(url: string): Promise<ExtractedProductData> {
     const cleanUrl = url.trim();
+    const metadata = await fetchProductMetadata(cleanUrl, this.marketplaceSlug);
+
+    if (metadata && metadata.confidence !== 'low' && metadata.title.length > 3) {
+      return {
+        title:           metadata.title,
+        description:     metadata.description || `Produto disponível na ${this.marketplaceName}.`,
+        brand:           metadata.brand || 'Desconhecida',
+        categoryName:    metadata.category || undefined,
+        mainImage:       metadata.image || '',
+        gallery:         metadata.image ? [metadata.image] : [],
+        currentPrice:    metadata.price ?? 0,
+        previousPrice:   metadata.previousPrice ?? null,
+        storeName:       'Amazon Oficial BR',
+        storeReputation: 'Loja Oficial Amazon — Entrega Prime',
+        reviewsRating:   undefined,
+        originalUrl:     cleanUrl,
+      };
+    }
+
+    console.warn(`[AmazonAdapter] Could not extract real data from: ${cleanUrl}.`);
     return {
-      title: 'Fone de Ouvido Bluetooth Sem Fio Noise Cancelling ANC 40h Bateria',
-      description: 'Fone de Ouvido Over-Ear Bluetooth 5.3 com cancelamento ativo de ruído (ANC), bateria de longa duração com 40 horas de reprodução contínua.',
-      brand: 'AudioTech',
-      categoryName: 'Áudio & Acessórios',
-      mainImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
-      gallery: [
-        'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
-        'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=600',
-      ],
-      currentPrice: 349.0,
-      previousPrice: 599.0,
-      storeName: 'Amazon Oficial BR',
-      storeReputation: 'Loja Oficial Amazon - Entrega Prime',
-      reviewsRating: 4.7,
-      originalUrl: cleanUrl,
+      title:           'Produto Amazon',
+      description:     'Descrição não disponível. Verifique o link do produto.',
+      brand:           'Desconhecida',
+      categoryName:    undefined,
+      mainImage:       '',
+      gallery:         [],
+      currentPrice:    0,
+      previousPrice:   null,
+      storeName:       this.marketplaceName,
+      storeReputation: undefined,
+      reviewsRating:   undefined,
+      originalUrl:     cleanUrl,
     };
   }
 

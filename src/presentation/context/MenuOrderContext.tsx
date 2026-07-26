@@ -13,7 +13,6 @@ import {
   Calendar,
   Database,
   Palette,
-  BarChart3,
   Link as LinkIcon,
   FolderHeart,
   Trash2,
@@ -40,7 +39,6 @@ export const ALL_MENU_ITEMS: MenuItemDefinition[] = [
   { id: 'colecoes',   name: 'Coleções',              href: '/colecoes',                icon: FolderHeart    },
   { id: 'lixeira',    name: 'Lixeira Inteligente',  href: '/lixeira',                 icon: Trash2         },
   { id: 'links',      name: 'Meus Links',            href: '/links',                   icon: LinkIcon       },
-  { id: 'operacao',   name: 'Minha Operação',        href: '/operacao',                icon: BarChart3      },
   { id: 'backup',     name: 'Backup Manager',        href: '/backup',                  icon: Database       },
   { id: 'aparencia',  name: 'Aparência',             href: '/configuracoes/aparencia', icon: Palette        },
 ];
