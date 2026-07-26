@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
-import { Settings as SettingsIcon, Save, CheckCircle2, Loader2, Sparkles, Moon, Sun, Cpu, Share2 } from 'lucide-react';
+import { Settings as SettingsIcon, Save, CheckCircle2, Loader2, Sparkles, Moon, Sun, Cpu, Share2, Trash2 } from 'lucide-react';
 import { AIMemoryService } from '@/infrastructure/ai/strategies/ai-memory.service';
 import { useAuth } from '@/presentation/context/AuthContext';
 
@@ -192,6 +192,31 @@ export default function ConfiguracoesPage() {
                   <span>Modo Claro</span>
                 </button>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Trash Auto Clean Settings */}
+        <Card className="p-6">
+          <CardHeader className="p-0 mb-4">
+            <div className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-red-400" />
+              <CardTitle className="text-base">Configurações da Lixeira Inteligente</CardTitle>
+            </div>
+            <CardDescription className="text-xs">Regras de retenção para produtos excluídos temporariamente</CardDescription>
+          </CardHeader>
+
+          <CardContent className="p-0 space-y-4 text-xs">
+            <div className="space-y-1.5">
+              <label className="font-semibold text-slate-300">Limpeza Automática de Itens na Lixeira</label>
+              <select
+                defaultValue="90"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="never">Nunca excluir automaticamente (Preservar Histórico)</option>
+                <option value="30">Excluir definitivamente após 30 dias</option>
+                <option value="90">Excluir definitivamente após 90 dias (Recomendado)</option>
+              </select>
             </div>
           </CardContent>
         </Card>

@@ -20,6 +20,7 @@ import {
   BarChart3,
   Link as LinkIcon,
   FolderHeart,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/presentation/context/AuthContext';
 
@@ -37,6 +38,7 @@ export const AppSidebar: React.FC = () => {
     { name: 'Smart Intelligence', href: '/inteligencia', icon: BrainCircuit },
     { name: 'Prompts Manager', href: '/prompts', icon: Terminal },
     { name: 'Coleções', href: '/colecoes', icon: FolderHeart },
+    { name: 'Lixeira Inteligente', href: '/lixeira', icon: Trash2 },
     { name: 'Meus Links', href: '/links', icon: LinkIcon },
     { name: 'Minha Operação', href: '/operacao', icon: BarChart3 },
     { name: 'Backup Manager', href: '/backup', icon: Database },
