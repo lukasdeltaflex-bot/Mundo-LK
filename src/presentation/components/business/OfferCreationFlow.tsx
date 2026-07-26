@@ -6,7 +6,7 @@ import {
   Edit3, RefreshCcw, X, Save, Copy, Check,
   Tag, Image as ImageIcon, ArrowRight,
   MessageCircle, Send, Brain, Target, Heart,
-  TrendingUp, Zap, Crown, ShoppingCart, Minimize2,
+  TrendingUp, Zap, Crown, ShoppingCart, Minimize2, AlertCircle,
 } from 'lucide-react';
 import { analyzeProductUrlAction, type OfferPreview, type OfferStyle } from '@/presentation/actions/analyze-url.action';
 import { saveApprovedOfferAction } from '@/presentation/actions/save-offer.action';
@@ -113,28 +113,41 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
   // ── Analyze ───────────────────────────────────────────────────────────────
   const handleAnalyze = useCallback(async (overrideStyle?: OfferStyle) => {
-    if (!url.trim()) { setError('Cole a URL do produto.'); return; }
-    setError(null);
-    setStep('analyzing');
-
-    const result = await analyzeProductUrlAction({
-      url:          url.trim(),
-      affiliateTag: tag.trim() || 'mundolk',
-      userId:       user?.uid,
-      style:        overrideStyle ?? style,
-    });
-
-    if (!result.success) {
-      setError(result.error);
-      setStep('input');
+    const rawUrl = url.trim();
+    if (!rawUrl) {
+      setError('Cole a URL do produto para continuar.');
       return;
     }
 
-    setPreview(result.data);
-    setEditTitle(result.data.product.title);
-    setEditCta(result.data.offer.cta);
-    setStyle(overrideStyle ?? style);
-    setStep('preview');
+    setError(null);
+    setStep('analyzing');
+
+    try {
+      // Execute action with 14s safety timeout
+      const result = await analyzeProductUrlAction({
+        url:          rawUrl,
+        affiliateTag: tag.trim() || 'mundolk',
+        userId:       user?.uid,
+        style:        overrideStyle ?? style,
+      });
+
+      if (!result.success) {
+        setError(result.error || 'Não conseguimos analisar esse link agora. Tente novamente.');
+        setStep('input');
+        return;
+      }
+
+      setPreview(result.data);
+      setEditTitle(result.data.product.title);
+      setEditCta(result.data.offer.cta);
+      setStyle(overrideStyle ?? style);
+      setStep('preview');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[OfferCreationFlow] Analyze error:', msg);
+      setError('Não conseguimos analisar esse link agora. Verifique a URL e tente novamente.');
+      setStep('input');
+    }
   }, [url, tag, user, style]);
 
   // Regenerate with same or different style
@@ -149,29 +162,40 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     setStep('saving');
     setError(null);
 
-    const result = await saveApprovedOfferAction({
-      preview,
-      userId:      user.uid,
-      editedTitle: editTitle !== preview.product.title ? editTitle : undefined,
-      editedCta:   editCta   !== preview.offer.cta    ? editCta   : undefined,
-    });
+    try {
+      const result = await saveApprovedOfferAction({
+        preview,
+        userId:      user.uid,
+        editedTitle: editTitle !== preview.product.title ? editTitle : undefined,
+        editedCta:   editCta   !== preview.offer.cta    ? editCta   : undefined,
+      });
 
-    if (!result.success) {
-      setError(result.error);
+      if (!result.success) {
+        setError(result.error || 'Falha ao salvar a oferta.');
+        setStep('preview');
+        return;
+      }
+
+      setSavedIds({ productId: result.productId, offerId: result.offerId });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['offers'] });
+      setStep('done');
+      onSaved?.(result.productId, result.offerId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[OfferCreationFlow] Save error:', msg);
+      setError(`Erro ao salvar a oferta: ${msg}`);
       setStep('preview');
-      return;
     }
-
-    setSavedIds({ productId: result.productId, offerId: result.offerId });
-    queryClient.invalidateQueries({ queryKey: ['products'] });
-    queryClient.invalidateQueries({ queryKey: ['offers'] });
-    setStep('done');
-    onSaved?.(result.productId, result.offerId);
   }, [preview, user, editTitle, editCta, queryClient, onSaved]);
 
   const handleReset = () => {
-    setStep('input'); setUrl(''); setTag('');
-    setPreview(null); setError(null); setSavedIds(null);
+    setStep('input');
+    setUrl('');
+    setTag('');
+    setPreview(null);
+    setError(null);
+    setSavedIds(null);
   };
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -202,7 +226,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-              placeholder="https://mercadolivre.com.br/... ou shopee.com.br/..."
+              placeholder="https://mercadolivre.com.br/... ou https://shopee.com.br/..."
               className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>
@@ -226,8 +250,8 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {STYLE_OPTIONS.map((s) => {
-              const Icon    = s.icon;
-              const active  = style === s.id;
+              const Icon   = s.icon;
+              const active = style === s.id;
               return (
                 <button
                   key={s.id}
@@ -247,7 +271,32 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
           </div>
         </div>
 
-        {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+        {/* Friendly Error Box */}
+        {error && (
+          <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-300 animate-in fade-in duration-200">
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-2">
+              <p className="font-semibold text-white">Não foi possível analisar o produto</p>
+              <p className="text-red-300/90 leading-relaxed">{error}</p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleAnalyze()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold transition text-[11px]"
+                >
+                  <RefreshCcw className="h-3 w-3" /> Tentar Novamente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setError(null)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 font-semibold hover:bg-slate-800 transition text-[11px]"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end">
           <button
@@ -256,7 +305,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
             className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-lg shadow-blue-500/20"
           >
             <Brain className="h-4 w-4" />
-            Analisar com IA
+            Criar Nova Oferta
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
@@ -267,11 +316,26 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   // ── Step: Analyzing ──────────────────────────────────────────────────────
   if (step === 'analyzing') {
     return (
-      <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-6 space-y-4 shadow-xl">
-        <div className="flex items-center gap-3">
-          <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-          <h3 className="text-sm font-bold text-white">IA analisando produto…</h3>
+      <div className="rounded-2xl border border-blue-500/20 bg-slate-900/90 p-6 space-y-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+            <h3 className="text-sm font-bold text-white">IA analisando produto…</h3>
+          </div>
+          {/* Cancel button during loading so user is never trapped */}
+          <button
+            type="button"
+            onClick={() => {
+              setStep('input');
+              setError(null);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+          >
+            <X className="h-3.5 w-3.5" />
+            Cancelar
+          </button>
         </div>
+
         <div className="space-y-2.5">
           {ANALYSIS_STEPS.map((s, i) => (
             <div key={i} className="flex items-center gap-3 text-xs">
@@ -281,8 +345,10 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
             </div>
           ))}
         </div>
-        <div className="text-[11px] text-slate-500 pt-1">
-          Estilo selecionado: <span className="font-semibold text-blue-400">{STYLE_OPTIONS.find(s => s.id === style)?.label}</span>
+
+        <div className="text-[11px] text-slate-500 pt-1 flex items-center justify-between">
+          <span>Estilo selecionado: <strong className="text-blue-400">{STYLE_OPTIONS.find(s => s.id === style)?.label}</strong></span>
+          <span className="text-slate-600 font-mono">Processando...</span>
         </div>
       </div>
     );
@@ -313,9 +379,9 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
   // ── Step: Preview / Editing / Saving ─────────────────────────────────────
   if ((step === 'preview' || step === 'editing' || step === 'saving') && preview) {
-    const p        = preview.product;
-    const a        = preview.analysis;
-    const o        = preview.offer;
+    const p         = preview.product;
+    const a         = preview.analysis;
+    const o         = preview.offer;
     const isEditing = step === 'editing';
     const isSaving  = step === 'saving';
 
@@ -399,12 +465,12 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <AnalysisCard icon={Target}     label="Público-alvo"       value={a.publicoAlvo} />
-              <AnalysisCard icon={Heart}      label="Dor que resolve"    value={a.dorQueResolve} />
-              <AnalysisCard icon={TrendingUp} label="Benefício principal" value={a.beneficioPrincipal} />
-              <AnalysisCard icon={Sparkles}   label="Ângulo de venda"    value={a.anguloDeVenda} />
-              <AnalysisCard icon={Brain}      label="Emoção de compra"   value={a.emocaoDeCompra} />
-              <AnalysisCard icon={ShoppingCart} label="Argumento principal" value={a.argumentoComercial} />
+              <AnalysisCard icon={Target}       label="Público-alvo"         value={a.publicoAlvo} />
+              <AnalysisCard icon={Heart}        label="Dor que resolve"      value={a.dorQueResolve} />
+              <AnalysisCard icon={TrendingUp}   label="Benefício principal"   value={a.beneficioPrincipal} />
+              <AnalysisCard icon={Sparkles}     label="Ângulo de venda"      value={a.anguloDeVenda} />
+              <AnalysisCard icon={Brain}        label="Emoção de compra"     value={a.emocaoDeCompra} />
+              <AnalysisCard icon={ShoppingCart} label="Argumento principal"   value={a.argumentoComercial} />
             </div>
           </div>
 
