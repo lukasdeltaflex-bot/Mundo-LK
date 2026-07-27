@@ -1,9 +1,11 @@
 import { IProviderManager, ProviderExtractionResult } from '../../../core/domain/ports/marketplaces/IProviderManager';
 import { MercadoLivreAPIProvider } from './MercadoLivreAPIProvider';
 import { AmazonAPIProvider } from './AmazonAPIProvider';
+import { ApifyProvider } from './ApifyProvider';
 import { ZenRowsClient } from './ZenRowsClient';
 import { ScrapingBeeClient } from './ScrapingBeeClient';
 import { ScraperAPIClient } from './ScraperAPIClient';
+import { ChromeHeadlessProvider } from './ChromeHeadlessProvider';
 import { LocalScraperProvider } from './LocalScraperProvider';
 import { CircuitBreaker } from '../resilience/CircuitBreaker';
 import { ProviderHealthMonitor } from '../resilience/ProviderHealthMonitor';
@@ -25,17 +27,21 @@ export class ProviderManager implements IProviderManager {
   constructor() {
     const mlApi = new MercadoLivreAPIProvider();
     const amazonApi = new AmazonAPIProvider();
+    const apify = new ApifyProvider();
     const zenRows = new ZenRowsClient();
     const scrapingBee = new ScrapingBeeClient();
     const scraperApi = new ScraperAPIClient();
+    const chromeHeadless = new ChromeHeadlessProvider();
     const localScraper = new LocalScraperProvider();
 
     this.providers = [
       { name: 'MercadoLivreAPI', extract: (u, m) => mlApi.extract(u, m) },
       { name: 'AmazonAPI', extract: (u, m) => amazonApi.extract(u, m) },
+      { name: 'Apify', extract: (u, m) => apify.extract(u, m) },
       { name: 'ZenRows', extract: (u, m) => zenRows.extract(u, m) },
       { name: 'ScrapingBee', extract: (u, m) => scrapingBee.extract(u, m) },
       { name: 'ScraperAPI', extract: (u, m) => scraperApi.extract(u, m) },
+      { name: 'ChromeHeadless', extract: (u, m) => chromeHeadless.extract(u, m) },
       { name: 'LocalScraper', extract: (u, m) => localScraper.extract(u, m) },
     ];
   }

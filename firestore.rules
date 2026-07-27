@@ -30,7 +30,7 @@ service cloud.firestore {
              (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
     }
 
-    // Retorna true se o usuário for Admin (buscando na collection users)
+    // Retorna true se o usuário for Admin (buscando na coleção users)
     function isAdmin() {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
     }
@@ -112,7 +112,6 @@ service cloud.firestore {
 
     // 10. prompts
     match /prompts/{promptId} {
-      // Leitura permitida se o usuário é dono ou se o status é ativo e foi criado pelo Admin
       allow read: if isOwner(resource.data.userId) || isAdmin(); 
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
       allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged() && (!('status' in request.resource.data) || request.resource.data.status == resource.data.status || isAdmin());
@@ -122,7 +121,6 @@ service cloud.firestore {
     // 11. notifications
     match /notifications/{notifId} {
       allow read: if isOwner(resource.data.userId);
-      // O sistema via funções backend pode criar, mas via client SDK só o dono pode interagir
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
       allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
       allow delete: if isOwner(resource.data.userId);
@@ -130,10 +128,15 @@ service cloud.firestore {
 
     // 12. extraction_cache
     match /extraction_cache/{cacheId} {
-      // Como o ExtractionEngine roda em Server Actions (unauthenticated) no Next.js
-      // essa coleção precisa ser pública para o sistema de cache funcionar sem o firebase-admin.
       allow read, create, update: if true;
-      allow delete: if false; // Deletado automaticamente por TTL
+      allow delete: if false; // Deletado automaticamente por política TTL
+    }
+
+    // 13. analytics (Telemetria do ExtractionEngine)
+    match /analytics/{metricId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Telemetria enviada pelo backend de extração
+      allow update, delete: if false;
     }
 
     // Bloquear todo o resto
