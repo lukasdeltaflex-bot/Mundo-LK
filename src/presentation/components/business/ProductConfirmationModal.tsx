@@ -34,14 +34,23 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   onConfirm,
   onCancel,
 }) => {
-  const [title, setTitle] = useState(data.title || '');
-  const [price, setPrice] = useState(data.currentPrice ? String(data.currentPrice) : '');
-  const [prevPrice, setPrevPrice] = useState(data.previousPrice ? String(data.previousPrice) : '');
+  // Rejeitar títulos que são puramente numéricos (IDs de produto, não nomes)
+  const isValidTitle = (t: string) => !!t && t.trim().length > 3 && !/^\d+$/.test(t.trim());
+
+  // Formatar valor numérico como moeda BRL (ex: 99.9 → "99,90")
+  const formatBRL = (val: number | null | undefined): string => {
+    if (!val || val <= 0) return '';
+    return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const [title, setTitle] = useState(isValidTitle(data.title) ? data.title : '');
+  const [price, setPrice] = useState(formatBRL(data.currentPrice));
+  const [prevPrice, setPrevPrice] = useState(formatBRL(data.previousPrice ?? undefined));
   const [image, setImage] = useState(data.mainImage || '');
-  const [brand, setBrand] = useState(data.brand || '');
+  const [brand, setBrand] = useState(data.brand && data.brand !== 'Shopee' && data.brand !== 'Desconhecida' ? data.brand : '');
   const [category, setCategory] = useState(data.categoryName || 'Geral');
-  const [rating, setRating] = useState(data.reviewsRating ? String(data.reviewsRating) : '4.8');
-  const [shipping, setShipping] = useState(data.shippingInfo || 'Frete Grátis disponível');
+  const [rating, setRating] = useState(data.reviewsRating && data.reviewsRating > 0 ? String(data.reviewsRating) : '');
+  const [shipping, setShipping] = useState(data.shippingInfo || '');
 
   const score = data.confidenceScore || 0;
   const isAutomatic = score >= 80;

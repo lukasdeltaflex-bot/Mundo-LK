@@ -70,7 +70,9 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     }
 
     // L4: Slug fallback — low confidence, triggers manual/assisted recovery screen
-    const slugTitle = metadata?.title || '';
+    const rawSlug = metadata?.title || '';
+    // Rejeitar títulos que sejam puramente numéricos (itemId/shopId, não nomes reais)
+    const slugTitle = /^\d+$/.test(rawSlug.trim()) ? '' : rawSlug;
     const score = slugTitle.length > 3 ? 45 : 20;
     return {
       title:           slugTitle,

@@ -133,6 +133,9 @@ function extractTitleFromUrlSlug(url: string): string {
       .replace(/%[0-9A-F]{2}/gi, ' ')
       .trim();
 
+    // Rejeitar slugs que sobraram como puramente numéricos
+    if (/^\d+$/.test(cleaned)) return '';
+
     return cleaned.length > 3 ? cleaned : '';
   } catch {
     return '';
