@@ -1,4 +1,3 @@
-
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { Product } from '@/core/domain/entities/product.entity';
@@ -28,40 +27,40 @@ export async function saveApprovedOfferAction(
     const productRepo = new FirestoreProductRepository();
     const offerRepo   = new FirestoreOfferRepository();
 
-    console.log('[SAVE] Tentando salvar oferta');
-    console.log('[SAVE] Usuário:', userId);
+    console.log('[SAVE] Tentando salvar oferta para usuário:', userId);
 
     if (!preview.product.title) throw new Error('Campo obrigatório vazio: Título');
     if (!preview.product.originalUrl) throw new Error('Campo obrigatório vazio: URL Original');
-    if (preview.product.priceAmount === undefined || preview.product.priceAmount === null) throw new Error('Campo obrigatório vazio: Preço');
 
     // ── Build Product entity ────────────────────────────────────────────────
     const currentPrice  = Price.create(preview.product.priceAmount || 0);
     const discountPct   = DiscountPercentage.calculate(currentPrice, null);
-    const affiliateLink = AffiliateLink.create(preview.product.affiliateUrl);
+    const affiliateLink = AffiliateLink.create(preview.product.affiliateUrl || preview.product.originalUrl);
 
-    // Stable product ID based on URL + userId (deduplication)
+    // Stable product ID based on URL + userId
     const urlHash = Buffer.from(preview.product.originalUrl)
       .toString('base64')
       .replace(/[^a-z0-9]/gi, '')
       .slice(0, 20);
     const productId = `prod_${urlHash}_${userId.slice(0, 8)}`;
 
-    console.log('[SAVE] Collection: products');
-    console.log(`[SAVE] Dados enviados (Produto ${productId}):`, { title: editedTitle || preview.product.title, url: preview.product.originalUrl });
-
-    // Check for existing product (avoid duplicates)
-    let product = await productRepo.findByOriginalUrl(preview.product.originalUrl);
+    // Check for existing product filtered by userId to satisfy Firestore Security Rules
+    let product: Product | null = null;
+    try {
+      product = await productRepo.findByOriginalUrl(preview.product.originalUrl, userId);
+    } catch (e) {
+      console.warn('[SAVE] Warn finding existing product, creating new:', e);
+    }
 
     if (!product) {
       product = new Product({
         id:                 productId,
         userId,
         title:              editedTitle || preview.product.title,
-        description:        preview.product.description,
-        brand:              preview.product.brand,
-        categoryId:         preview.product.categoryId,
-        marketplaceSlug:    preview.product.marketplaceSlug,
+        description:        preview.product.description || 'Produto oficial',
+        brand:              preview.product.brand || 'Desconhecida',
+        categoryId:         preview.product.categoryId || 'Geral',
+        marketplaceSlug:    preview.product.marketplaceSlug || 'shopee',
         originalUrl:        preview.product.originalUrl,
         affiliateUrl:       affiliateLink,
         currentPrice,
@@ -92,7 +91,7 @@ export async function saveApprovedOfferAction(
       productId:          product.id,
       userId:             userId,
       scoreValue:         preview.offer.score,
-      scoreLabel:         preview.offer.scoreLabel as ScoreType,
+      scoreLabel:         (preview.offer.scoreLabel as ScoreType) || 'GOOD',
       scoreJustification: preview.offer.justification,
       copies,
       hashtags:           preview.offer.hashtags,
@@ -102,19 +101,14 @@ export async function saveApprovedOfferAction(
       createdAt:          new Date(),
     });
 
-    console.log('[SAVE] Collection: offers');
-    console.log(`[SAVE] Dados enviados (Offer ${offerId}):`, { productId: offer.productId, score: offer.scoreValue });
-
     await offerRepo.save(offer);
 
-    console.log('[SAVE] Oferta criada com sucesso');
-    console.log('[SAVE] Documento ID:', offerId);
+    console.log('[SAVE] Oferta salva com sucesso! OfferId:', offerId);
 
     return { success: true, productId: product.id, offerId: offer.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[SAVE ERROR]', msg);
-    console.error(err);
     return { success: false, error: msg || 'Erro ao salvar a oferta.' };
   }
 }

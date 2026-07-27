@@ -8,36 +8,60 @@ export class FirestoreProductRepository implements IProductRepository {
   private collectionName = 'products';
 
   public async findById(id: string): Promise<Product | null> {
-    const ref = doc(db, this.collectionName, id);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      return ProductMapper.toDomain(snap.data() as FirestoreProductDoc);
+    try {
+      const ref = doc(db, this.collectionName, id);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        return ProductMapper.toDomain(snap.data() as FirestoreProductDoc);
+      }
+      return null;
+    } catch (err) {
+      console.warn('[FirestoreProductRepository] findById error:', err);
+      return null;
     }
-    return null;
   }
 
-  public async findByOriginalUrl(url: string): Promise<Product | null> {
-    const q = query(collection(db, this.collectionName), where('originalUrl', '==', url));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      return ProductMapper.toDomain(snap.docs[0].data() as FirestoreProductDoc);
+  public async findByOriginalUrl(url: string, userId?: string): Promise<Product | null> {
+    try {
+      const constraints = [where('originalUrl', '==', url)];
+      if (userId) {
+        constraints.push(where('userId', '==', userId));
+      }
+      const q = query(collection(db, this.collectionName), ...constraints);
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return ProductMapper.toDomain(snap.docs[0].data() as FirestoreProductDoc);
+      }
+      return null;
+    } catch (err) {
+      console.warn('[FirestoreProductRepository] findByOriginalUrl error:', err);
+      return null;
     }
-    return null;
   }
 
   public async findAll(userId: string): Promise<Product[]> {
-    const q = query(collection(db, this.collectionName), where('userId', '==', userId));
-    const snap = await getDocs(q);
-    return snap.docs
-      .map((docSnap) => docSnap.data() as FirestoreProductDoc)
-      .filter((d) => !d.status || d.status === 'ACTIVE')
-      .map((d) => ProductMapper.toDomain(d));
+    try {
+      const q = query(collection(db, this.collectionName), where('userId', '==', userId));
+      const snap = await getDocs(q);
+      return snap.docs
+        .map((docSnap) => docSnap.data() as FirestoreProductDoc)
+        .filter((d) => !d.status || d.status === 'ACTIVE')
+        .map((d) => ProductMapper.toDomain(d));
+    } catch (err) {
+      console.warn('[FirestoreProductRepository] findAll error:', err);
+      return [];
+    }
   }
 
   public async findTrashed(userId: string): Promise<Array<FirestoreProductDoc & { deletedAt: string; deletionReason: string }>> {
-    const q = query(collection(db, this.collectionName), where('userId', '==', userId), where('status', '==', 'TRASHED'));
-    const snap = await getDocs(q);
-    return snap.docs.map((docSnap) => docSnap.data() as FirestoreProductDoc & { deletedAt: string; deletionReason: string });
+    try {
+      const q = query(collection(db, this.collectionName), where('userId', '==', userId), where('status', '==', 'TRASHED'));
+      const snap = await getDocs(q);
+      return snap.docs.map((docSnap) => docSnap.data() as FirestoreProductDoc & { deletedAt: string; deletionReason: string });
+    } catch (err) {
+      console.warn('[FirestoreProductRepository] findTrashed error:', err);
+      return [];
+    }
   }
 
   public async moveToTrash(id: string, reason: string, userId: string): Promise<void> {
@@ -78,8 +102,8 @@ export class FirestoreProductRepository implements IProductRepository {
       const ref = doc(db, this.collectionName, product.id);
       await setDoc(ref, { ...raw, status: 'ACTIVE' }, { merge: true });
     } catch (error) {
-      console.error('[FirestoreProductRepository] Erro crítico ao salvar no Firestore:', error);
-      throw error; // Não usar fallback local
+      console.error('[FirestoreProductRepository] Erro ao salvar no Firestore:', error);
+      throw error;
     }
   }
 
