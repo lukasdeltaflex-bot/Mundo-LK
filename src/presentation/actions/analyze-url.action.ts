@@ -5,6 +5,8 @@ import { GeminiAIAdapter, type OfferStyle, type GeminiOfferAnalysis } from '@/in
 import { Product } from '@/core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-objects';
 import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
+import { ExtractionEngine } from '@/infrastructure/marketplaces/providers/ExtractionEngine';
+import { FirestoreExtractionCacheRepository } from '@/infrastructure/firebase/repositories/firestore-extraction-cache.repository';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
@@ -77,17 +79,33 @@ export async function extractProductDetailsAction(input: {
     const registry = initializeMarketplaceRegistry();
     const adapter = registry.getAdapterForUrl(cleanUrl);
 
-    const startTime = Date.now();
-    const extracted = await adapter.extractProductData(cleanUrl);
-    const duration = Date.now() - startTime;
+    // Usa o novo Engine de Extração Profissional
+    const engine = new ExtractionEngine(new FirestoreExtractionCacheRepository());
+    const extracted = await engine.extract(cleanUrl, adapter.marketplaceSlug);
 
-    console.log(`[Scraper] Concluído em ${duration}ms para ${adapter.marketplaceSlug}. Confiança: ${extracted.confidenceScore}%`);
+    // Mapeando do formato ExtractedData para ExtractedProductData (Legado esperado pela UI)
+    const mappedData: ExtractedProductData = {
+      title: extracted.title,
+      description: extracted.description,
+      mainImage: extracted.image,
+      gallery: extracted.images,
+      currentPrice: extracted.price || 0,
+      previousPrice: extracted.oldPrice,
+      brand: extracted.brand,
+      categoryName: extracted.category,
+      originalUrl: extracted.url,
+      sellerName: extracted.seller,
+      storeName: extracted.seller || 'Não identificada',
+      confidenceScore: extracted.confidence,
+      confidenceMode: extracted.confidence >= 80 ? 'automatic' : 'manual',
+      confidenceItems: [],
+    };
 
     const affiliateUrl = await adapter.buildAffiliateLink(cleanUrl, input.affiliateTag || 'mundolk');
 
     return {
       success: true,
-      data: extracted,
+      data: mappedData,
       affiliateUrl,
       marketplaceSlug: adapter.marketplaceSlug,
     };

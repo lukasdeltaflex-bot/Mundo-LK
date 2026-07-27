@@ -114,6 +114,10 @@ function buildMarketingPrompt(product: Product, style: OfferStyle): string {
 
 Sua tarefa é analisar o produto real fornecido e gerar um pacote completo de inteligência comercial e copys persuasivas.
 
+REGRAS RÍGIDAS DE ANTI-ALUCINAÇÃO:
+- NUNCA invente, adivinhe ou crie produtos, marcas, categorias, avaliações ou preços que não estejam explicitamente listados na seção "DADOS CONFIRMADOS DO PRODUTO".
+- Trabalhe EXCLUSIVAMENTE com os dados fornecidos abaixo. Se uma informação (como frete ou avaliações) não estiver na lista, não a mencione ou invente na copy.
+
 DADOS CONFIRMADOS DO PRODUTO:
 - Nome Oficial: ${product.title}
 - Descrição: ${product.description || 'Produto oficial de alta utilidade'}

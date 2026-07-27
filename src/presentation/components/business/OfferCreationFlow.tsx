@@ -160,13 +160,9 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setAffiliateUrl(result.affiliateUrl);
       setMarketplace(result.marketplaceSlug);
 
-      // Modo Automático (>=80%): gera direto com IA
-      if (result.data.confidenceScore >= 80) {
-        handleGenerateAI(result.data);
-      } else {
-        // Modo Assistido (50-79%) ou Manual (<50%): abre tela de recuperação
-        setStep('confirming');
-      }
+      // A UI agora SEMPRE entra no modo de confirmação antes de invocar a IA
+      // Isso blinda a IA contra alucinações e permite revisão humana.
+      setStep('confirming');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Erro na extração de dados: ${msg}`);
