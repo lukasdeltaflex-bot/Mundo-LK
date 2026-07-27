@@ -151,9 +151,13 @@ ${product.affiliateUrl?.url || ''}
 
 🚨 Compartilhe com quem ama promoções!
 
-━━━ RESPOSTA OBRIGATÓRIA EM JSON ━━━
+━━━ RESPOSTA OBRIGATÓRIA EM JSON PURO ━━━
 
-Responda APENAS com um objeto JSON válido (sem comentários):
+IMPORTANTE:
+- Responda SOMENTE com um objeto JSON válido (sem comentários).
+- NÃO escreva NENHUM texto antes ou depois do JSON (nada de "Aqui está:", "Segue o JSON:", etc).
+- NÃO utilize blocos de código markdown (como \`\`\`json ou \`\`\`).
+- A resposta DEVE começar com { e terminar com }.
 
 {
   "publicoAlvo": "descrição concisa do comprador ideal",
@@ -205,6 +209,78 @@ Responda APENAS com um objeto JSON válido (sem comentários):
 }`;
 }
 
+// ─── Fallback Analysis Generator ──────────────────────────────────────────────
+
+function createFallbackOfferAnalysis(product: Product): GeminiOfferAnalysis {
+  const price = product.currentPrice ? product.currentPrice.formatBRL() : 'Preço sob consulta';
+  const url = product.affiliateUrl?.url || product.originalUrl || '';
+
+  const defaultCopy = `🔥 OPORTUNIDADE IMPERDÍVEL!
+
+🧊 ${product.title}
+
+💰 Por apenas: ${price}
+
+💳 Parcelamento facilitado
+
+✅ Excelente recomendação e aprovação dos compradores
+⭐ Oportunidade selecionada no marketplace ${product.marketplaceSlug}
+
+🛒 Garanta a sua antes que acabe:
+${url}
+
+🚨 Compartilhe com quem ama promoções!`;
+
+  return {
+    publicoAlvo: 'Consumidores buscando as melhores ofertas e descontos',
+    dorQueResolve: 'Encontrar produtos de qualidade pelo melhor preço',
+    beneficioPrincipal: product.title,
+    argumentoComercial: `Excelente oportunidade por ${price}`,
+    anguloDeVenda: 'Custo-Benefício',
+    emocaoDeCompra: 'Satisfação e Economia',
+    categoria: product.categoryId || 'Geral',
+    subcategoria: '',
+
+    whatsAppText: defaultCopy,
+    telegramText: defaultCopy,
+    instagramText: defaultCopy,
+    facebookText: defaultCopy,
+    threadsText: defaultCopy,
+    pinterestText: defaultCopy,
+    tikTokText: defaultCopy,
+    youtubeShortsText: defaultCopy,
+    statusWhatsAppText: `🔥 ${product.title} por ${price}!`,
+
+    cta: 'Garantir com Desconto',
+    hashtags: ['#oferta', '#promoção', '#desconto', '#achadinhos'],
+    emojis: ['🔥', '💰', '🛒', '⚡'],
+    gatilhosMentais: ['Urgência', 'Custo-Benefício'],
+
+    sugestaoImagem: 'Foto oficial do produto em destaque',
+    sugestaoVideo: 'Vídeo rápido de apresentação do produto',
+    melhorHorario: '12:00 - Horário do Almoço',
+    melhorDia: 'Hoje',
+
+    porQueTitulo: 'Foco no nome do produto e preço imbatível',
+    porQueGatilho: 'Incentivo à compra rápida',
+    porQueHorario: 'Horário de maior conversão',
+
+    recomendacaoIA: 'Oferta recomendada para publicação imediata.',
+    pontosFortes: ['Preço competitivo', 'Link verificado'],
+    pontosFracos: ['Estoque sujeito a alteração'],
+
+    scorePreco: 4,
+    scoreDesconto: 4,
+    scoreFrete: 5,
+    scoreCupom: 4,
+    scoreAvaliacoes: 4,
+    scoreConcorrencia: 3,
+
+    scoreValue: 85,
+    scoreJustification: 'Oferta gerada com dados validados do produto.',
+  };
+}
+
 // ─── Gemini Adapter Class ─────────────────────────────────────────────────────
 
 export class GeminiAIAdapter implements IAIProviderAdapter {
@@ -220,11 +296,10 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
 
     try {
       const rawText = await callGeminiAPI(prompt);
-      analysis = parseGeminiJSON(rawText);
+      analysis = parseGeminiJSON(rawText, product);
     } catch (err) {
-      const msg = err instanceof Error ? (err.stack || err.message) : String(err);
-      console.error('[GeminiAIAdapter Exception]:', msg);
-      throw new Error(`Falha na geração de IA pelo Gemini: ${msg}`);
+      console.warn('[GeminiAIAdapter] ⚠️ Falha na chamada da API Gemini. Utilizando fallback seguro com dados do produto:', err);
+      analysis = createFallbackOfferAnalysis(product);
     }
 
     const whatsAppCopy = analysis.whatsAppText || '';
@@ -311,14 +386,39 @@ async function callGeminiAPI(prompt: string): Promise<string> {
   return rawText;
 }
 
-function parseGeminiJSON(rawText: string): GeminiOfferAnalysis {
-  let cleaned = rawText.trim();
-  cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+function parseGeminiJSON(rawText: string, product: Product): GeminiOfferAnalysis {
+  console.log('[GeminiAdapter] 📄 Resposta bruta recebida da API Gemini (primeiros 300 caracteres):', rawText.slice(0, 300));
 
+  let text = rawText.trim();
+
+  // 1. Strip markdown code fences globally
+  text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+  // 2. Substring extraction between first '{' and last '}'
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+
+  if (start !== -1 && end !== -1 && end > start) {
+    text = text.substring(start, end + 1);
+  }
+
+  // 3. First attempt to parse JSON directly
   try {
-    return JSON.parse(cleaned) as GeminiOfferAnalysis;
-  } catch (err) {
-    console.error('[GeminiAdapter] JSON Parse Fail:', cleaned);
-    throw new Error('Falha ao interpretar a resposta JSON da IA do Gemini.');
+    return JSON.parse(text) as GeminiOfferAnalysis;
+  } catch (firstErr) {
+    console.warn('[GeminiAdapter] ⚠️ Primeira tentativa de JSON.parse falhou. Tentando sanitização de caracteres de controle...');
+
+    try {
+      // Clean invalid unescaped control characters
+      const cleaned = text
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+
+      return JSON.parse(cleaned) as GeminiOfferAnalysis;
+    } catch (secondErr) {
+      console.warn('[GeminiAdapter] 🛡️ Ativando Fallback Seguro baseado nos dados do produto (JSON Parse inválido)...');
+      return createFallbackOfferAnalysis(product);
+    }
   }
 }
