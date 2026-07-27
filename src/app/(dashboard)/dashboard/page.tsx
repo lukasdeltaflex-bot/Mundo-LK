@@ -144,7 +144,6 @@ export default function DashboardPage() {
   const shortcuts = [
     { label: 'Importação em Lote', href: '/lote',        icon: Layers    },
     { label: 'Agendamento',        href: '/agendamento', icon: FileText  },
-    { label: 'Meus Links',         href: '/links',       icon: LinkIcon  },
     { label: 'Coleções',           href: '/colecoes',    icon: Package   },
   ];
 
