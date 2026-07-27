@@ -25,6 +25,7 @@ export interface ExtractedProductData {
   sellerName?: string;
   originalUrl: string;
   confidenceScore: number; // 0 to 100
+  confidenceMode?: 'automatic' | 'assisted' | 'manual';
   confidenceItems: ConfidenceCheckItem[];
 }
 

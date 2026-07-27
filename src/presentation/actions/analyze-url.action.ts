@@ -131,12 +131,38 @@ export async function analyzeProductUrlAction(input: {
       extracted = await adapter.extractProductData(cleanUrl);
     }
 
-    // Safety Gate: If title is empty or unverified (<80% confidence without manual confirmation), request confirmation
-    if ((!extracted.title || extracted.confidenceScore < 80) && !input.confirmedData) {
+    // ─── VALIDAÇÃO PRÉ-IA (OBRIGATÓRIA) ────────────────────────────────────────
+    // A IA Gemini NUNCA deve receber dados incompletos.
+    // Regra: título real + preço real são obrigatórios para gerar copy.
+    const hasTitleData  = extracted.title && extracted.title.trim().length > 3;
+    const hasPriceData  = extracted.currentPrice && extracted.currentPrice > 0;
+    const hasImageData  = extracted.mainImage && extracted.mainImage.length > 5;
+
+    const debugInfo = {
+      titulo:      extracted.title || '— não encontrado',
+      preco:       extracted.currentPrice ? `R$ ${extracted.currentPrice.toFixed(2)}` : '— não encontrado',
+      imagem:      extracted.mainImage ? '✅ encontrada' : '— não encontrada',
+      categoria:   extracted.categoryName || '— não encontrada',
+      marketplace: adapter.marketplaceSlug,
+      confianca:   `${extracted.confidenceScore}% (${extracted.confidenceMode || 'desconhecido'})`,
+    };
+
+    // Se não tiver título nem preço E não vier de confirmação manual → bloqueia a IA
+    if ((!hasTitleData || !hasPriceData) && !input.confirmedData) {
       return {
         success: false,
-        error: 'Não foi possível extrair o título e dados reais deste produto com segurança (Confiança < 80%). Por favor, confirme os dados do produto na tela de conferência.'
-      };
+        error:   'Não conseguimos ler esse anúncio automaticamente. Cole o link completo do produto ou confirme os dados manualmente.',
+        debugInfo,
+      } as { success: false; error: string; debugInfo: typeof debugInfo };
+    }
+
+    // Safety Gate: confiança < 80% sem confirmação manual
+    if (extracted.confidenceScore < 80 && !input.confirmedData) {
+      return {
+        success: false,
+        error: 'Extração com baixa confiança. Por favor, confirme os dados do produto na tela de conferência.',
+        debugInfo,
+      } as { success: false; error: string; debugInfo: typeof debugInfo };
     }
 
     const affiliateUrlString = await adapter.buildAffiliateLink(

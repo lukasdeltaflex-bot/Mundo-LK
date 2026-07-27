@@ -85,6 +85,9 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
   const [savedIds, setSavedIds] = useState<{ productId: string; offerId: string } | null>(null);
 
+  // Debug Panel — Dados extraídos pelo scraper
+  const [debugInfo, setDebugInfo] = useState<Record<string, string> | null>(null);
+
   // Stepper messages
   const [stepperMsg, setStepperMsg] = useState('🔎 Identificando marketplace e extraindo informações...');
 
@@ -104,6 +107,9 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       });
 
       if (!result.success) {
+        // Capture debugInfo if server returned it
+        const resultWithDebug = result as { success: false; error: string; debugInfo?: Record<string, string> };
+        if (resultWithDebug.debugInfo) setDebugInfo(resultWithDebug.debugInfo);
         setError(result.error || 'Não conseguimos gerar a oferta agora. Tente novamente.');
         setStep('confirming');
         return;
@@ -333,13 +339,70 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
       {/* ── PHASE 1: PRE-AI PRODUCT CONFIRMATION MODAL ── */}
       {step === 'confirming' && extractedData && (
-        <ProductConfirmationModal
-          data={extractedData}
-          marketplaceSlug={marketplace}
-          affiliateUrl={affiliateUrl}
-          onConfirm={(confirmed) => handleGenerateAI(confirmed)}
-          onCancel={() => setStep('input')}
-        />
+        <div className="space-y-4">
+          {/* ── DEBUG PANEL: DADOS EXTRAÍDOS ── */}
+          <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 shadow-lg">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-3">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+                <HelpCircle className="h-4 w-4" />
+              </span>
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Diagnóstico — Dados Extraídos pelo Scraper</span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
+                <span className="block text-slate-500 font-medium mb-0.5">📌 Título</span>
+                <span className={`font-semibold ${extractedData.title ? 'text-white' : 'text-red-400'}`}>
+                  {extractedData.title || '— não encontrado'}
+                </span>
+              </div>
+              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
+                <span className="block text-slate-500 font-medium mb-0.5">💰 Preço</span>
+                <span className={`font-semibold ${extractedData.currentPrice ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {extractedData.currentPrice ? `R$ ${extractedData.currentPrice.toFixed(2)}` : '— não encontrado'}
+                </span>
+              </div>
+              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
+                <span className="block text-slate-500 font-medium mb-0.5">🖼️ Imagem</span>
+                <span className={`font-semibold ${extractedData.mainImage ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {extractedData.mainImage ? '✅ encontrada' : '— não encontrada'}
+                </span>
+              </div>
+              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
+                <span className="block text-slate-500 font-medium mb-0.5">📂 Categoria</span>
+                <span className="font-semibold text-slate-300">{extractedData.categoryName || '— não encontrada'}</span>
+              </div>
+              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
+                <span className="block text-slate-500 font-medium mb-0.5">🏪 Marketplace</span>
+                <span className="font-semibold text-slate-300 capitalize">{marketplace || '—'}</span>
+              </div>
+              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
+                <span className="block text-slate-500 font-medium mb-0.5">🎯 Confiança</span>
+                <span className={`font-bold ${extractedData.confidenceScore >= 80 ? 'text-emerald-400' : extractedData.confidenceScore >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                  {extractedData.confidenceScore}%
+                  <span className="ml-1 text-slate-400 font-normal">
+                    ({extractedData.confidenceMode === 'automatic' ? 'Automático' : extractedData.confidenceMode === 'assisted' ? 'Assistido' : 'Manual'})
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {debugInfo && (
+              <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-xs text-amber-200">
+                <span className="font-semibold block mb-1">⚠️ Diagnóstico do Servidor:</span>
+                <p>{JSON.stringify(debugInfo)}</p>
+              </div>
+            )}
+          </div>
+
+          <ProductConfirmationModal
+            data={extractedData}
+            marketplaceSlug={marketplace}
+            affiliateUrl={affiliateUrl}
+            onConfirm={(confirmed) => handleGenerateAI(confirmed)}
+            onCancel={() => setStep('input')}
+          />
+        </div>
       )}
 
       {/* ── PREVIEW SCREEN (PHASE 3 & 4) ── */}
