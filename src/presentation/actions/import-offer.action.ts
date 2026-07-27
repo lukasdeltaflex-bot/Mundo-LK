@@ -1,4 +1,3 @@
-'use server';
 
 import { ImportAndGenerateOfferWorkflow } from '@/core/application/workflows/ImportAndGenerateOfferWorkflow';
 import { initializeMarketplaceRegistry } from '@/infrastructure/marketplaces';

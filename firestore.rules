@@ -1,38 +1,144 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // =========================================================================
+    // HELPER FUNCTIONS
+    // =========================================================================
 
-    // Helper functions
+    // Verifica se o usuário está autenticado
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    // Verifica se o ID do documento corresponde ao usuário autenticado (Owner)
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Products Collection
-    match /products/{productId} {
-      allow read, write: if isAuthenticated() && isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    // Verifica se os campos multi-tenant e owner estão corretos no payload
+    function isPayloadValid(userId) {
+      return request.resource.data.userId == userId &&
+             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == userId);
+    }
+    
+    // Verifica a imutabilidade dos campos críticos (userId, tenantId, createdAt)
+    function areCriticalFieldsUnchanged() {
+      return (!('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId) &&
+             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == resource.data.tenantId) &&
+             (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
     }
 
-    // Offers Collection
+    // Retorna true se o usuário for Admin (buscando na collection users)
+    function isAdmin() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+    }
+
+
+    // =========================================================================
+    // COLLECTIONS
+    // =========================================================================
+
+    // 1. users
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if false; // Apenas backend/admin pode deletar usuários
+    }
+
+    // 2. user_preferences
+    match /user_preferences/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // 3. ai_memory
+    match /ai_memory/{userId} {
+      allow read, create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // 4. offers
     match /offers/{offerId} {
-      allow read, write: if isAuthenticated() && isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
     }
 
-    // Prompts Collection
+    // 5. products
+    match /products/{productId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 6. trash_products
+    match /trash_products/{productId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 7. collections
+    match /collections/{collectionId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 8. schedules
+    match /schedules/{scheduleId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 9. backup_logs
+    match /backup_logs/{logId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 10. prompts
     match /prompts/{promptId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      // Leitura permitida se o usuário é dono ou se o status é ativo e foi criado pelo Admin
+      allow read: if isOwner(resource.data.userId) || isAdmin(); 
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged() && (!('status' in request.resource.data) || request.resource.data.status == resource.data.status || isAdmin());
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // Audit Logs Collection
-    match /audit_logs/{logId} {
-      allow read: if isAuthenticated() && isOwner(resource.data.userId);
-      allow create: if isAuthenticated();
+    // 11. notifications
+    match /notifications/{notifId} {
+      allow read: if isOwner(resource.data.userId);
+      // O sistema via funções backend pode criar, mas via client SDK só o dono pode interagir
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 12. extraction_cache
+    match /extraction_cache/{cacheId} {
+      // Como o ExtractionEngine roda em Server Actions (unauthenticated) no Next.js
+      // essa coleção precisa ser pública para o sistema de cache funcionar sem o firebase-admin.
+      allow read, create, update: if true;
+      allow delete: if false; // Deletado automaticamente por TTL
+    }
+
+    // Bloquear todo o resto
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

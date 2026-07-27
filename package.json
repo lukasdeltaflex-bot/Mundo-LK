@@ -24,12 +24,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.5.4",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
+    "firebase-tools": "^15.24.0",
     "postcss": "^8.5.23",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.7.0"
