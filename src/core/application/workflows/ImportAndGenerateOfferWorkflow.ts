@@ -73,6 +73,7 @@ export class ImportAndGenerateOfferWorkflow {
     const offer = new Offer({
       id: `off_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       productId: product.id,
+      userId: product.userId,
       scoreValue: aiResult.score.value,
       scoreLabel: aiResult.score.level.level,
       scoreJustification: aiResult.score.justification,

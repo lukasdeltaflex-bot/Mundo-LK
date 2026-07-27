@@ -29,6 +29,13 @@ export async function saveApprovedOfferAction(
     const productRepo = new FirestoreProductRepository();
     const offerRepo   = new FirestoreOfferRepository();
 
+    console.log('[SAVE] Tentando salvar oferta');
+    console.log('[SAVE] Usuário:', userId);
+
+    if (!preview.product.title) throw new Error('Campo obrigatório vazio: Título');
+    if (!preview.product.originalUrl) throw new Error('Campo obrigatório vazio: URL Original');
+    if (preview.product.priceAmount === undefined || preview.product.priceAmount === null) throw new Error('Campo obrigatório vazio: Preço');
+
     // ── Build Product entity ────────────────────────────────────────────────
     const currentPrice  = Price.create(preview.product.priceAmount || 0);
     const discountPct   = DiscountPercentage.calculate(currentPrice, null);
@@ -40,6 +47,9 @@ export async function saveApprovedOfferAction(
       .replace(/[^a-z0-9]/gi, '')
       .slice(0, 20);
     const productId = `prod_${urlHash}_${userId.slice(0, 8)}`;
+
+    console.log('[SAVE] Collection: products');
+    console.log(`[SAVE] Dados enviados (Produto ${productId}):`, { title: editedTitle || preview.product.title, url: preview.product.originalUrl });
 
     // Check for existing product (avoid duplicates)
     let product = await productRepo.findByOriginalUrl(preview.product.originalUrl);
@@ -81,6 +91,7 @@ export async function saveApprovedOfferAction(
     const offer = new Offer({
       id:                 offerId,
       productId:          product.id,
+      userId:             userId,
       scoreValue:         preview.offer.score,
       scoreLabel:         preview.offer.scoreLabel as ScoreType,
       scoreJustification: preview.offer.justification,
@@ -92,12 +103,19 @@ export async function saveApprovedOfferAction(
       createdAt:          new Date(),
     });
 
+    console.log('[SAVE] Collection: offers');
+    console.log(`[SAVE] Dados enviados (Offer ${offerId}):`, { productId: offer.productId, score: offer.scoreValue });
+
     await offerRepo.save(offer);
+
+    console.log('[SAVE] Oferta criada com sucesso');
+    console.log('[SAVE] Documento ID:', offerId);
 
     return { success: true, productId: product.id, offerId: offer.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('[saveApprovedOfferAction]', msg);
+    console.error('[SAVE ERROR]', msg);
+    console.error(err);
     return { success: false, error: msg || 'Erro ao salvar a oferta.' };
   }
 }

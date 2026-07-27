@@ -4,6 +4,7 @@ import { ScoreType } from '../value-objects/score-level.vo';
 export interface OfferProps {
   id: string;
   productId: string;
+  userId: string;
   scoreValue: number;
   scoreLabel: ScoreType;
   scoreJustification: string;
@@ -21,6 +22,7 @@ export interface OfferProps {
 export class Offer {
   public readonly id: string;
   public readonly productId: string;
+  public readonly userId: string;
   public readonly scoreValue: number;
   public readonly scoreLabel: ScoreType;
   public readonly scoreJustification: string;
@@ -34,6 +36,7 @@ export class Offer {
   constructor(props: OfferProps) {
     this.id = props.id;
     this.productId = props.productId;
+    this.userId = props.userId;
     this.scoreValue = props.scoreValue;
     this.scoreLabel = props.scoreLabel;
     this.scoreJustification = props.scoreJustification;

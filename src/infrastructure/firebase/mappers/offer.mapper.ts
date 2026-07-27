@@ -4,6 +4,7 @@ import { ChannelContent } from '../../../core/domain/value-objects/channel-conte
 export interface FirestoreOfferDoc {
   id: string;
   productId: string;
+  userId: string;
   scoreValue: number;
   scoreLabel: 'EXCELLENT' | 'GOOD' | 'REGULAR';
   scoreJustification: string;
@@ -35,6 +36,7 @@ export class OfferMapper {
     return new Offer({
       id: doc.id,
       productId: doc.productId,
+      userId: doc.userId,
       scoreValue: doc.scoreValue,
       scoreLabel: doc.scoreLabel,
       scoreJustification: doc.scoreJustification,
@@ -51,6 +53,7 @@ export class OfferMapper {
     return {
       id: entity.id,
       productId: entity.productId,
+      userId: entity.userId,
       scoreValue: entity.scoreValue,
       scoreLabel: entity.scoreLabel,
       scoreJustification: entity.scoreJustification,
