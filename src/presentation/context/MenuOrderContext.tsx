@@ -7,7 +7,6 @@ import { db } from '@/infrastructure/firebase/config/firebase.config';
 import {
   LayoutDashboard,
   ShoppingBag,
-  BrainCircuit,
   Terminal,
   Layers,
   Calendar,
@@ -33,7 +32,6 @@ export const ALL_MENU_ITEMS: MenuItemDefinition[] = [
   { id: 'lote',        name: 'Importação em Lote',   href: '/lote',                    icon: Layers         },
   { id: 'agendamento', name: 'Agendamento',           href: '/agendamento',             icon: Calendar       },
   { id: 'produtos',    name: 'Produtos',              href: '/produtos',                icon: ShoppingBag    },
-  { id: 'inteligencia',name: 'Smart Intelligence',   href: '/inteligencia',            icon: BrainCircuit   },
   { id: 'prompts',     name: 'Prompts Manager',       href: '/prompts',                 icon: Terminal       },
   { id: 'colecoes',    name: 'Coleções',              href: '/colecoes',                icon: FolderHeart    },
   { id: 'lixeira',     name: 'Lixeira Inteligente',  href: '/lixeira',                 icon: Trash2         },
