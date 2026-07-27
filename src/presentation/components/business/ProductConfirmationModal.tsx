@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react';
 import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Sparkles, Upload, ArrowRight, Image as ImageIcon, Tag, DollarSign, Truck, Star, Layers, HelpCircle } from 'lucide-react';
-import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
+import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 
 interface ProductConfirmationModalProps {
-  data: ExtractedProductData;
+  data: ProductExtractionResult;
   marketplaceSlug: string;
   affiliateUrl: string;
-  onConfirm: (confirmedData: ExtractedProductData) => void;
+  onConfirm: (confirmedData: ProductExtractionResult) => void;
   onCancel: () => void;
 }
 
@@ -34,10 +34,8 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   onConfirm,
   onCancel,
 }) => {
-  // Rejeitar títulos que são puramente numéricos (IDs de produto, não nomes)
   const isValidTitle = (t: string) => !!t && t.trim().length > 3 && !/^\d+$/.test(t.trim());
 
-  // Formatar valor numérico como moeda BRL (ex: 99.9 → "99,90")
   const formatBRL = (val: number | null | undefined): string => {
     if (!val || val <= 0) return '';
     return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,19 +43,19 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
 
   const [title, setTitle] = useState(isValidTitle(data.title) ? data.title : '');
   const [price, setPrice] = useState(formatBRL(data.currentPrice));
-  const [prevPrice, setPrevPrice] = useState(formatBRL(data.previousPrice ?? undefined));
-  const [image, setImage] = useState(data.mainImage || '');
+  const [prevPrice, setPrevPrice] = useState(formatBRL(data.originalPrice));
+  const [image, setImage] = useState(data.image || '');
   const [brand, setBrand] = useState(data.brand && data.brand !== 'Shopee' && data.brand !== 'Desconhecida' ? data.brand : '');
-  const [category, setCategory] = useState(data.categoryName || 'Geral');
-  const [rating, setRating] = useState(data.reviewsRating && data.reviewsRating > 0 ? String(data.reviewsRating) : '');
-  const [shipping, setShipping] = useState(data.shippingInfo || '');
+  const [category, setCategory] = useState(data.category || 'Geral');
+  const [seller, setSeller] = useState(data.sellerName || '');
+  const [rating, setRating] = useState(data.rating && data.rating > 0 ? String(data.rating) : '');
+  const [shipping, setShipping] = useState(data.shippingType || '');
 
-  const score = data.confidenceScore || 0;
+  const score = (data as any).confidenceScore ?? 80;
   const isAutomatic = score >= 80;
   const isAssisted  = score >= 50 && score < 80;
   const isManual     = score < 50;
 
-  // Handle local file upload (converts to Data URL)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -78,17 +76,20 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
     const numericPrevPrice = parseFloat(prevPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
     const numericRating = parseFloat(rating);
 
-    const confirmed: ExtractedProductData = {
+    const confirmed: ProductExtractionResult = {
       ...data,
       title: title.trim(),
       currentPrice: isNaN(numericPrice) ? 0 : numericPrice,
-      previousPrice: isNaN(numericPrevPrice) ? null : numericPrevPrice,
-      mainImage: image.trim(),
+      originalPrice: isNaN(numericPrevPrice) ? null : numericPrevPrice,
+      discountPercentage: (!isNaN(numericPrevPrice) && !isNaN(numericPrice) && numericPrevPrice > numericPrice)
+        ? Math.round(((numericPrevPrice - numericPrice) / numericPrevPrice) * 100)
+        : data.discountPercentage,
+      image: image.trim(),
       brand: brand.trim() || 'Desconhecida',
-      categoryName: category.trim() || 'Geral',
-      reviewsRating: isNaN(numericRating) ? 4.8 : numericRating,
-      shippingInfo: shipping.trim(),
-      confidenceScore: 100, // Destravado e confirmado
+      category: category.trim() || 'Geral',
+      sellerName: seller.trim(),
+      rating: isNaN(numericRating) ? 4.8 : numericRating,
+      shippingType: shipping.trim() || 'Envio Padrão',
     };
 
     onConfirm(confirmed);
@@ -117,7 +118,6 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
             </div>
           </div>
 
-          {/* Confidence Badge */}
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shrink-0 ${isAutomatic ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : isAssisted ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'}`}>
             <span className={`h-2 w-2 rounded-full ${isAutomatic ? 'bg-emerald-400' : isAssisted ? 'bg-amber-400 animate-pulse' : 'bg-rose-400 animate-pulse'}`} />
             {score}% Confiança ({isAutomatic ? 'Automático' : isAssisted ? 'Assistido' : 'Manual'})
@@ -127,7 +127,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
         {/* Form Body */}
         <form onSubmit={handleConfirmSubmit} className="mt-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* 🖼️ Image Section (URL or File Upload) */}
+            {/* 🖼️ Image Section */}
             <div className="md:col-span-1 flex flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-950 p-3 text-center">
               <span className="text-[11px] font-semibold text-slate-400 mb-2 flex items-center gap-1">
                 🖼️ Imagem do Produto
@@ -158,9 +158,9 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
               </div>
             </div>
 
-            {/* Product Metadata Inputs */}
+            {/* Inputs */}
             <div className="md:col-span-2 space-y-3">
-              {/* 📌 Title */}
+              {/* Title */}
               <div>
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
                   📌 Nome Oficial do Produto *
@@ -175,7 +175,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                 />
               </div>
 
-              {/* 💰 Prices */}
+              {/* Prices */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
@@ -204,7 +204,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                 </div>
               </div>
 
-              {/* 📂 Category & Marca */}
+              {/* Category & Brand */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
@@ -226,23 +226,23 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                     type="text"
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
-                    placeholder="Ex: Stanley, Shopee, Nike..."
+                    placeholder="Ex: Stanley, Nike..."
                     className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* ⭐ Ratings & 🚚 Shipping */}
+              {/* Store & Shipping */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
-                    ⭐ Avaliação dos Compradores
+                    🏪 Loja / Vendedor
                   </label>
                   <input
                     type="text"
-                    value={rating}
-                    onChange={(e) => setRating(e.target.value)}
-                    placeholder="Ex: 4.8"
+                    value={seller}
+                    onChange={(e) => setSeller(e.target.value)}
+                    placeholder="Ex: Loja Oficial"
                     className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -259,23 +259,6 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                   />
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Checklist de Itens Extraídos */}
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-            <span className="text-xs font-medium text-slate-400">Checklist de Integridade da Extração Automática:</span>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {data.confidenceItems.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 text-xs text-slate-300">
-                  {item.found ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  ) : (
-                    <XCircle className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                  )}
-                  <span className={item.found ? 'text-slate-200' : 'text-slate-500 line-through'}>{item.label}</span>
-                </div>
-              ))}
             </div>
           </div>
 

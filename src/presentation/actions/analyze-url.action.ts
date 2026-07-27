@@ -1,14 +1,17 @@
 'use server';
 
-import { initializeMarketplaceRegistry } from '@/infrastructure/marketplaces';
-import { GeminiAIAdapter, type OfferStyle, type GeminiOfferAnalysis } from '@/infrastructure/ai/providers/gemini.adapter';
+import { MarketplaceRegistry } from '@/infrastructure/marketplaces/registry/MarketplaceRegistry';
+import { ProviderManager } from '@/infrastructure/marketplaces/providers/ProviderManager';
+import { CacheService } from '@/infrastructure/cache/CacheService';
+import { ConfidenceService } from '@/infrastructure/marketplaces/services/ConfidenceService';
+import { expandShortenedUrl } from '@/infrastructure/marketplaces/scraper/product-page-scraper';
+import { GeminiAIAdapter, type OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
+import { AIContextBuilder } from '@/infrastructure/ai/services/AIContextBuilder';
+import { OfferBuilder } from '@/infrastructure/ai/services/OfferBuilder';
+import { AnalyticsLogger } from '@/infrastructure/analytics/AnalyticsLogger';
+import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 import { Product } from '@/core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-objects';
-import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
-import { ExtractionEngine } from '@/infrastructure/marketplaces/providers/ExtractionEngine';
-import { FirestoreExtractionCacheRepository } from '@/infrastructure/firebase/repositories/firestore-extraction-cache.repository';
-
-// ─── Public Types ─────────────────────────────────────────────────────────────
 
 export interface OfferPreview {
   product: {
@@ -60,58 +63,132 @@ function sanitizeUrl(rawUrl: string): string {
   return trimmed;
 }
 
-// ─── Action 1: Extract Real Product Metadata & Confidence Score (Pre-AI) ─────
+const registry = new MarketplaceRegistry();
+const providerManager = new ProviderManager();
+const cacheService = new CacheService();
+const confidenceService = new ConfidenceService();
+const aiContextBuilder = new AIContextBuilder();
+const offerBuilder = new OfferBuilder();
+const analyticsLogger = AnalyticsLogger.getInstance();
+
+// ─── Action 1: Extract Real Product Metadata & Confidence (Pre-AI) ───────────
 
 export async function extractProductDetailsAction(input: {
   url: string;
   affiliateTag?: string;
-}): Promise<{ success: true; data: ExtractedProductData; affiliateUrl: string; marketplaceSlug: string } | { success: false; error: string }> {
+}): Promise<{
+  success: true;
+  data: ProductExtractionResult;
+  confidenceScore: number;
+  requiresConfirmation: boolean;
+  affiliateUrl: string;
+  marketplaceSlug: string;
+} | {
+  success: false;
+  error: string;
+}> {
+  const startTime = Date.now();
+  const rawUrl = sanitizeUrl(input.url);
+
+  if (!rawUrl || rawUrl.length < 10) {
+    return {
+      success: false,
+      error: 'Por favor, insira uma URL válida de produto (ex: https://mercadolivre.com.br/... ou https://shopee.com.br/...)'
+    };
+  }
+
+  console.log(`[Router] 📥 URL recebida: ${rawUrl}`);
+
   try {
-    const cleanUrl = sanitizeUrl(input.url);
-    if (!cleanUrl || cleanUrl.length < 10) {
+    // 1. Expand Short Link
+    const expandedUrl = await expandShortenedUrl(rawUrl);
+    console.log(`[Router] 🔗 URL expandida: ${expandedUrl}`);
+
+    // 2. Identify Marketplace Plugin
+    const plugin = registry.getPluginForUrl(expandedUrl);
+    console.log(`[Router] 🏪 Marketplace identificado: ${plugin.name} (${plugin.slug})`);
+
+    // 3. Resolve Canonical Product ID
+    const productIdKey = plugin.extractProductId(expandedUrl) || `${plugin.slug}_${Buffer.from(expandedUrl).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(-16)}`;
+    console.log(`[Router] 🔑 Key de Produto Canônica: ${productIdKey}`);
+
+    // 4. Consult 2-Tier Cache (L1 Memory ➔ L2 Firestore)
+    const cached = await cacheService.getCachedProduct(productIdKey);
+    if (cached && !cached.isPriceStale) {
+      console.log(`[Cache] ⚡ Hit de Cache ${cached.tier} (<50ms) para ${productIdKey}`);
+
+      const affiliateUrl = `${expandedUrl}${expandedUrl.includes('?') ? '&' : '?'}tag=${input.affiliateTag || 'mundolk'}`;
+
+      await analyticsLogger.logMetric({
+        sessionId: `sess_${Date.now()}`,
+        requestId: `req_${Date.now()}`,
+        url: rawUrl,
+        expandedUrl,
+        marketplace: plugin.slug,
+        providerUsed: `Cache_${cached.tier}`,
+        confidenceScore: cached.confidence,
+        productFound: true,
+        cacheHit: true,
+        cacheTier: cached.tier,
+        scrapingDurationMs: Date.now() - startTime,
+        totalDurationMs: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      });
+
       return {
-        success: false,
-        error: 'Por favor, insira uma URL válida de produto (ex: https://mercadolivre.com.br/... ou https://shopee.com.br/...)'
+        success: true,
+        data: cached.product,
+        confidenceScore: cached.confidence,
+        requiresConfirmation: cached.confidence < 80,
+        affiliateUrl,
+        marketplaceSlug: plugin.slug,
       };
     }
 
-    console.log('[Scraper] Extraindo metadados reais para:', cleanUrl);
-    const registry = initializeMarketplaceRegistry();
-    const adapter = registry.getAdapterForUrl(cleanUrl);
+    // 5. ProviderManager Waterfall Extraction
+    const extractionResult = await providerManager.extract(expandedUrl, plugin.slug);
+    const rawData = extractionResult.data || {};
 
-    // Usa o novo Engine de Extração Profissional
-    const engine = new ExtractionEngine(new FirestoreExtractionCacheRepository());
-    const extracted = await engine.extract(cleanUrl, adapter.marketplaceSlug);
+    // 6. Normalize Product Data
+    const normalizedProduct = plugin.normalize(rawData, rawUrl, expandedUrl);
 
-    // Mapeando do formato ExtractedData para ExtractedProductData (Legado esperado pela UI)
-    const mappedData: ExtractedProductData = {
-      title: extracted.title,
-      description: extracted.description,
-      mainImage: extracted.image,
-      gallery: extracted.images,
-      currentPrice: extracted.price || 0,
-      previousPrice: extracted.oldPrice,
-      brand: extracted.brand,
-      categoryName: extracted.category,
-      originalUrl: extracted.url,
-      sellerName: extracted.seller,
-      storeName: extracted.seller || 'Não identificada',
-      confidenceScore: extracted.confidence,
-      confidenceMode: extracted.confidence >= 80 ? 'automatic' : 'manual',
-      confidenceItems: [],
-    };
+    // 7. Calculate Confidence Score
+    const confidenceReport = confidenceService.calculateConfidence(normalizedProduct);
+    console.log(`[Confidence] 🎯 Score calculado: ${confidenceReport.score}% (Requer confirmação? ${confidenceReport.requiresConfirmation})`);
 
-    const affiliateUrl = await adapter.buildAffiliateLink(cleanUrl, input.affiliateTag || 'mundolk');
+    // 8. Save to Cache if score >= 40
+    if (confidenceReport.score >= 40) {
+      await cacheService.saveProductCache(productIdKey, normalizedProduct, confidenceReport.score);
+    }
+
+    const affiliateUrl = `${expandedUrl}${expandedUrl.includes('?') ? '&' : '?'}tag=${input.affiliateTag || 'mundolk'}`;
+
+    await analyticsLogger.logMetric({
+      sessionId: `sess_${Date.now()}`,
+      requestId: `req_${Date.now()}`,
+      url: rawUrl,
+      expandedUrl,
+      marketplace: plugin.slug,
+      providerUsed: extractionResult.providerName,
+      confidenceScore: confidenceReport.score,
+      productFound: !!normalizedProduct.title,
+      cacheHit: false,
+      scrapingDurationMs: Date.now() - startTime,
+      totalDurationMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    });
 
     return {
       success: true,
-      data: mappedData,
+      data: normalizedProduct,
+      confidenceScore: confidenceReport.score,
+      requiresConfirmation: confidenceReport.requiresConfirmation,
       affiliateUrl,
-      marketplaceSlug: adapter.marketplaceSlug,
+      marketplaceSlug: plugin.slug,
     };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error('[Scraper Error]:', error);
+    console.error(`[Error] Stack completa na extração:`, error);
     return {
       success: false,
       error: `Não foi possível acessar a página do produto: ${error.message}`
@@ -122,99 +199,71 @@ export async function extractProductDetailsAction(input: {
 // ─── Action 2: Generate AI Offer Content from Confirmed Data ──────────────────
 
 export async function analyzeProductUrlAction(input: {
-  url:           string;
+  url: string;
   affiliateTag?: string;
-  userId?:       string;
-  style?:        OfferStyle;
-  confirmedData?: Partial<ExtractedProductData>;
+  userId?: string;
+  style?: OfferStyle;
+  confirmedData?: ProductExtractionResult;
 }): Promise<{ success: true; data: OfferPreview } | { success: false; error: string }> {
+  const startTime = Date.now();
   try {
-    const cleanUrl = sanitizeUrl(input.url);
-
-    if (!cleanUrl || cleanUrl.length < 10) {
-      return {
-        success: false,
-        error: 'Por favor, insira uma URL válida de produto.'
-      };
+    const rawUrl = sanitizeUrl(input.url);
+    if (!rawUrl || rawUrl.length < 10) {
+      return { success: false, error: 'URL do produto inválida.' };
     }
 
-    console.log('[Action] Analisando oferta para:', cleanUrl);
-    const style = input.style ?? 'padrao';
-    const registry = initializeMarketplaceRegistry();
-    const adapter = registry.getAdapterForUrl(cleanUrl);
+    let productData: ProductExtractionResult;
 
-    // Re-use confirmed data if provided or scrape
-    let extracted = input.confirmedData as ExtractedProductData;
-    if (!extracted || !extracted.title) {
-      extracted = await adapter.extractProductData(cleanUrl);
+    if (input.confirmedData && input.confirmedData.title) {
+      productData = input.confirmedData;
+      console.log(`[Action] 👤 Usando dados confirmados pelo usuário para ${productData.title}`);
+    } else {
+      const details = await extractProductDetailsAction({ url: rawUrl, affiliateTag: input.affiliateTag });
+      if (!details.success) {
+        return { success: false, error: details.error };
+      }
+
+      if (details.requiresConfirmation) {
+        return {
+          success: false,
+          error: `A extração do produto retornou confiança de ${details.confidenceScore}%. Por favor, confirme os dados na tela de conferência antes de gerar com IA.`
+        };
+      }
+      productData = details.data;
     }
 
-    // ─── VALIDAÇÃO PRÉ-IA (OBRIGATÓRIA) ────────────────────────────────────────
-    // A IA Gemini NUNCA deve receber dados incompletos.
-    // Regra: título real + preço real são obrigatórios para gerar copy.
-    const hasTitleData  = extracted.title && extracted.title.trim().length > 3;
-    const hasPriceData  = extracted.currentPrice && extracted.currentPrice > 0;
-    const hasImageData  = extracted.mainImage && extracted.mainImage.length > 5;
-
-    const debugInfo = {
-      titulo:      extracted.title || '— não encontrado',
-      preco:       extracted.currentPrice ? `R$ ${extracted.currentPrice.toFixed(2)}` : '— não encontrado',
-      imagem:      extracted.mainImage ? '✅ encontrada' : '— não encontrada',
-      categoria:   extracted.categoryName || '— não encontrada',
-      marketplace: adapter.marketplaceSlug,
-      confianca:   `${extracted.confidenceScore}% (${extracted.confidenceMode || 'desconhecido'})`,
-    };
-
-    // Se não tiver título nem preço E não vier de confirmação manual → bloqueia a IA
-    if ((!hasTitleData || !hasPriceData) && !input.confirmedData) {
-      return {
-        success: false,
-        error:   'Não conseguimos ler esse anúncio automaticamente. Cole o link completo do produto ou confirme os dados manualmente.',
-        debugInfo,
-      } as { success: false; error: string; debugInfo: typeof debugInfo };
-    }
-
-    // Safety Gate: confiança < 80% sem confirmação manual
-    if (extracted.confidenceScore < 80 && !input.confirmedData) {
-      return {
-        success: false,
-        error: 'Extração com baixa confiança. Por favor, confirme os dados do produto na tela de conferência.',
-        debugInfo,
-      } as { success: false; error: string; debugInfo: typeof debugInfo };
-    }
-
-    const affiliateUrlString = await adapter.buildAffiliateLink(
-      cleanUrl,
-      input.affiliateTag || 'mundolk'
-    );
-
-    const currentPrice  = Price.create(extracted.currentPrice || 0);
-    const previousPrice = extracted.previousPrice ? Price.create(extracted.previousPrice) : null;
-    const discountPct   = DiscountPercentage.calculate(currentPrice, previousPrice);
-    const affiliateLink = AffiliateLink.create(affiliateUrlString);
+    // Prepare domain Product entity for legacy adapter compat
+    const currentPrice = Price.create(productData.currentPrice || 0);
+    const previousPrice = productData.originalPrice ? Price.create(productData.originalPrice) : null;
+    const discountPct = DiscountPercentage.calculate(currentPrice, previousPrice);
 
     const tempProduct = new Product({
-      id:                 `preview_${Date.now()}`,
-      userId:             input.userId || 'guest',
-      title:              extracted.title,
-      description:        extracted.description || `Produto oficial ${extracted.brand || ''}`,
-      brand:              extracted.brand || 'Desconhecida',
-      categoryId:         extracted.categoryName || 'Geral',
-      marketplaceSlug:    adapter.marketplaceSlug,
-      originalUrl:        extracted.originalUrl || cleanUrl,
-      affiliateUrl:       affiliateLink,
+      id: `preview_${Date.now()}`,
+      userId: input.userId || 'guest',
+      title: productData.title,
+      description: productData.description || `Produto oficial ${productData.brand}`,
+      brand: productData.brand || 'Desconhecida',
+      categoryId: productData.category || 'Geral',
+      marketplaceSlug: productData.marketplace,
+      originalUrl: productData.originalUrl || rawUrl,
+      affiliateUrl: AffiliateLink.create(productData.canonicalUrl || rawUrl),
       currentPrice,
       previousPrice,
       discountPercentage: discountPct,
-      images:             [extracted.mainImage, ...(extracted.gallery || [])].filter(Boolean),
-      status:             'ACTIVE',
-      createdAt:          new Date(),
-      updatedAt:          new Date(),
+      images: [productData.image, ...productData.gallery].filter(Boolean),
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
-    console.log('[Gemini] Invocando agente de IA para:', tempProduct.title);
+    const style = input.style ?? 'padrao';
+    console.log(`[Gemini] 🤖 Invocando IA Gemini para: ${tempProduct.title} (Estilo: ${style})`);
+
     const geminiAdapter = new GeminiAIAdapter();
-    const aiResult      = await geminiAdapter.generateOfferContent(tempProduct, style);
+    const aiResult = await geminiAdapter.generateOfferContent(tempProduct, style);
+
+    // Calculate Commercial Quality Score
+    const qualityScore = offerBuilder.calculateQualityScore(productData);
 
     const copiesData = aiResult.copies?.copies ?? {};
     const whatsAppText  = String(copiesData.whatsAppText || '');
@@ -224,36 +273,37 @@ export async function analyzeProductUrlAction(input: {
     const channelText   = String(copiesData.channelText || '');
     const storyText     = String(copiesData.storyText || '');
 
-    const scoreVal = typeof aiResult.score?.value === 'number' ? aiResult.score.value : 75;
+    const scoreVal = qualityScore.overallScore;
     const scoreLabelStr = scoreVal >= 80 ? 'EXCELLENT' : scoreVal >= 50 ? 'GOOD' : 'REGULAR';
-    const justificationStr = String(aiResult.score?.justification || 'Análise da IA finalizada com sucesso.');
 
-    const rawAnalysis = (aiResult as { analysis?: GeminiOfferAnalysis }).analysis;
-    const publicoAlvo        = String(rawAnalysis?.publicoAlvo || 'Consumidores em geral');
-    const dorQueResolve      = String(rawAnalysis?.dorQueResolve || 'Necessidade de compra com bom custo-benefício');
-    const beneficioPrincipal = String(rawAnalysis?.beneficioPrincipal || 'Qualidade e praticidade');
-    const argumentoComercial = String(rawAnalysis?.argumentoComercial || `${tempProduct.title} com ótimo preço`);
-    const anguloDeVenda      = String(rawAnalysis?.anguloDeVenda || 'Conveniência');
-    const emocaoDeCompra     = String(rawAnalysis?.emocaoDeCompra || 'Satisfação');
-    const categoria          = String(rawAnalysis?.categoria || tempProduct.categoryId);
+    const rawAnalysis = (aiResult as any).analysis || {};
+    const publicoAlvo        = String(rawAnalysis.publicoAlvo || 'Consumidores em geral');
+    const dorQueResolve      = String(rawAnalysis.dorQueResolve || 'Necessidade de compra inteligente');
+    const beneficioPrincipal = String(rawAnalysis.beneficioPrincipal || 'Qualidade e economia');
+    const argumentoComercial = String(rawAnalysis.argumentoComercial || `${productData.title} com ótimo preço`);
+    const anguloDeVenda      = String(rawAnalysis.anguloDeVenda || 'Custo-Benefício');
+    const emocaoDeCompra     = String(rawAnalysis.emocaoDeCompra || 'Satisfação');
+    const categoria          = String(productData.category || 'Geral');
+
+    console.log(`[Gemini] ✅ Oferta gerada em ${Date.now() - startTime}ms. Quality Score: ${scoreVal}%`);
 
     return {
       success: true,
       data: {
         product: {
-          id:              tempProduct.id,
-          title:           tempProduct.title,
-          description:     tempProduct.description,
-          brand:           tempProduct.brand,
-          price:           currentPrice.formatBRL(),
-          priceAmount:     currentPrice.amount,
-          previousPrice:   previousPrice?.formatBRL(),
+          id: tempProduct.id,
+          title: productData.title,
+          description: productData.description,
+          brand: productData.brand,
+          price: currentPrice.formatBRL(),
+          priceAmount: currentPrice.amount,
+          previousPrice: previousPrice?.formatBRL(),
           discountPercent: discountPct.formatString(),
-          imageUrl:        extracted.mainImage,
-          originalUrl:     extracted.originalUrl || cleanUrl,
-          affiliateUrl:    affiliateUrlString,
-          marketplaceSlug: adapter.marketplaceSlug,
-          categoryId:      categoria,
+          imageUrl: productData.image,
+          originalUrl: productData.originalUrl || rawUrl,
+          affiliateUrl: productData.canonicalUrl || rawUrl,
+          marketplaceSlug: productData.marketplace,
+          categoryId: categoria,
         },
         analysis: {
           publicoAlvo,
@@ -264,12 +314,12 @@ export async function analyzeProductUrlAction(input: {
           emocaoDeCompra,
         },
         offer: {
-          score:         scoreVal,
-          scoreLabel:    scoreLabelStr,
-          justification: justificationStr,
-          cta:           String(aiResult.cta || 'Aproveite esta oferta!'),
-          hashtags:      Array.isArray(aiResult.hashtags) ? aiResult.hashtags.map(String) : ['#oferta'],
-          emojis:        Array.isArray(aiResult.emojis) ? aiResult.emojis.map(String) : ['🔥'],
+          score: scoreVal,
+          scoreLabel: scoreLabelStr,
+          justification: qualityScore.justification,
+          cta: String(aiResult.cta || 'Aproveite a oferta!'),
+          hashtags: Array.isArray(aiResult.hashtags) ? aiResult.hashtags.map(String) : ['#oferta'],
+          emojis: Array.isArray(aiResult.emojis) ? aiResult.emojis.map(String) : ['🔥'],
           whatsAppText,
           telegramText,
           instagramText,
@@ -282,10 +332,10 @@ export async function analyzeProductUrlAction(input: {
     };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error('[analyzeProductUrlAction Exception]:', error);
+    console.error(`[Error] Stack completa na geração de IA:`, error);
     return {
       success: false,
-      error: `[ERRO NO SERVIDOR]: ${error.message}`
+      error: `[ERRO NA IA]: ${error.message}`
     };
   }
 }

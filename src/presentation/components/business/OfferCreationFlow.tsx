@@ -3,21 +3,19 @@
 import React, { useState, useCallback } from 'react';
 import {
   Link as LinkIcon, Sparkles, Loader2, CheckCircle2,
-  Edit3, RefreshCcw, X, Save, Copy, Check,
-  Tag, Image as ImageIcon, ArrowRight,
+  RefreshCcw, X, Copy, Check,
+  Image as ImageIcon, ArrowRight,
   MessageCircle, Send, Brain, Target, Heart,
   TrendingUp, Zap, Crown, ShoppingCart, Minimize2, AlertCircle,
-  History, Star, ShieldCheck, ShieldAlert, Layers, ThumbsUp, HelpCircle
+  History, Star, Layers, HelpCircle
 } from 'lucide-react';
 import { extractProductDetailsAction, analyzeProductUrlAction, type OfferPreview } from '@/presentation/actions/analyze-url.action';
 import { saveApprovedOfferAction } from '@/presentation/actions/save-offer.action';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ExtractedProductData } from '@/core/domain/ports/marketplaces/IMarketplaceAdapter';
+import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 import type { OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
 import { ProductConfirmationModal } from './ProductConfirmationModal';
-
-// ─── Style options ────────────────────────────────────────────────────────────
 
 interface StyleOption {
   id:       OfferStyle;
@@ -46,9 +44,7 @@ const STYLE_OPTIONS: StyleOption[] = [
   { id: 'luxo',            label: 'Luxo',            desc: 'Sofisticação e alto padrão',    icon: Crown,       color: 'text-amber-300',  border: 'border-amber-400/40'  },
 ];
 
-// ─── Flow steps ───────────────────────────────────────────────────────────────
-
-type FlowStep = 'input' | 'extracting' | 'confirming' | 'analyzing' | 'preview' | 'editing' | 'saving' | 'done';
+type FlowStep = 'input' | 'extracting' | 'confirming' | 'analyzing' | 'preview' | 'saving' | 'done';
 
 export interface OfferCreationFlowProps {
   onSaved?: (productId: string, offerId: string) => void;
@@ -63,11 +59,20 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const [tag,           setTag]           = useState('');
   const [style,         setStyle]         = useState<OfferStyle>('padrao');
   const [error,         setError]         = useState<string | null>(null);
-  
-  // Phase 1 Extracted Data
-  const [extractedData, setExtractedData] = useState<ExtractedProductData | null>(null);
+
+  // Extracted Data & Confidence
+  const [extractedData, setExtractedData] = useState<ProductExtractionResult | null>(null);
+  const [confidence,    setConfidence]    = useState<number>(0);
   const [affiliateUrl,  setAffiliateUrl]  = useState<string>('');
   const [marketplace,   setMarketplace]   = useState<string>('');
+
+  // Live Extraction Session Step Logs
+  const [sessionSteps, setSessionSteps] = useState<string[]>([
+    '🔗 Expandindo links e redirecionamentos...',
+    '🏪 Identificando marketplace e plugin...',
+    '🔑 Verificando cache de 2 níveis (L1 Memory + L2 Firestore)...',
+    '⚙️ Executando waterfall de extração profissional...',
+  ]);
 
   // Preview & Version History
   const [preview,       setPreview]       = useState<OfferPreview | null>(null);
@@ -85,17 +90,10 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
   const [savedIds, setSavedIds] = useState<{ productId: string; offerId: string } | null>(null);
 
-  // Debug Panel — Dados extraídos pelo scraper
-  const [debugInfo, setDebugInfo] = useState<Record<string, string> | null>(null);
-
-  // Stepper messages
-  const [stepperMsg, setStepperMsg] = useState('🔎 Identificando marketplace e extraindo informações...');
-
-  // ── Step 1: Generate AI Offer from Confirmed Data ────────────────────────
-  const handleGenerateAI = useCallback(async (confirmed: ExtractedProductData, overrideStyle?: OfferStyle) => {
+  // Step 1: AI Generation from Confirmed Result
+  const handleGenerateAI = useCallback(async (confirmed: ProductExtractionResult, overrideStyle?: OfferStyle) => {
     setError(null);
     setStep('analyzing');
-    setStepperMsg('🤖 Invocando cadeia de Agentes de IA (Analista ➔ Especialista ➔ Copywriter ➔ Revisor)...');
 
     try {
       const result = await analyzeProductUrlAction({
@@ -107,10 +105,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       });
 
       if (!result.success) {
-        // Capture debugInfo if server returned it
-        const resultWithDebug = result as { success: false; error: string; debugInfo?: Record<string, string> };
-        if (resultWithDebug.debugInfo) setDebugInfo(resultWithDebug.debugInfo);
-        setError(result.error || 'Não conseguimos gerar a oferta agora. Tente novamente.');
+        setError(result.error || 'Não conseguimos gerar a oferta agora.');
         setStep('confirming');
         return;
       }
@@ -132,7 +127,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     }
   }, [url, tag, user, style]);
 
-  // ── Step 2: Start Extraction ──────────────────────────────────────────────
+  // Step 2: Extraction Waterfall Execution
   const handleStartExtraction = useCallback(async () => {
     const rawUrl = url.trim();
     if (!rawUrl) {
@@ -142,7 +137,12 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
     setError(null);
     setStep('extracting');
-    setStepperMsg('🔎 Identificando marketplace e extraindo informações reais do anúncio...');
+    setSessionSteps([
+      '🔗 Expandindo link curto e redirecionamentos HTTP...',
+      '🏪 Identificando marketplace oficial...',
+      '🔑 Consultando banco de dados e cache L1/L2...',
+      '🚀 Executando waterfall multi-provider (Official API ➔ ZenRows ➔ Scraper)...',
+    ]);
 
     try {
       const result = await extractProductDetailsAction({
@@ -157,12 +157,16 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       }
 
       setExtractedData(result.data);
+      setConfidence(result.confidenceScore);
       setAffiliateUrl(result.affiliateUrl);
       setMarketplace(result.marketplaceSlug);
 
-      // A UI agora SEMPRE entra no modo de confirmação antes de invocar a IA
-      // Isso blinda a IA contra alucinações e permite revisão humana.
-      setStep('confirming');
+      if (result.requiresConfirmation) {
+        setStep('confirming');
+      } else {
+        // High confidence (>=80%): auto-proceed directly to AI generation!
+        handleGenerateAI(result.data);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Erro na extração de dados: ${msg}`);
@@ -170,7 +174,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     }
   }, [url, tag, handleGenerateAI]);
 
-  // Regenerate / Generate alternative variation
+  // Regenerate / Generate alternative style (Instantaneous re-use of ProductExtractionResult!)
   const handleGenerateAlternative = useCallback((newStyle?: OfferStyle) => {
     if (!extractedData) return;
     const selectedStyle = newStyle ?? style;
@@ -196,7 +200,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // Save Approved Offer
   const handleApprove = useCallback(async () => {
     if (!preview || !user) return;
     setStep('saving');
@@ -223,7 +227,6 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       onSaved?.(result.productId, result.offerId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[OfferCreationFlow] Save error:', msg);
       setError(`Erro ao salvar a oferta: ${msg}`);
       setStep('preview');
     }
@@ -263,8 +266,8 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Assistente de Ofertas com Inteligência Comercial</h2>
-              <p className="text-xs text-slate-400">Extração real dos dados do produto e geração de copys persuasivas para afiliados.</p>
+              <h2 className="text-xl font-bold text-white">Assistente de Ofertas Enterprise</h2>
+              <p className="text-xs text-slate-400">Extração real multi-provider e geração de copys persuasivas para afiliados.</p>
             </div>
           </div>
 
@@ -324,87 +327,39 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
         </div>
       )}
 
-      {/* ── STEPPER LOADING SCREEN ── */}
+      {/* ── STEPPER EXTRACTION SESSION PROGRESS ── */}
       {(step === 'extracting' || step === 'analyzing') && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/90 p-12 text-center shadow-2xl">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-500 mb-4" />
-          <h3 className="text-lg font-bold text-white">{stepperMsg}</h3>
-          <p className="mt-2 text-xs text-slate-400 max-w-md">Processamento seguro via Server Actions com validação estrita de dados reais.</p>
-        </div>
-      )}
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/90 p-10 text-center shadow-2xl space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-500 mb-2" />
+          <h3 className="text-lg font-bold text-white">
+            {step === 'extracting' ? '🔎 Processando Pipeline de Extração Enterprise...' : '🤖 Geração de Oferta Persuasiva com IA...'}
+          </h3>
 
-      {/* ── PHASE 1: PRE-AI PRODUCT CONFIRMATION MODAL ── */}
-      {step === 'confirming' && extractedData && (
-        <div className="space-y-4">
-          {/* ── DEBUG PANEL: DADOS EXTRAÍDOS ── */}
-          <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 shadow-lg">
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-3">
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <HelpCircle className="h-4 w-4" />
-              </span>
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Diagnóstico — Dados Extraídos pelo Scraper</span>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
-                <span className="block text-slate-500 font-medium mb-0.5">📌 Título</span>
-                <span className={`font-semibold ${extractedData.title ? 'text-white' : 'text-red-400'}`}>
-                  {extractedData.title || '— não encontrado'}
-                </span>
+          <div className="w-full max-w-md rounded-xl bg-slate-950 p-4 border border-slate-800 space-y-2 text-left text-xs font-mono">
+            {sessionSteps.map((logItem, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-slate-300">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <span>{logItem}</span>
               </div>
-              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
-                <span className="block text-slate-500 font-medium mb-0.5">💰 Preço</span>
-                <span className={`font-semibold ${extractedData.currentPrice ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {extractedData.currentPrice ? `R$ ${extractedData.currentPrice.toFixed(2)}` : '— não encontrado'}
-                </span>
-              </div>
-              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
-                <span className="block text-slate-500 font-medium mb-0.5">🖼️ Imagem</span>
-                <span className={`font-semibold ${extractedData.mainImage ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {extractedData.mainImage ? '✅ encontrada' : '— não encontrada'}
-                </span>
-              </div>
-              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
-                <span className="block text-slate-500 font-medium mb-0.5">📂 Categoria</span>
-                <span className="font-semibold text-slate-300">{extractedData.categoryName || '— não encontrada'}</span>
-              </div>
-              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
-                <span className="block text-slate-500 font-medium mb-0.5">🏪 Marketplace</span>
-                <span className="font-semibold text-slate-300 capitalize">{marketplace || '—'}</span>
-              </div>
-              <div className="rounded-lg bg-slate-950 border border-slate-800 p-2.5">
-                <span className="block text-slate-500 font-medium mb-0.5">🎯 Confiança</span>
-                <span className={`font-bold ${extractedData.confidenceScore >= 80 ? 'text-emerald-400' : extractedData.confidenceScore >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                  {extractedData.confidenceScore}%
-                  <span className="ml-1 text-slate-400 font-normal">
-                    ({extractedData.confidenceMode === 'automatic' ? 'Automático' : extractedData.confidenceMode === 'assisted' ? 'Assistido' : 'Manual'})
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            {debugInfo && (
-              <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-xs text-amber-200">
-                <span className="font-semibold block mb-1">⚠️ Diagnóstico do Servidor:</span>
-                <p>{JSON.stringify(debugInfo)}</p>
-              </div>
-            )}
+            ))}
           </div>
-
-          <ProductConfirmationModal
-            data={extractedData}
-            marketplaceSlug={marketplace}
-            affiliateUrl={affiliateUrl}
-            onConfirm={(confirmed) => handleGenerateAI(confirmed)}
-            onCancel={() => setStep('input')}
-          />
         </div>
       )}
 
-      {/* ── PREVIEW SCREEN (PHASE 3 & 4) ── */}
+      {/* ── PRE-AI PRODUCT CONFIRMATION MODAL (<80% CONFIDENCE) ── */}
+      {step === 'confirming' && extractedData && (
+        <ProductConfirmationModal
+          data={{ ...extractedData, confidenceScore: confidence } as any}
+          marketplaceSlug={marketplace}
+          affiliateUrl={affiliateUrl}
+          onConfirm={(confirmed) => handleGenerateAI(confirmed)}
+          onCancel={() => setStep('input')}
+        />
+      )}
+
+      {/* ── PREVIEW SCREEN ── */}
       {step === 'preview' && preview && (
         <div className="space-y-6">
-          {/* Header Bar */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-4">
             <div>
               <div className="flex items-center gap-2">
@@ -472,7 +427,6 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                   </span>
                 </div>
 
-                {/* Simulated Social Card */}
                 <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner space-y-3">
                   {preview.product.imageUrl && (
                     <img src={preview.product.imageUrl} alt="Produto" className="h-48 w-full object-contain rounded-lg bg-slate-900 p-2" />
@@ -520,28 +474,12 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                   <span className="font-bold block">💡 Diagnóstico do Consultor IA:</span>
                   <p>{preview.offer.justification}</p>
                 </div>
-
-                <div className="space-y-1.5 text-xs text-slate-300">
-                  <div className="flex justify-between">
-                    <span>Atração de Preço & Valor:</span>
-                    <span className="font-semibold text-emerald-400">★★★★☆</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Atratividade de Desconto:</span>
-                    <span className="font-semibold text-emerald-400">★★★★★</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Potencial de Conversão:</span>
-                    <span className="font-semibold text-emerald-400">92%</span>
-                  </div>
-                </div>
               </div>
             </div>
 
-            {/* Right: Social Copy Inspector & Selector */}
+            {/* Right: Social Copy Inspector */}
             <div className="lg:col-span-7 space-y-4">
               <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xl space-y-4">
-                {/* Social Channel Selector */}
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
                   <button
                     onClick={() => setActiveChannel('whatsapp')}
@@ -563,7 +501,6 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                   </button>
                 </div>
 
-                {/* Editable Copy Area */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-slate-300">Copy Formatada para {activeChannel.toUpperCase()}</label>
@@ -584,7 +521,6 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                   />
                 </div>
 
-                {/* Inline Editables (Title & CTA) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                   <div>
                     <label className="text-xs font-medium text-slate-400">Título Editável</label>

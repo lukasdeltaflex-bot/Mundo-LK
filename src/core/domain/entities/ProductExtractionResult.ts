@@ -1,0 +1,31 @@
+export interface ProductExtractionResult {
+  title: string;
+  description: string;
+  currentPrice: number | null;
+  originalPrice: number | null;
+  discountPercentage: number;
+  currency: string;
+  brand: string;
+  category: string;
+  subcategory: string;
+  marketplace: string;
+  sellerName: string;
+  sellerRating: number;
+  shippingType: string;
+  shippingPrice: number | null;
+  freeShipping: boolean;
+  prime: boolean;
+  full: boolean;
+  mall: boolean;
+  coupon: string;
+  cashback: string;
+  installments: string;
+  image: string;
+  gallery: string[];
+  rating: number;
+  reviewCount: number;
+  soldQuantity: string;
+  productId: string;
+  canonicalUrl: string;
+  originalUrl: string;
+}
