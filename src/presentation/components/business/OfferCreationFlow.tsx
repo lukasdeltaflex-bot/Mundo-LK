@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, ArrowRight,
   MessageCircle, Send, Brain, Target, Heart,
   TrendingUp, Zap, Crown, ShoppingCart, Minimize2, AlertCircle,
-  History, Star, Layers, HelpCircle
+  History, Star, Layers, HelpCircle, Share2
 } from 'lucide-react';
 import { extractProductDetailsAction, analyzeProductUrlAction, type OfferPreview } from '@/presentation/actions/analyze-url.action';
 import { saveApprovedOfferAction } from '@/presentation/actions/save-offer.action';
@@ -18,6 +18,7 @@ import type { OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
 import { ProductConfirmationModal } from './ProductConfirmationModal';
 import { SmartDuplicationDetectorService } from '@/core/domain/services/smart-duplication-detector.service';
 import { DuplicateProductModal } from './DuplicateProductModal';
+import { SocialShareModal } from './SocialShareModal';
 import { Product } from '@/core/domain/entities/product.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { Price } from '@/core/domain/value-objects';
@@ -97,6 +98,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const [editWhatsapp,  setEditWhatsapp]  = useState('');
 
   const [savedIds, setSavedIds] = useState<{ productId: string; offerId: string } | null>(null);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
 
   // Step 1: AI Generation from Confirmed Result
   const handleGenerateAI = useCallback(async (confirmed: ProductExtractionResult, overrideStyle?: OfferStyle) => {
@@ -643,17 +645,48 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
       {/* ── STEP DONE ── */}
       {step === 'done' && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-12 text-center shadow-2xl">
-          <CheckCircle2 className="h-16 w-16 text-emerald-400 mb-4 animate-bounce" />
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-12 text-center shadow-2xl space-y-4">
+          <CheckCircle2 className="h-16 w-16 text-emerald-400 mb-2 animate-bounce" />
           <h3 className="text-2xl font-extrabold text-white">Oferta Salva com Sucesso!</h3>
-          <p className="mt-2 text-sm text-slate-300 max-w-md">A oferta foi registrada no seu banco de dados Firestore e está pronta para divulgação.</p>
-          <button
-            onClick={handleReset}
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-xs font-bold text-white shadow-lg hover:bg-blue-500"
-          >
-            <Sparkles className="h-4 w-4" />
-            <span>Criar Nova Oferta</span>
-          </button>
+          <p className="text-sm text-slate-300 max-w-md">A oferta foi registrada no seu banco de dados Firestore e está pronta para divulgação.</p>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            {preview && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-xs font-extrabold text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 transition active:scale-95"
+              >
+                <Share2 className="h-4 w-4" />
+                <span>Compartilhar Oferta Agora</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleReset}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-6 py-3 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Criar Nova Oferta</span>
+            </button>
+          </div>
+
+          {showShareModal && preview && (
+            <SocialShareModal
+              data={{
+                title: editTitle || preview.product.title,
+                price: preview.product.price,
+                previousPrice: preview.product.previousPrice,
+                discountPercent: preview.product.discountPercent,
+                imageUrl: preview.product.imageUrl,
+                affiliateUrl: preview.product.affiliateUrl,
+                whatsAppText: editWhatsapp || preview.offer.whatsAppText,
+                telegramText: preview.offer.telegramText,
+                instagramText: preview.offer.instagramText,
+                facebookText: preview.offer.facebookText,
+              }}
+              onClose={() => setShowShareModal(false)}
+            />
+          )}
         </div>
       )}
     </div>

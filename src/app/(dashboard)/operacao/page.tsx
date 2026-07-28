@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   PlugZap, Wand2, RefreshCw, CheckCircle2, AlertCircle,
   ShieldCheck, Server, ExternalLink, Zap, Lock, Activity,
-  Clock, Info, ChevronRight, Play, Check
+  Clock, Info, ChevronRight, Play, Check, Link as LinkIcon, Sparkles
 } from 'lucide-react';
 import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
@@ -16,6 +16,7 @@ import {
   SystemCredentialDiagnostic,
 } from '@/core/domain/services/marketplace-integration-manager.service';
 import { SetupWizardModal } from '@/presentation/components/business/SetupWizardModal';
+import { MarketplaceLinkImporter } from '@/presentation/components/business/MarketplaceLinkImporter';
 
 export default function OperacaoIntegracoesPage() {
   const [marketplaces, setMarketplaces] = useState<MarketplaceIntegrationState[]>(() =>
@@ -26,7 +27,7 @@ export default function OperacaoIntegracoesPage() {
     MarketplaceIntegrationManagerService.getSystemCredentialsDiagnostic()
   );
 
-  const [activeTab, setActiveTab] = useState<'cards' | 'diagnostic'>('cards');
+  const [activeTab, setActiveTab] = useState<'import' | 'cards' | 'diagnostic'>('import');
   const [showWizard, setShowWizard] = useState<boolean>(false);
 
   // Test connection state
@@ -40,6 +41,18 @@ export default function OperacaoIntegracoesPage() {
       window.open(mp.oauthAuthUrl, '_blank', 'width=600,height=700');
     } else {
       alert(`O marketplace ${mp.name} utiliza credenciais via API Key no Vercel (process.env).`);
+    }
+  };
+
+  const handleDisconnect = (mp: MarketplaceIntegrationState) => {
+    if (confirm(`Deseja desconectar a integração com ${mp.name}?`)) {
+      setMarketplaces((prev) =>
+        prev.map((item) =>
+          item.slug === mp.slug
+            ? { ...item, isConnected: false, status: 'DISCONNECTED', connectedStoreName: undefined }
+            : item
+        )
+      );
     }
   };
 
@@ -81,10 +94,10 @@ export default function OperacaoIntegracoesPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                Central de Integrações dos Marketplaces
+                Central de Marketplaces & Importação Inteligente
               </h1>
               <p className="text-xs text-slate-400">
-                Conexão automatizada OAuth v2, renovação inteligente de tokens e diagnóstico de APIs.
+                Hub de integrações com marketplaces, extração multi-provider e cópias persuasivas com Gemini IA.
               </p>
             </div>
           </div>
@@ -99,7 +112,7 @@ export default function OperacaoIntegracoesPage() {
             leftIcon={<Activity className="h-4 w-4 text-purple-400" />}
             className="text-xs font-semibold"
           >
-            Testar Todas as APIs
+            Testar Conexões
           </Button>
 
           <Button
@@ -110,7 +123,7 @@ export default function OperacaoIntegracoesPage() {
             leftIcon={<Wand2 className="h-4 w-4" />}
             className="text-xs font-extrabold shadow-lg shadow-blue-600/20"
           >
-            Assistente de Configuração (Setup Wizard)
+            Assistente de Configuração
           </Button>
         </div>
       </div>
@@ -124,10 +137,22 @@ export default function OperacaoIntegracoesPage() {
       )}
 
       {/* ── TABS ── */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-1">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('import')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+            activeTab === 'import'
+              ? 'border-blue-500 text-blue-400'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Sparkles className="h-4 w-4 text-blue-400" />
+          <span>Importar Produto por Link Inteligente</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('cards')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
             activeTab === 'cards'
               ? 'border-blue-500 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-white'
@@ -139,25 +164,56 @@ export default function OperacaoIntegracoesPage() {
 
         <button
           onClick={() => setActiveTab('diagnostic')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
             activeTab === 'diagnostic'
               ? 'border-blue-500 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <Server className="h-4 w-4" />
-          <span>Painel de Diagnóstico & Credenciais</span>
+          <span>Painel de Credenciais & Diagnóstico</span>
         </button>
       </div>
 
-      {/* ── TAB 1: MARKETPLACE CARDS ── */}
+      {/* ── TAB 1: INTELLIGENT LINK IMPORTER ── */}
+      {activeTab === 'import' && (
+        <div className="space-y-6">
+          <MarketplaceLinkImporter />
+        </div>
+      )}
+
+      {/* ── TAB 2: MARKETPLACE CONNECTION CARDS ── */}
       {activeTab === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {marketplaces.map((mp) => {
             const isConn = mp.isConnected;
+            const isPending = mp.status === 'EXPIRING';
             const testRes = testResults[mp.slug];
             const isTesting = testingSlug === mp.slug;
             const isSyncing = syncingSlug === mp.slug;
+
+            let statusBadge = (
+              <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 bg-slate-500/10 text-slate-400 border-slate-500/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                ⚪ Não configurado
+              </span>
+            );
+
+            if (isConn) {
+              statusBadge = (
+                <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  🟢 Conectado
+                </span>
+              );
+            } else if (isPending) {
+              statusBadge = (
+                <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 bg-amber-500/10 text-amber-400 border-amber-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  🟡 Aguardando conexão
+                </span>
+              );
+            }
 
             return (
               <div
@@ -177,36 +233,27 @@ export default function OperacaoIntegracoesPage() {
                         {mp.name}
                       </h3>
                       <span className="text-[11px] text-slate-400">
-                        {mp.supportsOAuth ? 'OAuth v2 Oficial' : 'Integrador API'}
+                        {mp.supportsOAuth ? 'OAuth v2 Oficial' : 'Integrador API / Web'}
                       </span>
                     </div>
                   </div>
 
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 ${
-                      isConn
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${isConn ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
-                    {isConn ? '🟢 Conectado' : '🔴 Não Conectado'}
-                  </span>
+                  {statusBadge}
                 </div>
 
                 {/* Information Box */}
                 <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-400">
-                    <span>Loja Conectada:</span>
-                    <span className="font-semibold text-white truncate max-w-[150px]">
-                      {mp.connectedStoreName || 'Pendente'}
+                    <span>Status da Conexão:</span>
+                    <span className="font-semibold text-white truncate">
+                      {isConn ? 'Ativa e Autenticada' : 'Aguardando Credenciais'}
                     </span>
                   </div>
 
                   <div className="flex justify-between text-slate-400">
-                    <span>Última Autenticação:</span>
-                    <span className="font-medium text-slate-300">
-                      {mp.lastAuthAt || '—'}
+                    <span>Loja Conectada:</span>
+                    <span className="font-semibold text-slate-200 truncate max-w-[140px]">
+                      {mp.connectedStoreName || '—'}
                     </span>
                   </div>
 
@@ -240,10 +287,10 @@ export default function OperacaoIntegracoesPage() {
                         type="button"
                         variant="secondary"
                         size="sm"
-                        onClick={() => handleConnectOAuth(mp)}
-                        className="text-xs"
+                        onClick={() => handleDisconnect(mp)}
+                        className="text-xs text-rose-400 hover:text-rose-300 border-rose-500/30"
                       >
-                        Reconectar
+                        Desconectar
                       </Button>
                     ) : (
                       <Button
@@ -254,7 +301,7 @@ export default function OperacaoIntegracoesPage() {
                         leftIcon={<ExternalLink className="h-3.5 w-3.5" />}
                         className="text-xs font-bold"
                       >
-                        Conectar OAuth
+                        Conectar
                       </Button>
                     )}
 
@@ -272,16 +319,27 @@ export default function OperacaoIntegracoesPage() {
                   </div>
 
                   {isConn && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSyncNow(mp.slug)}
-                      disabled={isSyncing}
-                      className="w-full text-xs text-slate-400 hover:text-white"
-                    >
-                      {isSyncing ? 'Sincronizando Catálogo...' : '⚡ Sincronizar Agora'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleConnectOAuth(mp)}
+                        className="w-1/2 text-[11px] text-slate-400 hover:text-white"
+                      >
+                        Renovar Token
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSyncNow(mp.slug)}
+                        disabled={isSyncing}
+                        className="w-1/2 text-[11px] text-blue-400 hover:text-blue-300"
+                      >
+                        {isSyncing ? 'Sincronizando...' : '⚡ Sincronizar'}
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -290,7 +348,7 @@ export default function OperacaoIntegracoesPage() {
         </div>
       )}
 
-      {/* ── TAB 2: DIAGNOSTIC & SECURITY PANEL ── */}
+      {/* ── TAB 3: DIAGNOSTIC & SECURITY PANEL ── */}
       {activeTab === 'diagnostic' && (
         <div className="space-y-6">
           {/* Security Banner */}
