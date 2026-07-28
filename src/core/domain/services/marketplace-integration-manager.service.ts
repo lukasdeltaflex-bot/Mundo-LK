@@ -300,11 +300,11 @@ export class MarketplaceIntegrationManagerService {
         color: '#6366F1',
         logoSvgBg: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
         supportsOAuth: false,
-        isConnected: true,
-        connectedStoreName: 'Plano Pro Ultra',
-        lastSyncAt: 'Há 2 minutos',
+        isConnected: Boolean(process.env.ZENROWS_API_KEY),
+        connectedStoreName: process.env.ZENROWS_API_KEY ? 'ZenRows Proxy Pool' : undefined,
+        lastSyncAt: process.env.ZENROWS_API_KEY ? 'Há 2 minutos' : undefined,
         requestLimit: '50.000 req/mês',
-        status: 'CONNECTED',
+        status: process.env.ZENROWS_API_KEY ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'scrapingbee',
@@ -313,11 +313,11 @@ export class MarketplaceIntegrationManagerService {
         color: '#FFB800',
         logoSvgBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
         supportsOAuth: false,
-        isConnected: true,
-        connectedStoreName: 'Plano Growth',
-        lastSyncAt: 'Há 5 minutos',
+        isConnected: Boolean(process.env.SCRAPINGBEE_API_KEY),
+        connectedStoreName: process.env.SCRAPINGBEE_API_KEY ? 'Plano Growth' : undefined,
+        lastSyncAt: process.env.SCRAPINGBEE_API_KEY ? 'Há 5 minutos' : undefined,
         requestLimit: '25.000 req/mês',
-        status: 'CONNECTED',
+        status: process.env.SCRAPINGBEE_API_KEY ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'scraperapi',
@@ -326,11 +326,11 @@ export class MarketplaceIntegrationManagerService {
         color: '#10B981',
         logoSvgBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
         supportsOAuth: false,
-        isConnected: true,
-        connectedStoreName: 'Plano Business',
-        lastSyncAt: 'Há 12 minutos',
+        isConnected: Boolean(process.env.SCRAPER_API_KEY),
+        connectedStoreName: process.env.SCRAPER_API_KEY ? 'Plano Business' : undefined,
+        lastSyncAt: process.env.SCRAPER_API_KEY ? 'Há 12 minutos' : undefined,
         requestLimit: '10.000 req/mês',
-        status: 'CONNECTED',
+        status: process.env.SCRAPER_API_KEY ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'apify',
@@ -339,11 +339,11 @@ export class MarketplaceIntegrationManagerService {
         color: '#0284C7',
         logoSvgBg: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
         supportsOAuth: false,
-        isConnected: true,
-        connectedStoreName: 'Apify Shopee & ML Actors',
-        lastSyncAt: 'Há 4 minutos',
+        isConnected: Boolean(process.env.APIFY_API_TOKEN),
+        connectedStoreName: process.env.APIFY_API_TOKEN ? 'Apify Shopee & ML Actors' : undefined,
+        lastSyncAt: process.env.APIFY_API_TOKEN ? 'Há 4 minutos' : undefined,
         requestLimit: '$50.00 crédito',
-        status: 'CONNECTED',
+        status: process.env.APIFY_API_TOKEN ? 'CONNECTED' : 'DISCONNECTED',
       },
 
       // ── MOTORES DE IA CORE ───────────────────────────────────────────────────
@@ -354,11 +354,11 @@ export class MarketplaceIntegrationManagerService {
         color: '#8E44AD',
         logoSvgBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
         supportsOAuth: false,
-        isConnected: true,
-        connectedStoreName: 'Google AI Studio Core',
-        lastSyncAt: 'Agora mesmo',
+        isConnected: Boolean(process.env.GEMINI_API_KEY),
+        connectedStoreName: process.env.GEMINI_API_KEY ? 'Google AI Studio Core' : undefined,
+        lastSyncAt: process.env.GEMINI_API_KEY ? 'Agora mesmo' : undefined,
         requestLimit: '1.500 RPM (Ilimitado)',
-        status: 'CONNECTED',
+        status: process.env.GEMINI_API_KEY ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'openai',
@@ -367,11 +367,11 @@ export class MarketplaceIntegrationManagerService {
         color: '#10A37F',
         logoSvgBg: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
         supportsOAuth: false,
-        isConnected: true,
-        connectedStoreName: 'OpenAI Enterprise API',
-        lastSyncAt: 'Há 3 minutos',
+        isConnected: Boolean(process.env.OPENAI_API_KEY),
+        connectedStoreName: process.env.OPENAI_API_KEY ? 'OpenAI Enterprise API' : undefined,
+        lastSyncAt: process.env.OPENAI_API_KEY ? 'Há 3 minutos' : undefined,
         requestLimit: '10.000 TPM',
-        status: 'CONNECTED',
+        status: process.env.OPENAI_API_KEY ? 'CONNECTED' : 'DISCONNECTED',
       },
     ];
   }
@@ -398,50 +398,56 @@ export class MarketplaceIntegrationManagerService {
       {
         keyName: 'MERCADOLIVRE_CLIENT_ID',
         marketplace: 'Mercado Livre',
-        isConfigured: true,
+        isConfigured: Boolean(process.env.MERCADOLIVRE_CLIENT_ID),
         description: 'App ID oficial do Mercado Livre Dev Center',
       },
       {
         keyName: 'MERCADOLIVRE_CLIENT_SECRET',
         marketplace: 'Mercado Livre',
-        isConfigured: true,
+        isConfigured: Boolean(process.env.MERCADOLIVRE_CLIENT_SECRET),
         description: 'Secret Key para renovação OAuth no Mercado Livre',
       },
       {
         keyName: 'AMAZON_CLIENT_ID',
         marketplace: 'Amazon',
-        isConfigured: true,
+        isConfigured: Boolean(process.env.AMAZON_CLIENT_ID),
         description: 'Credencial LWA (Login with Amazon) SP-API',
       },
       {
         keyName: 'MAGALU_CLIENT_ID',
         marketplace: 'Magalu',
-        isConfigured: false,
+        isConfigured: Boolean(process.env.MAGALU_CLIENT_ID),
         description: 'App ID no portal de desenvolvedores LuizaLabs',
       },
       {
         keyName: 'ZENROWS_API_KEY',
         marketplace: 'ZenRows Scraper',
-        isConfigured: true,
+        isConfigured: Boolean(process.env.ZENROWS_API_KEY),
         description: 'Chave de extração premium com rotação de proxies',
       },
       {
         keyName: 'SCRAPINGBEE_API_KEY',
         marketplace: 'ScrapingBee',
-        isConfigured: true,
+        isConfigured: Boolean(process.env.SCRAPINGBEE_API_KEY),
         description: 'Chave de fallback para bypass de Cloudflare',
       },
       {
         keyName: 'APIFY_API_TOKEN',
         marketplace: 'Apify Provider',
-        isConfigured: true,
+        isConfigured: Boolean(process.env.APIFY_API_TOKEN),
         description: 'Token de Fallback para Actors de Scrape em nuvem',
       },
       {
         keyName: 'GEMINI_API_KEY',
         marketplace: 'IA Core Gemini',
-        isConfigured: true,
+        isConfigured: Boolean(process.env.GEMINI_API_KEY),
         description: 'Chave principal do modelo Google Gemini 2.5 Flash',
+      },
+      {
+        keyName: 'OPENAI_API_KEY',
+        marketplace: 'IA Core OpenAI',
+        isConfigured: Boolean(process.env.OPENAI_API_KEY),
+        description: 'Chave da API OpenAI para GPT-4o / O3-Mini',
       },
     ];
   }
@@ -481,49 +487,91 @@ export class MarketplaceIntegrationManagerService {
     }
 
     if (slug === 'mercadolivre') {
+      const isOk = Boolean(process.env.MERCADOLIVRE_CLIENT_ID);
       return {
         slug,
         name: 'Mercado Livre',
-        success: true,
-        latencyMs,
+        success: isOk,
+        latencyMs: isOk ? latencyMs : 0,
         endpointTested: 'https://api.mercadolibre.com/sites/MLB',
-        message: '🟢 Conexão OAuth v2 ativa com o Mercado Livre Brasil!',
+        message: isOk
+          ? '🟢 Conexão OAuth v2 ativa com o Mercado Livre Brasil!'
+          : '🔴 Credencial MERCADOLIVRE_CLIENT_ID não configurada no servidor (process.env).',
         timestamp: new Date().toLocaleTimeString('pt-BR'),
       };
     }
 
     if (slug === 'amazon') {
+      const isOk = Boolean(process.env.AMAZON_CLIENT_ID);
       return {
         slug,
         name: 'Amazon Brasil',
-        success: true,
-        latencyMs,
+        success: isOk,
+        latencyMs: isOk ? latencyMs : 0,
         endpointTested: 'https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations',
-        message: '🟢 Conexão SP-API ativa com a Amazon Brasil!',
+        message: isOk
+          ? '🟢 Conexão SP-API ativa com a Amazon Brasil!'
+          : '🔴 Credencial AMAZON_CLIENT_ID não configurada no servidor (process.env).',
         timestamp: new Date().toLocaleTimeString('pt-BR'),
       };
     }
 
     if (slug === 'gemini') {
+      const isOk = Boolean(process.env.GEMINI_API_KEY);
       return {
         slug,
         name: 'Google Gemini 2.5 Flash',
-        success: true,
-        latencyMs,
+        success: isOk,
+        latencyMs: isOk ? latencyMs : 0,
         endpointTested: 'https://generativelanguage.googleapis.com/v1beta/models',
-        message: '🟢 Modelo Gemini 2.5 Flash operando com latência ultrarrápida!',
+        message: isOk
+          ? '🟢 Modelo Gemini 2.5 Flash operando com latência ultrarrápida!'
+          : '🔴 Credencial GEMINI_API_KEY não configurada no servidor (process.env).',
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+      };
+    }
+
+    if (slug === 'openai') {
+      const isOk = Boolean(process.env.OPENAI_API_KEY);
+      return {
+        slug,
+        name: 'OpenAI GPT-4o / O3-Mini',
+        success: isOk,
+        latencyMs: isOk ? latencyMs : 0,
+        endpointTested: 'https://api.openai.com/v1/models',
+        message: isOk
+          ? '🟢 API OpenAI ativa para modelos GPT-4o e O3-Mini!'
+          : '🔴 Credencial OPENAI_API_KEY não configurada no servidor (process.env).',
         timestamp: new Date().toLocaleTimeString('pt-BR'),
       };
     }
 
     if (slug === 'zenrows') {
+      const isOk = Boolean(process.env.ZENROWS_API_KEY);
       return {
         slug,
         name: 'ZenRows API',
-        success: true,
-        latencyMs,
+        success: isOk,
+        latencyMs: isOk ? latencyMs : 0,
         endpointTested: 'https://api.zenrows.com/v1/',
-        message: '🟢 Provedor Premium ZenRows respondendo sem bloqueios!',
+        message: isOk
+          ? '🟢 Provedor Premium ZenRows respondendo sem bloqueios!'
+          : '🔴 Credencial ZENROWS_API_KEY não configurada no servidor (process.env).',
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+      };
+    }
+
+    if (slug === 'apify') {
+      const isOk = Boolean(process.env.APIFY_API_TOKEN);
+      return {
+        slug,
+        name: 'Apify Cloud Actors',
+        success: isOk,
+        latencyMs: isOk ? latencyMs : 0,
+        endpointTested: 'https://api.apify.com/v2/acts',
+        message: isOk
+          ? '🟢 Actors da Apify prontos para execução em nuvem!'
+          : '🔴 Credencial APIFY_API_TOKEN não configurada no servidor (process.env).',
         timestamp: new Date().toLocaleTimeString('pt-BR'),
       };
     }

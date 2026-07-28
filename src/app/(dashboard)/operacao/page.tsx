@@ -42,6 +42,7 @@ export default function AffiliateOperationsHubPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [testingSlug, setTestingSlug] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, DiagnosticTestResult>>({});
 
   // Modais e Painéis
   const [reviewData, setReviewData] = useState<{ data: ProductExtractionResult; slug: string } | null>(null);
@@ -68,7 +69,8 @@ export default function AffiliateOperationsHubPage() {
   const handleTestConnection = async (slug: string) => {
     setTestingSlug(slug);
     try {
-      await MarketplaceIntegrationManagerService.testConnection(slug);
+      const res = await MarketplaceIntegrationManagerService.testConnection(slug);
+      setTestResults((prev) => ({ ...prev, [slug]: res }));
     } catch (err) {
       console.error('[Hub] Erro ao testar conexão:', err);
     } finally {
@@ -165,6 +167,7 @@ export default function AffiliateOperationsHubPage() {
         onTestConnection={handleTestConnection}
         onOpenCredentials={() => setShowCredentialModal(true)}
         testingSlug={testingSlug}
+        testResults={testResults}
       />
 
       {/* ── MÓDULO 2: MOTOR UNIVERSAL DE IMPORTAÇÃO (CORAÇÃO DA TELA) ── */}
