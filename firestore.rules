@@ -133,11 +133,40 @@ service cloud.firestore {
       allow update, delete: if isOwner(resource.data.userId);
     }
 
-    // 13. campaign_events (Histórico Bruto de Interações)
+    // 13. campaign_events (Histórico Bruto de Interações — Domínio Interno)
     match /campaign_events/{eventId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
       allow update, delete: if false; // Eventos brutos são imutáveis
+    }
+
+    // 14. analytics_events (Release 2.1.5 — Camada Universal de Eventos Externos)
+    match /analytics_events/{eventId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if false; // Imutável — fonte histórica de dados externos
+    }
+
+    // 15. automation_rules (Release 2.2.1 — Regras de Automação)
+    match /automation_rules/{ruleId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    // 16. automation_executions (Release 2.2.1 — Histórico Operacional de Automação)
+    match /automation_executions/{execId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if false; // Imutável — histórico de execuções
+    }
+
+    // 17. jobs (Release 2.2.2 — Fila de Trabalhos Assíncronos)
+    match /jobs/{jobId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId); // Worker atualiza status
+      allow delete: if false; // Jobs são preservados para auditoria
     }
 
     // 12. prompts
