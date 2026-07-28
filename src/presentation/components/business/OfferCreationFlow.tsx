@@ -16,6 +16,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 import type { OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
 import { ProductConfirmationModal } from './ProductConfirmationModal';
+import { SmartDuplicationDetectorService } from '@/core/domain/services/smart-duplication-detector.service';
+import { DuplicateProductModal } from './DuplicateProductModal';
+import { Product } from '@/core/domain/entities/product.entity';
+import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+import { Price } from '@/core/domain/value-objects';
 
 interface StyleOption {
   id:       OfferStyle;
@@ -44,7 +49,7 @@ const STYLE_OPTIONS: StyleOption[] = [
   { id: 'luxo',            label: 'Luxo',            desc: 'Sofisticação e alto padrão',    icon: Crown,       color: 'text-amber-300',  border: 'border-amber-400/40'  },
 ];
 
-type FlowStep = 'input' | 'extracting' | 'confirming' | 'analyzing' | 'preview' | 'saving' | 'done';
+type FlowStep = 'input' | 'extracting' | 'duplicate_detected' | 'confirming' | 'analyzing' | 'preview' | 'saving' | 'done';
 
 export interface OfferCreationFlowProps {
   onSaved?: (productId: string, offerId: string) => void;
@@ -66,12 +71,15 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const [affiliateUrl,  setAffiliateUrl]  = useState<string>('');
   const [marketplace,   setMarketplace]   = useState<string>('');
 
+  // Duplicate product detected state
+  const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null);
+
   // Live Extraction Session Step Logs
   const [sessionSteps, setSessionSteps] = useState<string[]>([
     '🔗 Expandindo links e redirecionamentos...',
     '🏪 Identificando marketplace e plugin...',
-    '🔑 Verificando cache de 2 níveis (L1 Memory + L2 Firestore)...',
-    '⚙️ Executando waterfall de extração profissional...',
+    '🔑 Verificando duplicidade e cache L1/L2...',
+    '🚀 Executando waterfall de extração profissional...',
   ]);
 
   // Preview & Version History
@@ -140,7 +148,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     setSessionSteps([
       '🔗 Expandindo link curto e redirecionamentos HTTP...',
       '🏪 Identificando marketplace oficial...',
-      '🔑 Consultando banco de dados e cache L1/L2...',
+      '🛡️ Checando duplicidades no seu catálogo...',
       '🚀 Executando waterfall multi-provider (Official API ➔ ZenRows ➔ Scraper)...',
     ]);
 
@@ -161,6 +169,26 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setAffiliateUrl(result.affiliateUrl);
       setMarketplace(result.marketplaceSlug);
 
+      // Check Duplication Engine
+      if (user?.uid) {
+        const dupCheck = await SmartDuplicationDetectorService.checkForDuplicate(
+          {
+            url: rawUrl,
+            title: result.data.title,
+            image: result.data.image,
+            marketplace: result.marketplaceSlug,
+            currentPrice: result.data.currentPrice,
+          },
+          user.uid
+        );
+
+        if (dupCheck.isDuplicate && dupCheck.existingProduct) {
+          setDuplicateProduct(dupCheck.existingProduct);
+          setStep('duplicate_detected');
+          return;
+        }
+      }
+
       if (result.requiresConfirmation) {
         setStep('confirming');
       } else {
@@ -172,9 +200,46 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setError(`Erro na extração de dados: ${msg}`);
       setStep('input');
     }
-  }, [url, tag, handleGenerateAI]);
+  }, [url, tag, user, handleGenerateAI]);
 
-  // Regenerate / Generate alternative style (Instantaneous re-use of ProductExtractionResult!)
+  // Handle Intelligent Update of Existing Duplicate Product
+  const handleUpdateExistingProduct = useCallback(async () => {
+    if (!duplicateProduct || !extractedData) return;
+
+    try {
+      const newPriceAmount = extractedData.currentPrice || 0;
+      const oldPriceAmount = duplicateProduct.currentPrice?.amount || 0;
+
+      // Update price and details
+      duplicateProduct.updatePrice(Price.create(newPriceAmount));
+      if (extractedData.image) {
+        if (!duplicateProduct.images) duplicateProduct.images = [];
+        if (!duplicateProduct.images.includes(extractedData.image)) {
+          duplicateProduct.images.unshift(extractedData.image);
+        }
+      }
+
+      // Add audit log to dispatch history
+      duplicateProduct.recordDispatch({
+        channel: 'Sistema Interno',
+        targetGroup: 'Atualização de Preço',
+        sentBy: user?.name || user?.email || 'Admin',
+        type: 'MANUAL',
+        notes: `[ATUALIZAÇÃO INTELIGENTE DE OFERTA] Preço atualizado de R$ ${oldPriceAmount.toFixed(2)} para R$ ${newPriceAmount.toFixed(2)}.`,
+      });
+
+      const repo = new FirestoreProductRepository();
+      await repo.save(duplicateProduct);
+
+      // Proceed to generate AI offer with fresh prices
+      handleGenerateAI(extractedData);
+    } catch (err) {
+      console.error('Erro ao atualizar oferta existente:', err);
+      handleGenerateAI(extractedData);
+    }
+  }, [duplicateProduct, extractedData, user, handleGenerateAI]);
+
+  // Regenerate / Generate alternative style
   const handleGenerateAlternative = useCallback((newStyle?: OfferStyle) => {
     if (!extractedData) return;
     const selectedStyle = newStyle ?? style;
@@ -240,6 +305,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     setPreview(null);
     setVersions([]);
     setExtractedData(null);
+    setDuplicateProduct(null);
     setSavedIds(null);
   };
 
@@ -267,7 +333,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Assistente de Ofertas Enterprise</h2>
-              <p className="text-xs text-slate-400">Extração real multi-provider e geração de copys persuasivas para afiliados.</p>
+              <p className="text-xs text-slate-400">Extração real multi-provider com checagem de duplicidade e IA persuasiva.</p>
             </div>
           </div>
 
@@ -344,6 +410,18 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ── DUPLICATE PRODUCT DETECTED MODAL ── */}
+      {step === 'duplicate_detected' && duplicateProduct && (
+        <DuplicateProductModal
+          existingProduct={duplicateProduct}
+          onUpdateExisting={handleUpdateExistingProduct}
+          onForceCreateNew={() => {
+            if (extractedData) handleGenerateAI(extractedData);
+          }}
+          onCancel={() => setStep('input')}
+        />
       )}
 
       {/* ── PRE-AI PRODUCT CONFIRMATION MODAL (<80% CONFIDENCE) ── */}
