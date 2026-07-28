@@ -7,6 +7,8 @@ import {
   QrCode, Calendar, Download, Image as ImageIcon, Link as LinkIcon
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { useAuth } from '@/presentation/context/AuthContext';
+import { MarketplaceConnectionService } from '@/core/application/services/integrations/MarketplaceConnectionService';
 
 const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" {...props}>
@@ -57,8 +59,23 @@ export interface SocialShareModalProps {
 }
 
 export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClose }) => {
+  const { user } = useAuth();
   const [copiedChannel, setCopiedChannel] = useState<string | null>(null);
   const [showQrCode, setShowQrCode] = useState<boolean>(false);
+  const [activeChannels, setActiveChannels] = useState<Array<{ slug: string; name: string; isConnected: boolean }>>([]);
+
+  React.useEffect(() => {
+    async function loadChannels() {
+      if (!user) return;
+      try {
+        const list = await MarketplaceConnectionService.getInstance().getActiveConnections(user.uid);
+        setActiveChannels(list);
+      } catch (err) {
+        console.warn('[SocialShareModal] loadChannels error:', err);
+      }
+    }
+    loadChannels();
+  }, [user]);
 
   // Formatted fallback offer copy
   const formattedDefaultText = `🔥 Oferta imperdível encontrada!\n\nProduto: ${data.title}\nPreço: ${data.price}${data.previousPrice ? ` (De: ${data.previousPrice})` : ''}\n\nConfira agora: ${data.affiliateUrl}`;
@@ -123,6 +140,30 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
 
         {/* Modal Body */}
         <div className="p-5 space-y-5 overflow-y-auto flex-1">
+          {/* Indicador de Canais Conectados */}
+          {activeChannels.length > 0 && (
+            <div className="rounded-xl bg-slate-950 p-3 border border-slate-800 space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Conectores & Canais Disponíveis
+              </span>
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                {activeChannels.map((c) => (
+                  <span
+                    key={c.slug}
+                    className={`px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1.5 border text-[11px] ${
+                      c.isConnected
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : 'bg-slate-900 text-slate-500 border-slate-800'
+                    }`}
+                  >
+                    <span>{c.isConnected ? '✅' : '⚪'}</span>
+                    <span>{c.name}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Card Summary Preview */}
           <div className="flex gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3.5 items-center">
             {data.imageUrl ? (

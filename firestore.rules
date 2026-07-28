@@ -169,6 +169,13 @@ service cloud.firestore {
       allow delete: if false; // Jobs são preservados para auditoria
     }
 
+    // 21. marketplace_connections (Hub Oficial de Integrações Enterprise)
+    match /marketplace_connections/{connId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
     // 12. prompts
     match /prompts/{promptId} {
       allow read: if isOwner(resource.data.userId) || isAdmin(); 

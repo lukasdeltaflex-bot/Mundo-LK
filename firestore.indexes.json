@@ -189,6 +189,22 @@
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "executionKey", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "marketplace_connections",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "marketplaceSlug", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "marketplace_connections",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
