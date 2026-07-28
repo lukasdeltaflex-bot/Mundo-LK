@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { FirestoreCampaignRepository } from '@/infrastructure/firebase/repositories/firestore-campaign.repository';
 import { CampaignAnalyticsService } from '@/core/application/services/CampaignAnalyticsService';
+import { CampaignOptimizationService, OptimizationReport, CampaignRecommendation } from '@/core/application/services/CampaignOptimizationService';
 import { Campaign } from '@/core/domain/entities/campaign.entity';
 import { CampaignROI } from '@/core/domain/value-objects/CampaignROI';
 import {
@@ -17,6 +18,10 @@ import {
   Zap,
   Award,
   Target,
+  Lightbulb,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
 } from 'lucide-react';
 
 // ── Tipos locais ────────────────────────────────────────────────────────────
@@ -124,6 +129,7 @@ export default function AnalyticsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [report, setReport] = useState<OptimizationReport | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -132,6 +138,8 @@ export default function AnalyticsPage() {
       const repo = new FirestoreCampaignRepository();
       const result = await repo.findPagedByUserId(user.uid, 100);
       setCampaigns(result.items);
+      const optimization = CampaignOptimizationService.getInstance().analyze(result.items);
+      setReport(optimization);
     } catch (err) {
       console.warn('[AnalyticsPage] load error:', err);
     } finally {
@@ -323,6 +331,75 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </div>
+
+          {/* ── Recomendações IA ── */}
+          {report && report.recommendations.length > 0 && (
+            <div className="rounded-2xl bg-slate-800/60 border border-slate-700 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-slate-200 flex items-center gap-2">
+                  <Lightbulb size={16} className="text-yellow-400" />
+                  Recomendações de Otimização
+                </h2>
+                <span className="text-xs text-slate-500 bg-slate-700 px-2 py-1 rounded-lg">
+                  {report.recommendations.length} insight{report.recommendations.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {/* Resumo executivo */}
+              {report.summary && (
+                <p className="text-sm text-slate-300 bg-slate-700/50 rounded-xl p-3 leading-relaxed">
+                  {report.summary}
+                </p>
+              )}
+
+              {/* Lista de recomendações */}
+              <div className="space-y-3">
+                {report.recommendations.slice(0, 8).map((rec, idx) => (
+                  <div
+                    key={`${rec.campaignId}-${idx}`}
+                    className={`rounded-xl p-4 border ${
+                      rec.priority === 'HIGH'
+                        ? 'border-rose-500/30 bg-rose-500/10'
+                        : rec.priority === 'MEDIUM'
+                        ? 'border-amber-500/30 bg-amber-500/10'
+                        : 'border-slate-600/50 bg-slate-700/30'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0 mt-0.5">
+                        {rec.priority === 'HIGH' ? (
+                          <AlertTriangle size={16} className="text-rose-400" />
+                        ) : rec.priority === 'MEDIUM' ? (
+                          <Info size={16} className="text-amber-400" />
+                        ) : (
+                          <CheckCircle2 size={16} className="text-slate-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                              rec.priority === 'HIGH'
+                                ? 'bg-rose-500/20 text-rose-300'
+                                : rec.priority === 'MEDIUM'
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : 'bg-slate-600/50 text-slate-400'
+                            }`}
+                          >
+                            {rec.priority}
+                          </span>
+                          <span className="text-xs text-slate-400 truncate">{rec.campaignName}</span>
+                        </div>
+                        <p className="text-sm text-slate-200 mb-1">{rec.insight}</p>
+                        <p className="text-xs text-slate-400">→ {rec.action}</p>
+                        <p className="text-xs text-slate-500 mt-1 font-mono">{rec.metric}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── Rodapé ── */}
           <p className="text-center text-xs text-slate-600">
