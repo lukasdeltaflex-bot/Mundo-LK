@@ -13,6 +13,7 @@ import {
   Palette,
   FolderHeart,
   Trash2,
+  PlugZap,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -27,14 +28,15 @@ export interface MenuItemDefinition {
 
 // Master list: single source of truth for all navigation items
 export const ALL_MENU_ITEMS: MenuItemDefinition[] = [
-  { id: 'dashboard',   name: 'Dashboard',            href: '/dashboard',               icon: LayoutDashboard },
-  { id: 'lote',        name: 'Importação em Lote',   href: '/lote',                    icon: Layers         },
-  { id: 'agendamento', name: 'Agendamento',           href: '/agendamento',             icon: Calendar       },
-  { id: 'produtos',    name: 'Produtos',              href: '/produtos',                icon: ShoppingBag    },
-  { id: 'colecoes',    name: 'Coleções',              href: '/colecoes',                icon: FolderHeart    },
-  { id: 'lixeira',     name: 'Lixeira Inteligente',  href: '/lixeira',                 icon: Trash2         },
-  { id: 'backup',      name: 'Backup Manager',        href: '/backup',                  icon: Database       },
-  { id: 'aparencia',   name: 'Aparência',             href: '/configuracoes/aparencia', icon: Palette        },
+  { id: 'dashboard',   name: 'Dashboard',               href: '/dashboard',               icon: LayoutDashboard },
+  { id: 'integracoes', name: 'Central de Marketplaces', href: '/operacao',                icon: PlugZap        },
+  { id: 'lote',        name: 'Importação em Lote',      href: '/lote',                    icon: Layers         },
+  { id: 'agendamento', name: 'Agendamento',              href: '/agendamento',             icon: Calendar       },
+  { id: 'produtos',    name: 'Produtos',                 href: '/produtos',                icon: ShoppingBag    },
+  { id: 'colecoes',    name: 'Coleções',                 href: '/colecoes',                icon: FolderHeart    },
+  { id: 'lixeira',     name: 'Lixeira Inteligente',     href: '/lixeira',                 icon: Trash2         },
+  { id: 'backup',      name: 'Backup Manager',           href: '/backup',                  icon: Database       },
+  { id: 'aparencia',   name: 'Aparência',                href: '/configuracoes/aparencia', icon: Palette        },
 ];
 
 const DEFAULT_ORDER: string[] = ALL_MENU_ITEMS.map((item) => item.id);
