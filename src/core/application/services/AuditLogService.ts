@@ -70,4 +70,22 @@ export class AuditLogService {
 
     await this.repo.save(log);
   }
+
+  /**
+   * Alias conveniente para logEvent — aceita os mesmos parâmetros.
+   */
+  public log(params: {
+    userId: string;
+    tenantId?: string;
+    action: string;
+    module: string;
+    entity: string;
+    entityId: string;
+    metadata?: Record<string, unknown>;
+  }): void {
+    // Fire-and-forget com captura de erro silenciosa para não bloquear o fluxo
+    this.logEvent(params).catch((err) =>
+      console.warn('[AuditLogService] log() silenced error:', err)
+    );
+  }
 }
