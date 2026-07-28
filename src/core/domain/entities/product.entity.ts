@@ -2,6 +2,23 @@ import { Price, DiscountPercentage, AffiliateLink } from '../value-objects';
 
 export type ProductStatus = 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
 
+export interface DispatchRecord {
+  id: string;
+  dispatchedAt: string; // ISO date string
+  channel: string; // e.g. "WhatsApp Promoções 01"
+  targetGroup?: string; // e.g. "Grupo VIP"
+  sentBy?: string; // e.g. "Admin"
+  type: 'MANUAL' | 'AUTOMATIC';
+  notes?: string;
+}
+
+export type DispatchStatus =
+  | 'NUNCA_ENVIADA'       // 🟢 Total envios = 0 (Prioridade Alta)
+  | 'ENVIADA_HOJE'        // 🔵 Enviada nas últimas 24h
+  | 'ENVIADA_RECENTEMENTE' // 🔴 Enviada nos últimos 3 dias (Evitar novo envio!)
+  | 'CANDIDATA_REENVIO'   // 🟡 Enviada há mais de 15 dias (ou 3-15 dias)
+  | 'ARQUIVADA';          // ⚪ Status arquivado
+
 export interface ProductProps {
   id: string;
   userId: string;
@@ -17,13 +34,20 @@ export interface ProductProps {
   discountPercentage: DiscountPercentage;
   images: string[];
   status: ProductStatus;
+
+  // Dispatch & Campaign Tracking Fields
+  dispatchCount?: number;
+  firstDispatchedAt?: Date | null;
+  lastDispatchedAt?: Date | null;
+  lastChannel?: string | null;
+  dispatchHistory?: DispatchRecord[];
+
   createdAt: Date;
   updatedAt: Date;
 }
 
 /**
- * Pure Domain Entity representing an Affiliate Product.
- * Independent of frameworks or database models.
+ * Pure Domain Entity representing an Affiliate Product with Campaign Dispatch Control.
  */
 export class Product {
   public readonly id: string;
@@ -40,6 +64,14 @@ export class Product {
   public discountPercentage: DiscountPercentage;
   public images: string[];
   public status: ProductStatus;
+
+  // Dispatch Tracking State
+  public dispatchCount: number;
+  public firstDispatchedAt?: Date | null;
+  public lastDispatchedAt?: Date | null;
+  public lastChannel?: string | null;
+  public dispatchHistory: DispatchRecord[];
+
   public readonly createdAt: Date;
   public updatedAt: Date;
 
@@ -58,6 +90,13 @@ export class Product {
     this.discountPercentage = props.discountPercentage;
     this.images = props.images;
     this.status = props.status;
+
+    this.dispatchCount = props.dispatchCount ?? 0;
+    this.firstDispatchedAt = props.firstDispatchedAt ?? null;
+    this.lastDispatchedAt = props.lastDispatchedAt ?? null;
+    this.lastChannel = props.lastChannel ?? null;
+    this.dispatchHistory = props.dispatchHistory ?? [];
+
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -74,5 +113,51 @@ export class Product {
   public archive(): void {
     this.status = 'ARCHIVED';
     this.updatedAt = new Date();
+  }
+
+  /**
+   * Registers a new campaign dispatch event and updates tracking counters.
+   */
+  public recordDispatch(record: Omit<DispatchRecord, 'id' | 'dispatchedAt'>): DispatchRecord {
+    const newRecord: DispatchRecord = {
+      id: `disp_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      dispatchedAt: new Date().toISOString(),
+      channel: record.channel,
+      targetGroup: record.targetGroup || 'Canal Geral',
+      sentBy: record.sentBy || 'Admin',
+      type: record.type || 'MANUAL',
+      notes: record.notes || '',
+    };
+
+    if (!this.dispatchHistory) this.dispatchHistory = [];
+    this.dispatchHistory.unshift(newRecord);
+    this.dispatchCount = (this.dispatchCount || 0) + 1;
+    if (!this.firstDispatchedAt) this.firstDispatchedAt = new Date();
+    this.lastDispatchedAt = new Date();
+    this.lastChannel = record.channel;
+    this.updatedAt = new Date();
+
+    return newRecord;
+  }
+
+  /**
+   * Calculates the automatic traffic light dispatch status.
+   */
+  public getDispatchStatus(): DispatchStatus {
+    if (this.status === 'ARCHIVED' || this.status === 'TRASHED') return 'ARQUIVADA';
+    if (!this.dispatchCount || this.dispatchCount === 0 || !this.lastDispatchedAt) {
+      return 'NUNCA_ENVIADA';
+    }
+
+    const lastDate = new Date(this.lastDispatchedAt);
+    const now = new Date();
+    const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
+    const diffDays = diffHours / 24;
+
+    if (diffHours <= 24) return 'ENVIADA_HOJE';
+    if (diffDays <= 3) return 'ENVIADA_RECENTEMENTE';
+    if (diffDays >= 15) return 'CANDIDATA_REENVIO';
+
+    return 'ENVIADA_RECENTEMENTE';
   }
 }

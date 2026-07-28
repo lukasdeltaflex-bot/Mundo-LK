@@ -9,11 +9,12 @@ import { MarketplaceBadge } from '@/presentation/components/business/Marketplace
 import {
   ShoppingBag, Plus, Layers, Sparkles, Trash2, X, AlertTriangle, CheckCircle2,
   Search, LayoutGrid, List, Filter, Copy, ExternalLink, RefreshCw, ChevronLeft, ChevronRight,
-  TrendingDown, Tag, Clock, ArrowUpDown, Image as ImageIcon, Check
+  TrendingDown, Tag, Clock, ArrowUpDown, Image as ImageIcon, Check, Send, History, AlertCircle,
+  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap
 } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
-import { Product } from '@/core/domain/entities/product.entity';
+import { Product, DispatchRecord, DispatchStatus } from '@/core/domain/entities/product.entity';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
 
@@ -74,10 +75,61 @@ function ProductSkeletonGrid() {
   );
 }
 
+// ─── Traffic Light Status Badge Component ─────────────────────────────────────
+
+function DispatchStatusBadge({ status }: { status: DispatchStatus }) {
+  switch (status) {
+    case 'NUNCA_ENVIADA':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400 backdrop-blur-md shadow-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          🟢 Nunca enviada (Alta prioridade)
+        </span>
+      );
+    case 'ENVIADA_HOJE':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 text-[10px] font-extrabold text-blue-400 backdrop-blur-md">
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+          🔵 Enviada hoje
+        </span>
+      );
+    case 'ENVIADA_RECENTEMENTE':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[10px] font-extrabold text-red-400 backdrop-blur-md">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+          🔴 Enviada recentemente (&lt;3d)
+        </span>
+      );
+    case 'CANDIDATA_REENVIO':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-extrabold text-amber-400 backdrop-blur-md">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          🟡 Reenvio recomendado (&gt;15d)
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+          ⚪ Arquivada
+        </span>
+      );
+  }
+}
+
 // ─── Types & Storage Keys ───────────────────────────────────────────────────
 
 type ViewMode = 'grid' | 'list';
-type SortOption = 'recentes' | 'menor_preco' | 'maior_preco' | 'maior_desconto';
+type SortOption =
+  | 'nunca_enviada'
+  | 'mais_enviada'
+  | 'menos_enviada'
+  | 'ultimo_envio'
+  | 'recentes'
+  | 'maior_desconto'
+  | 'menor_preco'
+  | 'maior_preco';
+
+type DispatchFilter = 'TODOS' | 'NUNCA_ENVIADA' | 'ENVIADA_HOJE' | 'CANDIDATA_REENVIO' | 'ENVIADA_RECENTEMENTE';
 
 const LS_VIEW = 'mundo_lk_products_view';
 const LS_SORT = 'mundo_lk_products_sort';
@@ -95,15 +147,16 @@ const MARKETPLACES_LIST = [
 
 export default function ProdutosPage() {
   const { user } = useAuth();
-  
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Search & Filtering State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMarketplace, setSelectedMarketplace] = useState<string>('TODOS');
   const [selectedCategory, setSelectedCategory] = useState<string>('TODAS');
-  const [sortOption, setSortOption] = useState<SortOption>('recentes');
+  const [selectedDispatchFilter, setSelectedDispatchFilter] = useState<DispatchFilter>('TODOS');
+  const [sortOption, setSortOption] = useState<SortOption>('nunca_enviada');
   const [onlyPromotions, setOnlyPromotions] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
@@ -111,8 +164,18 @@ export default function ProdutosPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // UI Toast / Copied State
+  // UI Feedback / Copied State
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Dispatch Registration Modal State
+  const [dispatchingProduct, setDispatchingProduct] = useState<Product | null>(null);
+  const [channel, setChannel] = useState('WhatsApp Promoções 01');
+  const [targetGroup, setTargetGroup] = useState('Grupo VIP #01');
+  const [notes, setNotes] = useState('');
+  const [dispatchType, setDispatchType] = useState<'MANUAL' | 'AUTOMATIC'>('MANUAL');
+
+  // Dispatch History Modal State
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   // Trash Modal State
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -138,7 +201,6 @@ export default function ProdutosPage() {
     }
   }, []);
 
-  // Save Preferences to LocalStorage
   const handleViewChange = (mode: ViewMode) => {
     setViewMode(mode);
     if (typeof window !== 'undefined') localStorage.setItem(LS_VIEW, mode);
@@ -179,6 +241,42 @@ export default function ProdutosPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // ── Dispatch Registration Submit ──────────────────────────────────────────
+
+  const handleRecordDispatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dispatchingProduct) return;
+    setProcessing(true);
+
+    try {
+      // Record dispatch on domain entity
+      dispatchingProduct.recordDispatch({
+        channel,
+        targetGroup,
+        sentBy: user?.name || user?.email || 'Admin',
+        type: dispatchType,
+        notes,
+      });
+
+      // Save updated product state to Firestore
+      const repo = new FirestoreProductRepository();
+      await repo.updateDispatchHistory(dispatchingProduct);
+
+      // Force UI state refresh
+      setProducts([...products]);
+      setSuccessMsg(`Envio registrado com sucesso para o canal ${channel}! (Total: ${dispatchingProduct.dispatchCount}x)`);
+      setDispatchingProduct(null);
+      setNotes('');
+      setTimeout(() => setSuccessMsg(null), 3500);
+    } catch (err) {
+      console.error('Erro ao registrar envio da oferta:', err);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // ── Trash Actions ──────────────────────────────────────────────────────────
+
   const handleOpenTrashModal = (prod: Product) => {
     setDeletingProduct(prod);
     setDeletionReason('Oferta encerrada');
@@ -206,6 +304,37 @@ export default function ProdutosPage() {
     }
   };
 
+  // ── Summary Campaign Statistics ───────────────────────────────────────────
+
+  const campaignStats = useMemo(() => {
+    const total = products.length;
+    let nuncaEnviadas = 0;
+    let enviadasHoje = 0;
+    let candidatasReenvio = 0;
+    let enviadasRecentes = 0;
+    let totalDispatchesSum = 0;
+
+    for (const p of products) {
+      const status = p.getDispatchStatus();
+      if (status === 'NUNCA_ENVIADA') nuncaEnviadas++;
+      if (status === 'ENVIADA_HOJE') enviadasHoje++;
+      if (status === 'CANDIDATA_REENVIO') candidatasReenvio++;
+      if (status === 'ENVIADA_RECENTEMENTE') enviadasRecentes++;
+      totalDispatchesSum += p.dispatchCount || 0;
+    }
+
+    const averageDispatches = total > 0 ? (totalDispatchesSum / total).toFixed(1) : '0';
+
+    return {
+      total,
+      nuncaEnviadas,
+      enviadasHoje,
+      candidatasReenvio,
+      enviadasRecentes,
+      averageDispatches,
+    };
+  }, [products]);
+
   // ── Smart Filter & Sorting Engine ─────────────────────────────────────────
 
   const filteredProducts = useMemo(() => {
@@ -218,11 +347,16 @@ export default function ProdutosPage() {
       if (selectedCategory !== 'TODAS' && p.categoryId !== selectedCategory && p.brand !== selectedCategory) {
         return false;
       }
-      // 3. Promotion Only Filter
+      // 3. Dispatch Status Filter
+      if (selectedDispatchFilter !== 'TODOS') {
+        const status = p.getDispatchStatus();
+        if (status !== selectedDispatchFilter) return false;
+      }
+      // 4. Promotion Only Filter
       if (onlyPromotions && (!p.discountPercentage || p.discountPercentage.value <= 0)) {
         return false;
       }
-      // 4. Live Search Query
+      // 5. Live Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchTitle = p.title.toLowerCase().includes(q);
@@ -236,6 +370,20 @@ export default function ProdutosPage() {
       }
       return true;
     }).sort((a, b) => {
+      if (sortOption === 'nunca_enviada') {
+        return (a.dispatchCount || 0) - (b.dispatchCount || 0);
+      }
+      if (sortOption === 'mais_enviada') {
+        return (b.dispatchCount || 0) - (a.dispatchCount || 0);
+      }
+      if (sortOption === 'menos_enviada') {
+        return (a.dispatchCount || 0) - (b.dispatchCount || 0);
+      }
+      if (sortOption === 'ultimo_envio') {
+        const timeA = a.lastDispatchedAt ? new Date(a.lastDispatchedAt).getTime() : 0;
+        const timeB = b.lastDispatchedAt ? new Date(b.lastDispatchedAt).getTime() : 0;
+        return timeB - timeA;
+      }
       if (sortOption === 'recentes') {
         return (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0);
       }
@@ -250,7 +398,7 @@ export default function ProdutosPage() {
       }
       return 0;
     });
-  }, [products, selectedMarketplace, selectedCategory, searchQuery, onlyPromotions, sortOption]);
+  }, [products, selectedMarketplace, selectedCategory, selectedDispatchFilter, searchQuery, onlyPromotions, sortOption]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
@@ -266,12 +414,12 @@ export default function ProdutosPage() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400">
-              <ShoppingBag className="h-5 w-5" />
+              <Send className="h-5 w-5" />
             </div>
-            <span>Catálogo Minimalista Premium</span>
+            <span>Central de Controle de Divulgação de Ofertas</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Gestão visual profissional dos seus produtos cadastrados nos marketplaces.
+            Gestão inteligente de histórico de envios, frequência de campanhas e semáforo visual de reenvios.
           </p>
         </div>
 
@@ -297,6 +445,47 @@ export default function ProdutosPage() {
         </div>
       )}
 
+      {/* ── Campaign Control Summary Dashboard KPI Cards ─────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-3.5 flex flex-col justify-between shadow-sm">
+          <span className="text-[11px] font-semibold text-slate-400">📦 Total Ofertas</span>
+          <div className="text-xl font-extrabold text-white mt-1">{campaignStats.total}</div>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 flex flex-col justify-between shadow-sm">
+          <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+            🟢 Nunca Enviadas
+          </span>
+          <div className="text-xl font-extrabold text-emerald-300 mt-1">{campaignStats.nuncaEnviadas}</div>
+        </div>
+
+        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3.5 flex flex-col justify-between shadow-sm">
+          <span className="text-[11px] font-semibold text-blue-400 flex items-center gap-1">
+            🔵 Enviadas Hoje
+          </span>
+          <div className="text-xl font-extrabold text-blue-300 mt-1">{campaignStats.enviadasHoje}</div>
+        </div>
+
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex flex-col justify-between shadow-sm">
+          <span className="text-[11px] font-semibold text-amber-400 flex items-center gap-1">
+            🟡 Prontas (&gt;15d)
+          </span>
+          <div className="text-xl font-extrabold text-amber-300 mt-1">{campaignStats.candidatasReenvio}</div>
+        </div>
+
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3.5 flex flex-col justify-between shadow-sm">
+          <span className="text-[11px] font-semibold text-red-400 flex items-center gap-1">
+            🔴 Recentes (&lt;3d)
+          </span>
+          <div className="text-xl font-extrabold text-red-300 mt-1">{campaignStats.enviadasRecentes}</div>
+        </div>
+
+        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-3.5 flex flex-col justify-between shadow-sm">
+          <span className="text-[11px] font-semibold text-purple-400">📊 Média de Envios</span>
+          <div className="text-xl font-extrabold text-purple-300 mt-1">{campaignStats.averageDispatches}x</div>
+        </div>
+      </div>
+
       {/* ── Search, Filters & View Control Bar ─────────────────────────────── */}
       <div className="space-y-3">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 shadow-md">
@@ -307,7 +496,7 @@ export default function ProdutosPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              placeholder="Buscar por nome, marca, categoria ou ID..."
+              placeholder="Buscar oferta por nome, marca, categoria ou ID..."
               className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/80 transition"
             />
             {searchQuery && (
@@ -330,7 +519,11 @@ export default function ProdutosPage() {
                 onChange={(e) => handleSortChange(e.target.value as SortOption)}
                 className="pl-8 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-slate-300 focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                <option value="recentes">Mais recentes</option>
+                <option value="nunca_enviada">Nunca enviadas primeiro</option>
+                <option value="mais_enviada">Mais divulgadas (Top Envios)</option>
+                <option value="menos_enviada">Menos divulgadas</option>
+                <option value="ultimo_envio">Último envio recente</option>
+                <option value="recentes">Mais recentes no catálogo</option>
                 <option value="maior_desconto">Maior Desconto (% OFF)</option>
                 <option value="menor_preco">Menor Preço (R$)</option>
                 <option value="maior_preco">Maior Preço (R$)</option>
@@ -378,19 +571,25 @@ export default function ProdutosPage() {
           </div>
         </div>
 
-        {/* Marketplace Selector Tabs */}
+        {/* Dispatch Status Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {MARKETPLACES_LIST.map((mkt) => (
+          {[
+            { id: 'TODOS', label: 'Todas as Ofertas' },
+            { id: 'NUNCA_ENVIADA', label: '🟢 Nunca Enviadas (Alta Prioridade)' },
+            { id: 'ENVIADA_HOJE', label: '🔵 Enviadas Hoje' },
+            { id: 'CANDIDATA_REENVIO', label: '🟡 Prontas para Reenvio (>15d)' },
+            { id: 'ENVIADA_RECENTEMENTE', label: '🔴 Enviadas Recentes (<3d)' },
+          ].map((tab) => (
             <button
-              key={mkt.slug}
-              onClick={() => handleMarketplaceChange(mkt.slug)}
+              key={tab.id}
+              onClick={() => { setSelectedDispatchFilter(tab.id as DispatchFilter); setCurrentPage(1); }}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                selectedMarketplace === mkt.slug
+                selectedDispatchFilter === tab.id
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                   : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/80'
               }`}
             >
-              {mkt.name}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -405,26 +604,26 @@ export default function ProdutosPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/20 mx-auto mb-4">
             <ShoppingBag className="h-8 w-8" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-1">Nenhum produto encontrado.</h3>
+          <h3 className="text-lg font-bold text-white mb-1">Nenhuma oferta encontrada.</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto mb-6">
-            {searchQuery || selectedMarketplace !== 'TODOS'
-              ? 'Nenhum resultado corresponde aos seus filtros de busca atuais.'
-              : 'Cole a URL de um produto no Dashboard para cadastrá-lo automaticamente no seu catálogo.'}
+            {searchQuery || selectedMarketplace !== 'TODOS' || selectedDispatchFilter !== 'TODOS'
+              ? 'Nenhum resultado corresponde aos seus filtros de busca ou histórico de envios.'
+              : 'Cole a URL de um produto no Dashboard para cadastrá-lo no seu catálogo de campanhas.'}
           </p>
           <div className="flex items-center justify-center gap-3">
-            {searchQuery || selectedMarketplace !== 'TODOS' ? (
+            {searchQuery || selectedMarketplace !== 'TODOS' || selectedDispatchFilter !== 'TODOS' ? (
               <Button
                 variant="outline"
                 size="sm"
                 className="text-xs"
-                onClick={() => { setSearchQuery(''); setSelectedMarketplace('TODOS'); setOnlyPromotions(false); }}
+                onClick={() => { setSearchQuery(''); setSelectedMarketplace('TODOS'); setSelectedDispatchFilter('TODOS'); setOnlyPromotions(false); }}
               >
                 Limpar Filtros
               </Button>
             ) : (
               <Link href="/dashboard">
                 <Button variant="primary" size="sm" className="text-xs" leftIcon={<Sparkles className="h-3.5 w-3.5" />}>
-                  Importar 1º Produto
+                  Importar 1ª Oferta
                 </Button>
               </Link>
             )}
@@ -440,6 +639,7 @@ export default function ProdutosPage() {
             const mainImg = p.images && p.images.length > 0 ? p.images[0] : undefined;
             const isCopied = copiedId === p.id;
             const targetUrl = p.affiliateUrl?.url || p.originalUrl;
+            const dispatchStatus = p.getDispatchStatus();
 
             return (
               <div
@@ -460,11 +660,9 @@ export default function ProdutosPage() {
                     )}
                   </div>
 
-                  {/* Top Right Quick Badges */}
-                  <div className="absolute top-2 right-2">
-                    <span className="rounded-md bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400 backdrop-blur-md">
-                      🟢 Ativo
-                    </span>
+                  {/* Traffic Light Status Overlay */}
+                  <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                    <DispatchStatusBadge status={dispatchStatus} />
                   </div>
                 </div>
 
@@ -488,39 +686,85 @@ export default function ProdutosPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Dispatch Campaign Metrics Box */}
+                  <div className="mt-3 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between font-semibold">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <Send className="h-3 w-3 text-blue-400" />
+                        Envios realizados:
+                      </span>
+                      <span className="text-white font-extrabold bg-blue-500/20 px-2 py-0.5 rounded-md border border-blue-500/30">
+                        {p.dispatchCount || 0}x
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-900">
+                      <span>Último envio:</span>
+                      <span className="text-slate-300 font-medium truncate max-w-[130px]">
+                        {p.lastDispatchedAt
+                          ? `${new Date(p.lastDispatchedAt).toLocaleDateString('pt-BR')} ${new Date(p.lastDispatchedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Nunca divulgado'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Card Actions Footer */}
-                <div className="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-3 gap-1.5">
-                  <Button
-                    size="sm"
-                    variant={isCopied ? 'success' : 'secondary'}
-                    className="text-[11px] px-2 py-1.5 h-8"
-                    leftIcon={isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                    onClick={() => handleCopyLink(p.id, targetUrl)}
-                  >
-                    {isCopied ? 'Copiado!' : 'Copiar'}
-                  </Button>
+                {/* Campaign Dispatch Action Footer */}
+                <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      className="text-[11px] px-2 py-1.5 h-8 font-semibold shadow-md shadow-blue-600/20"
+                      leftIcon={<Send className="h-3 w-3" />}
+                      onClick={() => setDispatchingProduct(p)}
+                    >
+                      Registrar Envio
+                    </Button>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-[11px] px-2 py-1.5 h-8"
-                    leftIcon={<ExternalLink className="h-3 w-3" />}
-                    onClick={() => window.open(targetUrl, '_blank')}
-                  >
-                    Ver
-                  </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-[11px] px-2 py-1.5 h-8"
+                      leftIcon={<History className="h-3 w-3" />}
+                      onClick={() => setHistoryProduct(p)}
+                    >
+                      Ver Histórico
+                    </Button>
+                  </div>
 
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    className="text-[11px] px-2 py-1.5 h-8"
-                    title="Mover para a Lixeira"
-                    onClick={() => handleOpenTrashModal(p)}
-                  >
-                    <Trash2 className="h-3 w-3 mx-auto" />
-                  </Button>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant={isCopied ? 'success' : 'secondary'}
+                      className="text-[11px] px-2 py-1.5 h-7"
+                      leftIcon={isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      onClick={() => handleCopyLink(p.id, targetUrl)}
+                    >
+                      {isCopied ? 'Copiado!' : 'Copiar'}
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-[11px] px-2 py-1.5 h-7"
+                      leftIcon={<ExternalLink className="h-3 w-3" />}
+                      onClick={() => window.open(targetUrl, '_blank')}
+                    >
+                      Ver
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      className="text-[11px] px-2 py-1.5 h-7"
+                      title="Mover para a Lixeira"
+                      onClick={() => handleOpenTrashModal(p)}
+                    >
+                      <Trash2 className="h-3 w-3 mx-auto" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             );
@@ -533,12 +777,13 @@ export default function ProdutosPage() {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950 border-b border-slate-800 text-[11px] uppercase font-bold text-slate-400">
                 <tr>
-                  <th className="py-3.5 px-4">Produto</th>
+                  <th className="py-3.5 px-4">Oferta / Produto</th>
                   <th className="py-3.5 px-4">Marketplace</th>
                   <th className="py-3.5 px-4">Preço</th>
-                  <th className="py-3.5 px-4">Desconto</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Ações</th>
+                  <th className="py-3.5 px-4">Semáforo de Envio</th>
+                  <th className="py-3.5 px-4">Total Envios</th>
+                  <th className="py-3.5 px-4">Último Envio</th>
+                  <th className="py-3.5 px-4 text-right">Ações de Divulgação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
@@ -547,6 +792,7 @@ export default function ProdutosPage() {
                   const mainImg = p.images && p.images.length > 0 ? p.images[0] : undefined;
                   const isCopied = copiedId === p.id;
                   const targetUrl = p.affiliateUrl?.url || p.originalUrl;
+                  const dispatchStatus = p.getDispatchStatus();
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition">
@@ -574,42 +820,42 @@ export default function ProdutosPage() {
                         {formattedPrice}
                       </td>
                       <td className="py-3 px-4">
-                        {p.discountPercentage && p.discountPercentage.value > 0 ? (
-                          <Badge variant="warning">{p.discountPercentage.value}% OFF</Badge>
-                        ) : (
-                          <span className="text-slate-500">—</span>
-                        )}
+                        <DispatchStatusBadge status={dispatchStatus} />
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
-                          🟢 Ativo
-                        </span>
+                      <td className="py-3 px-4 font-extrabold text-blue-400">
+                        {p.dispatchCount || 0}x
+                      </td>
+                      <td className="py-3 px-4 text-slate-400 text-[11px]">
+                        {p.lastDispatchedAt
+                          ? `${new Date(p.lastDispatchedAt).toLocaleDateString('pt-BR')} ${new Date(p.lastDispatchedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Nunca'}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Button
                             size="sm"
-                            variant={isCopied ? 'success' : 'secondary'}
+                            variant="primary"
+                            className="text-xs"
+                            leftIcon={<Send className="h-3 w-3" />}
+                            onClick={() => setDispatchingProduct(p)}
+                          >
+                            Registrar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="text-xs"
+                            onClick={() => setHistoryProduct(p)}
+                          >
+                            Histórico
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={isCopied ? 'success' : 'outline'}
                             className="text-xs"
                             onClick={() => handleCopyLink(p.id, targetUrl)}
                           >
-                            {isCopied ? 'Copiado' : 'Copiar'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs"
-                            onClick={() => window.open(targetUrl, '_blank')}
-                          >
-                            Ver
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            className="text-xs p-2"
-                            onClick={() => handleOpenTrashModal(p)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {isCopied ? 'Copiado' : 'Link'}
                           </Button>
                         </div>
                       </td>
@@ -626,7 +872,7 @@ export default function ProdutosPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-2 text-xs text-slate-400 border-t border-slate-800/80">
           <span>
-            Exibindo {paginatedProducts.length} de {filteredProducts.length} produtos
+            Exibindo {paginatedProducts.length} de {filteredProducts.length} ofertas
           </span>
 
           <div className="flex items-center gap-1.5">
@@ -655,7 +901,199 @@ export default function ProdutosPage() {
         </div>
       )}
 
-      {/* ── Modal Mover para a Lixeira ───────────────────────────────────────── */}
+      {/* ── Modal Registrar Envio de Oferta ──────────────────────────────────── */}
+      {dispatchingProduct && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg p-6 bg-slate-900 border-slate-800 animate-in fade-in zoom-in-95 duration-150 rounded-2xl shadow-2xl">
+            <CardHeader className="p-0 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20">
+                    <Send className="h-4 w-4" />
+                  </div>
+                  <CardTitle className="text-base text-white">Registrar Envio de Oferta</CardTitle>
+                </div>
+                <button onClick={() => setDispatchingProduct(null)} className="text-slate-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <CardDescription className="text-xs mt-1 text-slate-300 font-semibold">{dispatchingProduct.title}</CardDescription>
+            </CardHeader>
+
+            <CardContent className="p-0 space-y-4 text-xs">
+              {/* Alert Banner if sent recently (<3 days) */}
+              {dispatchingProduct.getDispatchStatus() === 'ENVIADA_RECENTEMENTE' && (
+                <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 flex items-start gap-2.5">
+                  <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-xs text-red-200">⚠️ Aviso de Reenvio Recente</strong>
+                    <span>
+                      Esta oferta foi divulgada recentemente ({dispatchingProduct.lastDispatchedAt ? new Date(dispatchingProduct.lastDispatchedAt).toLocaleDateString('pt-BR') : 'há poucos dias'}) no canal {dispatchingProduct.lastChannel || 'anterior'}. Evite enviar a mesma oferta repetidamente sem intervalo suficiente.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleRecordDispatchSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300 block">Canal de Divulgação</label>
+                  <select
+                    value={channel}
+                    onChange={(e) => setChannel(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="WhatsApp Promoções 01">WhatsApp Promoções 01</option>
+                    <option value="WhatsApp Achadinhos VIP">WhatsApp Achadinhos VIP</option>
+                    <option value="Telegram Ofertas Pro">Telegram Ofertas Pro</option>
+                    <option value="Instagram Feed / Stories">Instagram Feed / Stories</option>
+                    <option value="Facebook Grupos">Facebook Grupos</option>
+                    <option value="TikTok Shop / Vídeo">TikTok Shop / Vídeo</option>
+                    <option value="Outro Canal">Outro Canal</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300 block">Grupo / Lista de Destino</label>
+                  <input
+                    type="text"
+                    value={targetGroup}
+                    onChange={(e) => setTargetGroup(e.target.value)}
+                    placeholder="Ex: Grupo VIP #01, Canal Geral, Feed Principal"
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-300 block">Modo de Envio</label>
+                    <select
+                      value={dispatchType}
+                      onChange={(e) => setDispatchType(e.target.value as 'MANUAL' | 'AUTOMATIC')}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="MANUAL">Envio Manual</option>
+                      <option value="AUTOMATIC">Automático / Bot</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-300 block">Registrado por</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={user?.name || user?.email || 'Admin'}
+                      className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl p-2.5 text-xs text-slate-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300 block">Observação / Nota de Desempenho (Opcional)</label>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Ex: Bom engajamento de cliques no horário do almoço..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setDispatchingProduct(null)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={processing}
+                    leftIcon={<Send className="h-3.5 w-3.5" />}
+                  >
+                    {processing ? 'Registrando...' : 'Confirmar Envio'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Modal Histórico Completo de Divulgação ───────────────────────────── */}
+      {historyProduct && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl p-6 bg-slate-900 border-slate-800 animate-in fade-in zoom-in-95 duration-150 rounded-2xl shadow-2xl">
+            <CardHeader className="p-0 mb-4 border-b border-slate-800 pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600/10 text-purple-400 border border-purple-500/20">
+                    <History className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base text-white">Histórico Completo de Divulgação</CardTitle>
+                    <CardDescription className="text-xs text-slate-400">
+                      Registro contínuo e inalterável de campanhas enviadas.
+                    </CardDescription>
+                  </div>
+                </div>
+                <button onClick={() => setHistoryProduct(null)} className="text-slate-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-300 font-bold mt-2 truncate">{historyProduct.title}</p>
+            </CardHeader>
+
+            <CardContent className="p-0 space-y-4 text-xs max-h-[420px] overflow-y-auto pr-1">
+              {!historyProduct.dispatchHistory || historyProduct.dispatchHistory.length === 0 ? (
+                <div className="text-center py-10 text-slate-400 space-y-2">
+                  <Send className="h-8 w-8 mx-auto text-slate-600" />
+                  <p className="text-xs">Esta oferta ainda não possui envios registrados.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyProduct.dispatchHistory.map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/80 flex flex-col gap-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-bold text-white">
+                          <span className="text-blue-400">📢 {item.channel}</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-slate-300">{item.targetGroup || 'Grupo Geral'}</span>
+                        </div>
+
+                        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400">
+                          {item.type === 'AUTOMATIC' ? '🤖 Automático' : '👤 Envio Manual'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-900">
+                        <span>Data: {new Date(item.dispatchedAt).toLocaleString('pt-BR')}</span>
+                        <span>Operador: {item.sentBy || 'Admin'}</span>
+                      </div>
+
+                      {item.notes && (
+                        <p className="text-[11px] text-slate-300 italic bg-slate-900/60 p-2 rounded-lg border border-slate-800/60 mt-1">
+                          "{item.notes}"
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2 border-t border-slate-800">
+                <Button type="button" variant="outline" size="sm" onClick={() => setHistoryProduct(null)}>
+                  Fechar Histórico
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Modal Mover para Lixeira ───────────────────────────────────────── */}
       {deletingProduct && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md p-6 bg-slate-900 border-slate-800 animate-in fade-in zoom-in-95 duration-150 rounded-2xl shadow-2xl">

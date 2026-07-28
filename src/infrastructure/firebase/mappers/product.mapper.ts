@@ -1,4 +1,4 @@
-import { Product } from '../../../core/domain/entities/product.entity';
+import { Product, DispatchRecord } from '../../../core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '../../../core/domain/value-objects';
 
 export interface FirestoreProductDoc {
@@ -18,6 +18,14 @@ export interface FirestoreProductDoc {
   status: 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
   publicationCount?: number;
   opportunityScore?: number;
+
+  // Dispatch Tracking Persistence Fields
+  dispatchCount?: number;
+  firstDispatchedAt?: string | null;
+  lastDispatchedAt?: string | null;
+  lastChannel?: string | null;
+  dispatchHistory?: DispatchRecord[];
+
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +52,13 @@ export class ProductMapper {
       discountPercentage,
       images: doc.images || [],
       status: doc.status,
+
+      dispatchCount: doc.dispatchCount ?? 0,
+      firstDispatchedAt: doc.firstDispatchedAt ? new Date(doc.firstDispatchedAt) : null,
+      lastDispatchedAt: doc.lastDispatchedAt ? new Date(doc.lastDispatchedAt) : null,
+      lastChannel: doc.lastChannel || null,
+      dispatchHistory: Array.isArray(doc.dispatchHistory) ? doc.dispatchHistory : [],
+
       createdAt: new Date(doc.createdAt),
       updatedAt: new Date(doc.updatedAt),
     });
@@ -65,6 +80,13 @@ export class ProductMapper {
       discountPercentage: entity.discountPercentage.value,
       images: entity.images,
       status: entity.status,
+
+      dispatchCount: entity.dispatchCount || 0,
+      firstDispatchedAt: entity.firstDispatchedAt ? entity.firstDispatchedAt.toISOString() : null,
+      lastDispatchedAt: entity.lastDispatchedAt ? entity.lastDispatchedAt.toISOString() : null,
+      lastChannel: entity.lastChannel || null,
+      dispatchHistory: entity.dispatchHistory || [],
+
       createdAt: entity.createdAt.toISOString(),
       updatedAt: entity.updatedAt.toISOString(),
     };

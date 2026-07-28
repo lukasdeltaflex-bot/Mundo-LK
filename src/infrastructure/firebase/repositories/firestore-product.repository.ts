@@ -107,6 +107,19 @@ export class FirestoreProductRepository implements IProductRepository {
     }
   }
 
+  public async updateDispatchHistory(product: Product): Promise<void> {
+    const ref = doc(db, this.collectionName, product.id);
+    const raw = ProductMapper.toPersistence(product);
+    await setDoc(ref, {
+      dispatchCount: raw.dispatchCount,
+      firstDispatchedAt: raw.firstDispatchedAt,
+      lastDispatchedAt: raw.lastDispatchedAt,
+      lastChannel: raw.lastChannel,
+      dispatchHistory: raw.dispatchHistory,
+      updatedAt: raw.updatedAt,
+    }, { merge: true });
+  }
+
   public async delete(id: string): Promise<void> {
     const ref = doc(db, this.collectionName, id);
     await deleteDoc(ref);
