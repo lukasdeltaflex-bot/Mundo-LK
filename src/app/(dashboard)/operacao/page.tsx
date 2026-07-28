@@ -255,6 +255,68 @@ export default function AffiliateOperationsHubPage() {
             whatsAppText: `🔥 *${p.title}*\nLink: ${p.originalUrl}`,
           });
         }}
+        onEditProduct={(p) => {
+          setReviewData({
+            data: {
+              title: p.title,
+              description: p.description,
+              currentPrice: p.currentPrice ? p.currentPrice.amount : 0,
+              originalPrice: p.previousPrice ? p.previousPrice.amount : null,
+              discountPercentage: p.discountPercentage ? p.discountPercentage.value : 0,
+              currency: 'BRL',
+              brand: p.brand,
+              category: p.categoryId,
+              subcategory: 'Geral',
+              marketplace: p.marketplaceSlug.toUpperCase(),
+              sellerName: '',
+              sellerRating: 5,
+              shippingType: 'Frete Grátis',
+              shippingPrice: 0,
+              freeShipping: true,
+              prime: false,
+              full: false,
+              mall: false,
+              coupon: '',
+              cashback: '',
+              installments: '',
+              image: p.images[0] || '',
+              gallery: p.images,
+              rating: 5,
+              reviewCount: 100,
+              soldQuantity: '100+',
+              productId: p.id,
+              canonicalUrl: p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl,
+              originalUrl: p.originalUrl,
+            },
+            slug: p.marketplaceSlug,
+          });
+        }}
+        onDuplicateProduct={(p) => {
+          alert(`Oferta "${p.title}" duplicada para nova campanha.`);
+        }}
+        onArchiveProduct={async (p) => {
+          if (confirm(`Deseja arquivar a oferta "${p.title}"?`)) {
+            try {
+              const repo = new FirestoreProductRepository();
+              p.status = 'ARCHIVED';
+              await repo.save(p);
+              await loadProducts();
+            } catch (err) {
+              console.error('Erro ao arquivar oferta:', err);
+            }
+          }
+        }}
+        onDeleteProduct={async (p) => {
+          if (confirm(`Deseja remover permanentemente a oferta "${p.title}"?`)) {
+            try {
+              const repo = new FirestoreProductRepository();
+              await repo.delete(p.id);
+              await loadProducts();
+            } catch (err) {
+              console.error('Erro ao excluir oferta:', err);
+            }
+          }
+        }}
       />
 
       {/* ── MODAIS E PAINÉIS FLUTUANTES ── */}
