@@ -11,6 +11,7 @@ import { JobQueueService } from '@/core/application/services/JobQueueService';
 import { Campaign } from '@/core/domain/entities/campaign.entity';
 import { AutomationRule } from '@/core/domain/entities/automation-rule.entity';
 import { Job } from '@/core/domain/entities/job.entity';
+import { MarketplaceRecommendationsWidget } from '@/presentation/components/business/MarketplaceRecommendationsWidget';
 import {
   Flame,
   Zap,
@@ -164,6 +165,9 @@ export default function GrowthDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Widget de Recomendações Comerciais com Publicação Assistida (1-clique) ── */}
+      <MarketplaceRecommendationsWidget />
 
       {/* ── Grid Principal ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
