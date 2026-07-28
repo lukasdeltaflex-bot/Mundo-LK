@@ -1,8 +1,9 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { IProductRepository } from '../../../core/domain/ports/repositories/IProductRepository';
 import { Product } from '../../../core/domain/entities/product.entity';
 import { ProductMapper, FirestoreProductDoc } from '../mappers/product.mapper';
+import { PaginationResult } from '../../../core/domain/value-objects/PaginationResult';
 
 export class FirestoreProductRepository implements IProductRepository {
   private collectionName = 'products';
@@ -50,6 +51,36 @@ export class FirestoreProductRepository implements IProductRepository {
     } catch (err) {
       console.warn('[FirestoreProductRepository] findAll error:', err);
       return [];
+    }
+  }
+
+  public async findPaged(
+    userId: string,
+    pageSize: number = 20,
+    lastDocSnap?: QueryDocumentSnapshot
+  ): Promise<PaginationResult<Product>> {
+    try {
+      const constraints: any[] = [where('userId', '==', userId), limit(pageSize)];
+      if (lastDocSnap) {
+        constraints.push(startAfter(lastDocSnap));
+      }
+      const q = query(collection(db, this.collectionName), ...constraints);
+      const snap = await getDocs(q);
+      const items = snap.docs
+        .map((docSnap) => docSnap.data() as FirestoreProductDoc)
+        .filter((d) => !d.status || d.status === 'ACTIVE')
+        .map((d) => ProductMapper.toDomain(d));
+
+      const newLastSnap = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : undefined;
+
+      return {
+        items,
+        cursor: newLastSnap,
+        hasMore: snap.docs.length === pageSize,
+      };
+    } catch (err) {
+      console.warn('[FirestoreProductRepository] findPaged error:', err);
+      return { items: [], hasMore: false };
     }
   }
 

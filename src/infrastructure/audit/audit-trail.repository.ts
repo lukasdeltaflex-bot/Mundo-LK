@@ -16,7 +16,7 @@ export class AuditTrailRepository implements IAuditTrailRepository {
 
   public async record(log: AuditLog): Promise<void> {
     this.logs.push(log);
-    console.log(`[AuditTrail] Action: "${log.action}" by User: "${log.userId}" at ${log.createdAt.toISOString()}`);
+    console.log(`[AuditTrail] Action: "${log.action}" by User: "${log.userId}" at ${log.timestamp}`);
   }
 
   public async findByUserId(userId: string, limit: number = 50): Promise<AuditLog[]> {

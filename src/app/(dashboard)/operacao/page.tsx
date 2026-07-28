@@ -30,6 +30,8 @@ import { ImportEngine, ResolutionStepLog } from './services/ImportEngine';
 import { AIService } from './services/AIService';
 import { MediaService, MediaItem } from './services/MediaService';
 import { PublishingService } from './services/PublishingService';
+import { AuditLogService } from '@/core/application/services/AuditLogService';
+import { BackupExportService } from '@/core/application/services/BackupExportService';
 
 export default function AffiliateOperationsHubPage() {
   const { user } = useAuth();
@@ -77,8 +79,24 @@ export default function AffiliateOperationsHubPage() {
   };
 
   useEffect(() => {
+    AuditLogService.getInstance().initListeners();
     loadProducts();
   }, [user]);
+
+  const handleExportData = async (format: 'csv' | 'json') => {
+    if (!user?.uid) return;
+    try {
+      const exporter = new BackupExportService();
+      const res = await exporter.exportData({
+        userId: user.uid,
+        type: 'offers',
+        format,
+      });
+      exporter.downloadFile(res.filename, res.content, res.mimeType);
+    } catch (err) {
+      console.error('[Hub] Erro ao exportar dados:', err);
+    }
+  };
 
   // Ações do Hub
   const handleTestConnection = async (slug: string) => {
@@ -317,6 +335,8 @@ export default function AffiliateOperationsHubPage() {
             }
           }
         }}
+        onExportCSV={() => handleExportData('csv')}
+        onExportJSON={() => handleExportData('json')}
       />
 
       {/* ── MODAIS E PAINÉIS FLUTUANTES ── */}

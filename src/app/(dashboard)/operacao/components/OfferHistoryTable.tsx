@@ -3,7 +3,8 @@
 import React from 'react';
 import {
   History, Share2, ExternalLink, Calendar, ShoppingBag, Eye,
-  MousePointerClick, Edit3, Copy, Trash2, Archive, CheckCircle2, Sparkles, Layers
+  MousePointerClick, Edit3, Copy, Trash2, Archive, CheckCircle2, Sparkles, Layers,
+  Download, FileSpreadsheet, ArrowDown
 } from 'lucide-react';
 import { Product } from '@/core/domain/entities/product.entity';
 import { Button } from '@/presentation/components/ui/Button';
@@ -23,6 +24,11 @@ interface OfferHistoryTableProps {
   onDuplicateProduct?: (product: Product) => void;
   onArchiveProduct?: (product: Product) => void;
   onDeleteProduct?: (product: Product) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 export const OfferHistoryTable: React.FC<OfferHistoryTableProps> = ({
@@ -32,15 +38,43 @@ export const OfferHistoryTable: React.FC<OfferHistoryTableProps> = ({
   onDuplicateProduct,
   onArchiveProduct,
   onDeleteProduct,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
+  onExportCSV,
+  onExportJSON,
 }) => {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl space-y-3">
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <span className="font-bold text-sm text-white flex items-center gap-2">
           <History className="h-4 w-4 text-blue-400" />
-          Histórico Operacional & Ciclo de Vida das Ofertas ({products.length})
+          Histórico Operacional & Ciclo de Vida ({products.length} ofertas)
         </span>
-        <span className="text-[11px] text-slate-400 font-mono">Status & Disparos em Tempo Real</span>
+
+        <div className="flex items-center gap-2">
+          {onExportCSV && (
+            <button
+              type="button"
+              onClick={onExportCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Exportar CSV
+            </button>
+          )}
+
+          {onExportJSON && (
+            <button
+              type="button"
+              onClick={onExportJSON}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-[11px] font-bold text-blue-300 hover:bg-blue-500/20 transition"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar JSON
+            </button>
+          )}
+        </div>
       </div>
 
       {products.length === 0 ? (
@@ -155,6 +189,20 @@ export const OfferHistoryTable: React.FC<OfferHistoryTableProps> = ({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {hasMore && onLoadMore && (
+        <div className="p-3 border-t border-slate-800 flex justify-center bg-slate-950/40">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-500/30 bg-blue-500/10 text-xs font-bold text-blue-300 hover:bg-blue-500/20 disabled:opacity-50 transition"
+          >
+            <ArrowDown className="h-4 w-4" />
+            {isLoadingMore ? 'Carregando mais ofertas...' : 'Carregar mais ofertas'}
+          </button>
         </div>
       )}
     </div>

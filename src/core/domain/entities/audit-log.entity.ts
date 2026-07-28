@@ -1,32 +1,41 @@
 export interface AuditLogProps {
   id: string;
   userId: string;
+  tenantId: string;
   action: string;
-  previousValue?: Record<string, unknown> | null;
-  newValue?: Record<string, unknown> | null;
+  module: string;
+  entity: string;
+  entityId: string;
+  metadata?: Record<string, unknown>;
+  timestamp: string;
   ip?: string;
-  origin?: string;
-  createdAt: Date;
+  userAgent?: string;
 }
 
 export class AuditLog {
   public readonly id: string;
   public readonly userId: string;
+  public readonly tenantId: string;
   public readonly action: string;
-  public readonly previousValue?: Record<string, unknown> | null;
-  public readonly newValue?: Record<string, unknown> | null;
+  public readonly module: string;
+  public readonly entity: string;
+  public readonly entityId: string;
+  public readonly metadata: Record<string, unknown>;
+  public readonly timestamp: string;
   public readonly ip?: string;
-  public readonly origin?: string;
-  public readonly createdAt: Date;
+  public readonly userAgent?: string;
 
   constructor(props: AuditLogProps) {
     this.id = props.id;
     this.userId = props.userId;
+    this.tenantId = props.tenantId || props.userId;
     this.action = props.action;
-    this.previousValue = props.previousValue;
-    this.newValue = props.newValue;
+    this.module = props.module;
+    this.entity = props.entity;
+    this.entityId = props.entityId;
+    this.metadata = props.metadata || {};
+    this.timestamp = props.timestamp || new Date().toISOString();
     this.ip = props.ip;
-    this.origin = props.origin;
-    this.createdAt = props.createdAt;
+    this.userAgent = props.userAgent;
   }
 }

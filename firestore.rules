@@ -17,10 +17,11 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Verifica se os campos multi-tenant e owner estão corretos no payload
+    // Verifica se os campos multi-tenant e owner estão estritamente vinculados ao request.auth.uid
     function isPayloadValid(userId) {
-      return request.resource.data.userId == userId &&
-             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == userId);
+      return request.auth.uid == userId &&
+             request.resource.data.userId == request.auth.uid &&
+             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == request.auth.uid);
     }
     
     // Verifica a imutabilidade dos campos críticos (userId, tenantId, createdAt)
@@ -110,7 +111,22 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 10. prompts
+    // 10. system_logs (Auditoria Trilha Imutável)
+    match /system_logs/{logId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if false; // Logs de auditoria são imutáveis
+    }
+
+    // 11. export_jobs (Trabalhos de Exportação Assíncrona)
+    match /export_jobs/{jobId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // 12. prompts
     match /prompts/{promptId} {
       allow read: if isOwner(resource.data.userId) || isAdmin(); 
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -118,7 +134,7 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // 11. notifications
+    // 13. notifications
     match /notifications/{notifId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -126,13 +142,13 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 12. extraction_cache
+    // 14. extraction_cache
     match /extraction_cache/{cacheId} {
       allow read, create, update: if true;
       allow delete: if false; // Deletado automaticamente por política TTL
     }
 
-    // 13. analytics (Telemetria do ExtractionEngine)
+    // 15. analytics (Telemetria do ExtractionEngine)
     match /analytics/{metricId} {
       allow read: if isAuthenticated();
       allow create: if true; // Telemetria enviada pelo backend de extração

@@ -1,8 +1,9 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { IOfferRepository } from '../../../core/domain/ports/repositories/IOfferRepository';
 import { Offer } from '../../../core/domain/entities/offer.entity';
 import { OfferMapper, FirestoreOfferDoc } from '../mappers/offer.mapper';
+import { PaginationResult } from '../../../core/domain/value-objects/PaginationResult';
 
 export class FirestoreOfferRepository implements IOfferRepository {
   private collectionName = 'offers';
@@ -42,6 +43,32 @@ export class FirestoreOfferRepository implements IOfferRepository {
     } catch (err) {
       console.warn('[FirestoreOfferRepository] findByUserId error:', err);
       return [];
+    }
+  }
+
+  public async findPagedByUserId(
+    userId: string,
+    pageSize: number = 20,
+    lastDocSnap?: QueryDocumentSnapshot
+  ): Promise<PaginationResult<Offer>> {
+    try {
+      const constraints: any[] = [where('userId', '==', userId), limit(pageSize)];
+      if (lastDocSnap) {
+        constraints.push(startAfter(lastDocSnap));
+      }
+      const q = query(collection(db, this.collectionName), ...constraints);
+      const snap = await getDocs(q);
+      const items = snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
+      const newLastSnap = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : undefined;
+
+      return {
+        items,
+        cursor: newLastSnap,
+        hasMore: snap.docs.length === pageSize,
+      };
+    } catch (err) {
+      console.warn('[FirestoreOfferRepository] findPagedByUserId error:', err);
+      return { items: [], hasMore: false };
     }
   }
 
