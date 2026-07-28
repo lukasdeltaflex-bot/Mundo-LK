@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const REDIRECTS: Record<string, string> = {
-  '/ofertas':  '/dashboard',
-  '/operacao': '/dashboard',
+  '/ofertas': '/dashboard',
 };
 
 export function middleware(request: NextRequest) {
@@ -21,5 +20,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/ofertas', '/ofertas/:path*', '/operacao', '/operacao/:path*'],
+  matcher: ['/ofertas', '/ofertas/:path*'],
 };
