@@ -15,6 +15,7 @@ import {
   Trash2,
   PlugZap,
   BarChart3,
+  Flame,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ export const ALL_MENU_ITEMS: MenuItemDefinition[] = [
   { id: 'dashboard',   name: 'Dashboard',               href: '/dashboard',               icon: LayoutDashboard },
   { id: 'integracoes', name: 'Central de Marketplaces', href: '/operacao',                icon: PlugZap        },
   { id: 'analytics',   name: 'Inteligência Comercial',  href: '/analytics',               icon: BarChart3      },
+  { id: 'growth',      name: 'Inteligência de Crescimento', href: '/growth',            icon: Flame          },
   { id: 'lote',        name: 'Importação em Lote',      href: '/lote',                    icon: Layers         },
   { id: 'agendamento', name: 'Agendamento',              href: '/agendamento',             icon: Calendar       },
   { id: 'produtos',    name: 'Produtos',                 href: '/produtos',                icon: ShoppingBag    },
