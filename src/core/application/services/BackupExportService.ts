@@ -82,13 +82,16 @@ export class BackupExportService {
     // Grava o trabalho na coleção export_jobs
     try {
       const ref = doc(db, 'export_jobs', jobId);
+      const now = new Date().toISOString();
       await setDoc(ref, {
         id: jobId,
         userId: params.userId,
         type: params.type,
         format: params.format,
         status: 'COMPLETED',
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        completedAt: now,
+        fileUrl: null,
       });
     } catch (err) {
       console.warn('[BackupExportService] Erro ao gravar export_job no Firestore:', err);
