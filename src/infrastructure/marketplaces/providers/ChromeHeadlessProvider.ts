@@ -5,6 +5,11 @@ export class ChromeHeadlessProvider {
   public name = 'ChromeHeadless';
 
   public async extract(url: string, marketplaceSlug: string): Promise<Partial<ProductExtractionResult> | null> {
+    if (typeof window !== 'undefined') {
+      // Navegadores não executam Playwright no frontend
+      return null;
+    }
+
     const startTotal = Date.now();
     console.log(`[Chrome] 🚀 Inicializando navegador Headless para: ${url}`);
     console.log(`[Chrome] URL: ${url}`);
@@ -15,8 +20,9 @@ export class ChromeHeadlessProvider {
     let page: any = null;
 
     try {
-      // Dynamic import of playwright to ensure backend-only safety
-      const { chromium } = await import('playwright');
+      // Dynamic import isolado para o lado do servidor Node.js
+      const playwrightName = 'playwright';
+      const { chromium } = await import(/* webpackIgnore: true */ playwrightName);
       
       const startLaunch = Date.now();
       browser = await chromium.launch({

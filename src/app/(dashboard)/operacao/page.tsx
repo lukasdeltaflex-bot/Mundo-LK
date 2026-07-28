@@ -26,6 +26,7 @@ import { MediaStudioPanel } from './components/MediaStudioPanel';
 import { PublishPanelModal } from './components/PublishPanelModal';
 import { OfferHistoryTable } from './components/OfferHistoryTable';
 import { CredentialManagerModal } from './components/CredentialManagerModal';
+import { ImportEngine, ResolutionStepLog } from './services/ImportEngine';
 
 export default function AffiliateOperationsHubPage() {
   const { user } = useAuth();
@@ -44,8 +45,16 @@ export default function AffiliateOperationsHubPage() {
   const [testingSlug, setTestingSlug] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, DiagnosticTestResult>>({});
 
+  // Estados do Pipeline de Importação
+  const [resolutionLogs, setResolutionLogs] = useState<ResolutionStepLog[]>([]);
+  const [sourceProvider, setSourceProvider] = useState<string | null>(null);
+
   // Modais e Painéis
-  const [reviewData, setReviewData] = useState<{ data: ProductExtractionResult; slug: string } | null>(null);
+  const [reviewData, setReviewData] = useState<{
+    data: ProductExtractionResult;
+    slug: string;
+    reviewReason?: string;
+  } | null>(null);
   const [shareModalData, setShareModalData] = useState<SocialShareData | null>(null);
   const [showCredentialModal, setShowCredentialModal] = useState(false);
 
@@ -81,43 +90,17 @@ export default function AffiliateOperationsHubPage() {
   const handleImportProduct = async (input: string, mode: ImportMode) => {
     setIsImporting(true);
     try {
-      // Simula a resolução do pipeline de extração
-      await new Promise((res) => setTimeout(res, 1200));
+      const engine = new ImportEngine();
+      const result = await engine.resolveProduct(input, mode);
 
-      // Dispara a tela de conferência manual para revisão antes de salvar
-      const preview: ProductExtractionResult = {
-        title: mode === 'url' ? 'Produto Importado do Marketplace' : `Produto (${input.toUpperCase()})`,
-        description: 'Descrição original do produto importado via pipeline inteligente.',
-        currentPrice: 99.9,
-        originalPrice: 149.9,
-        discountPercentage: 33,
-        currency: 'BRL',
-        brand: 'Oficial',
-        category: 'Geral',
-        subcategory: 'Geral',
-        marketplace: 'Shopee',
-        sellerName: 'Loja Verificada',
-        sellerRating: 4.8,
-        shippingType: 'Frete Grátis',
-        shippingPrice: 0,
-        freeShipping: true,
-        prime: false,
-        full: false,
-        mall: true,
-        coupon: '',
-        cashback: '',
-        installments: '',
-        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500',
-        gallery: [],
-        rating: 4.8,
-        reviewCount: 120,
-        soldQuantity: '500+',
-        productId: 'shopee_preview_1',
-        canonicalUrl: input,
-        originalUrl: input,
-      };
+      setResolutionLogs(result.logs);
+      setSourceProvider(result.sourceProvider);
 
-      setReviewData({ data: preview, slug: 'shopee' });
+      setReviewData({
+        data: result.data,
+        slug: result.marketplaceSlug,
+        reviewReason: result.reviewReason,
+      });
     } catch (err) {
       console.error('[Hub] Erro na importação:', err);
     } finally {
@@ -171,7 +154,12 @@ export default function AffiliateOperationsHubPage() {
       />
 
       {/* ── MÓDULO 2: MOTOR UNIVERSAL DE IMPORTAÇÃO (CORAÇÃO DA TELA) ── */}
-      <ProductImporter onImport={handleImportProduct} isLoading={isImporting} />
+      <ProductImporter
+        onImport={handleImportProduct}
+        isLoading={isImporting}
+        resolutionLogs={resolutionLogs}
+        sourceProvider={sourceProvider}
+      />
 
       {/* ── MÓDULOS 3 & 4: IA & MEDIA STUDIO ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -206,6 +194,7 @@ export default function AffiliateOperationsHubPage() {
         <ProductReviewModal
           data={reviewData.data}
           marketplaceSlug={reviewData.slug}
+          reviewReason={reviewData.reviewReason}
           onConfirm={handleConfirmReview}
           onCancel={() => setReviewData(null)}
         />

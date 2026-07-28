@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, ShieldAlert, Sparkles, X, Image as ImageIcon, Check } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Sparkles, X, Image as ImageIcon, Check, AlertCircle } from 'lucide-react';
 import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 import { Button } from '@/presentation/components/ui/Button';
 
 interface ProductReviewModalProps {
   data: ProductExtractionResult;
   marketplaceSlug: string;
+  reviewReason?: string;
   onConfirm: (confirmedData: ProductExtractionResult) => void;
   onCancel: () => void;
 }
@@ -15,6 +16,7 @@ interface ProductReviewModalProps {
 export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
   data,
   marketplaceSlug,
+  reviewReason,
   onConfirm,
   onCancel,
 }) => {
@@ -64,25 +66,38 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
           </button>
         </div>
 
+        {/* Aviso de Regra Anti-Dados-Falsos */}
+        {reviewReason && (
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+            <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">Status: Dados incompletos no pipeline</span>
+              <p className="text-[11px] text-amber-200/90 mt-0.5">{reviewReason}</p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Título do Produto</label>
+              <label className="text-xs font-semibold text-slate-300">Título do Produto *</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                placeholder="Digite o título oficial do anúncio..."
                 required
                 className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-medium text-white focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Preço Atual (R$)</label>
+              <label className="text-xs font-semibold text-slate-300">Preço Atual (R$) *</label>
               <input
                 type="text"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
+                placeholder="Ex: 99.90"
                 required
                 className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-medium text-emerald-400 focus:outline-none focus:border-emerald-500"
               />
@@ -94,6 +109,7 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
                 type="text"
                 value={prevPrice}
                 onChange={(e) => setPrevPrice(e.target.value)}
+                placeholder="Ex: 149.90"
                 className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-medium text-slate-400 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -104,6 +120,7 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
                 type="text"
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
+                placeholder="Ex: Samsung, Nike, Shopee Official..."
                 className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-medium text-white focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -115,6 +132,7 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
               type="text"
               value={image}
               onChange={(e) => setImage(e.target.value)}
+              placeholder="Cole o link da imagem do produto (http://...)..."
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-medium text-white focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -125,6 +143,7 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descrição ou destaques do produto..."
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-medium text-white focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -134,7 +153,7 @@ export const ProductReviewModal: React.FC<ProductReviewModalProps> = ({
               Cancelar
             </Button>
             <Button type="submit" variant="primary" size="sm" leftIcon={<Check className="h-4 w-4" />} className="text-xs font-extrabold">
-              Confirmar Dados
+              Confirmar & Avançar
             </Button>
           </div>
         </form>
