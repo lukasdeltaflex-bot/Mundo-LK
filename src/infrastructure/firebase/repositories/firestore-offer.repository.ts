@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { IOfferRepository } from '../../../core/domain/ports/repositories/IOfferRepository';
 import { Offer } from '../../../core/domain/entities/offer.entity';
@@ -25,7 +25,7 @@ export class FirestoreOfferRepository implements IOfferRepository {
     try {
       const constraints = [where('productId', '==', productId)];
       if (userId) constraints.push(where('userId', '==', userId));
-      const q = query(collection(db, this.collectionName), ...constraints);
+      const q = query(collection(db, this.collectionName), ...constraints, limit(50));
       const snap = await getDocs(q);
       return snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
     } catch (err) {
@@ -36,7 +36,7 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
   public async findByUserId(userId: string): Promise<Offer[]> {
     try {
-      const q = query(collection(db, this.collectionName), where('userId', '==', userId));
+      const q = query(collection(db, this.collectionName), where('userId', '==', userId), limit(50));
       const snap = await getDocs(q);
       return snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
     } catch (err) {

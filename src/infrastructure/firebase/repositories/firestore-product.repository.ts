@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc, limit } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import { IProductRepository } from '../../../core/domain/ports/repositories/IProductRepository';
 import { Product } from '../../../core/domain/entities/product.entity';
@@ -27,7 +27,7 @@ export class FirestoreProductRepository implements IProductRepository {
       if (userId) {
         constraints.push(where('userId', '==', userId));
       }
-      const q = query(collection(db, this.collectionName), ...constraints);
+      const q = query(collection(db, this.collectionName), ...constraints, limit(50));
       const snap = await getDocs(q);
       if (!snap.empty) {
         return ProductMapper.toDomain(snap.docs[0].data() as FirestoreProductDoc);
@@ -41,7 +41,7 @@ export class FirestoreProductRepository implements IProductRepository {
 
   public async findAll(userId: string): Promise<Product[]> {
     try {
-      const q = query(collection(db, this.collectionName), where('userId', '==', userId));
+      const q = query(collection(db, this.collectionName), where('userId', '==', userId), limit(50));
       const snap = await getDocs(q);
       return snap.docs
         .map((docSnap) => docSnap.data() as FirestoreProductDoc)
