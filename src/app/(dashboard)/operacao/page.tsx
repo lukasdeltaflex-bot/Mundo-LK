@@ -27,6 +27,9 @@ import { PublishPanelModal } from './components/PublishPanelModal';
 import { OfferHistoryTable } from './components/OfferHistoryTable';
 import { CredentialManagerModal } from './components/CredentialManagerModal';
 import { ImportEngine, ResolutionStepLog } from './services/ImportEngine';
+import { AIService } from './services/AIService';
+import { MediaService, MediaItem } from './services/MediaService';
+import { PublishingService } from './services/PublishingService';
 
 export default function AffiliateOperationsHubPage() {
   const { user } = useAuth();
@@ -42,12 +45,15 @@ export default function AffiliateOperationsHubPage() {
   // Estados dos Produtos / Histórico
   const [products, setProducts] = useState<Product[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [testingSlug, setTestingSlug] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, DiagnosticTestResult>>({});
 
   // Estados do Pipeline de Importação
   const [resolutionLogs, setResolutionLogs] = useState<ResolutionStepLog[]>([]);
   const [sourceProvider, setSourceProvider] = useState<string | null>(null);
+  const [generatedMedia, setGeneratedMedia] = useState<MediaItem[]>([]);
 
   // Modais e Painéis
   const [reviewData, setReviewData] = useState<{
@@ -89,6 +95,7 @@ export default function AffiliateOperationsHubPage() {
 
   const handleImportProduct = async (input: string, mode: ImportMode) => {
     setIsImporting(true);
+    setAiNotice(null);
     try {
       const engine = new ImportEngine();
       const result = await engine.resolveProduct(input, mode);
@@ -108,18 +115,72 @@ export default function AffiliateOperationsHubPage() {
     }
   };
 
-  const handleConfirmReview = (confirmed: ProductExtractionResult) => {
+  const handleGenerateAI = async (style: string) => {
+    if (!reviewData?.data) {
+      alert('Importe ou selecione um produto antes de acionar o enriquecimento por IA.');
+      return;
+    }
+    setIsGeneratingAI(true);
+    setAiNotice(null);
+    try {
+      const aiService = new AIService();
+      const res = await aiService.generateEnrichment(reviewData.data, style, user?.uid || 'user_default');
+
+      if (!res.success) {
+        setAiNotice(res.error || 'Falha ao acionar IA.');
+        return;
+      }
+
+      // Gera mídias vinculadas à Offer
+      const mediaService = new MediaService();
+      const mediaList = mediaService.generateMediaForOffer(
+        res.offerProps?.productId || `offer_${Date.now()}`,
+        reviewData.data.title,
+        reviewData.data.image,
+        reviewData.data.currentPrice
+      );
+      setGeneratedMedia(mediaList);
+
+      alert(`🟢 Anúncio enriquecido com sucesso usando ${res.providerUsed}! Mídias geradas.`);
+    } catch (err) {
+      console.error('[Hub] Erro na IA:', err);
+      setAiNotice('Ocorreu um erro ao processar os modelos de IA.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const handleConfirmReview = async (confirmed: ProductExtractionResult) => {
     setReviewData(null);
-    // Abre o painel de publicação imediata pós-salvamento
-    setShareModalData({
-      title: confirmed.title,
-      price: confirmed.currentPrice ? `R$ ${confirmed.currentPrice.toFixed(2)}` : 'R$ 99,90',
-      previousPrice: confirmed.originalPrice ? `R$ ${confirmed.originalPrice.toFixed(2)}` : undefined,
-      imageUrl: confirmed.image,
-      affiliateUrl: 'https://mundolk.com/oferta/preview',
-      whatsAppText: `🔥 *${confirmed.title}*\nPor apenas R$ ${confirmed.currentPrice?.toFixed(2)}!\n🛒 Confira: https://mundolk.com/oferta/preview`,
-      telegramText: `📢 *${confirmed.title}*\nEconomia garantida!\n👉 https://mundolk.com/oferta/preview`,
-    });
+    const userId = user?.uid || 'user_default';
+
+    try {
+      const aiService = new AIService();
+      const aiResult = await aiService.generateEnrichment(confirmed, 'padrao', userId);
+
+      const pubService = new PublishingService();
+      const saved = await pubService.saveProductAndOffer(
+        confirmed,
+        aiResult.offerProps || {},
+        userId
+      );
+
+      // Recarrega o histórico do Firestore
+      await loadProducts();
+
+      // Dispara automaticamente o painel pós-salvar em 1 clique
+      const channelCopies = saved.offer.copies.copies;
+      setShareModalData({
+        title: saved.product.title,
+        price: saved.product.currentPrice ? saved.product.currentPrice.formatBRL() : 'R$ 0,00',
+        imageUrl: saved.product.images[0],
+        affiliateUrl: saved.product.affiliateUrl.url,
+        whatsAppText: channelCopies.whatsAppText || `🔥 *${saved.product.title}*\nLink: ${saved.product.affiliateUrl.url}`,
+        telegramText: channelCopies.telegramText || `📢 *${saved.product.title}*\nLink: ${saved.product.affiliateUrl.url}`,
+      });
+    } catch (err) {
+      console.error('[Hub] Erro ao salvar produto e oferta no Firestore:', err);
+    }
   };
 
   return (
@@ -161,17 +222,24 @@ export default function AffiliateOperationsHubPage() {
         sourceProvider={sourceProvider}
       />
 
+      {/* ── AVISO DE ERRO DE CREDENCIAL DE IA ── */}
+      {aiNotice && (
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+          <div className="font-bold">Aviso do Motor de IA:</div>
+          <div>{aiNotice}</div>
+        </div>
+      )}
+
       {/* ── MÓDULOS 3 & 4: IA & MEDIA STUDIO ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AIEnginePanel
-          onGenerateAI={async (style) => {
-            alert(`Gerando ofertas persuasivas no estilo "${style.toUpperCase()}" com o motor Gemini 2.5 Flash...`);
-          }}
+          onGenerateAI={handleGenerateAI}
+          isGenerating={isGeneratingAI}
         />
 
         <MediaStudioPanel
-          productTitle="Fone de Ouvido Bluetooth Pro"
-          productImage="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500"
+          productTitle={reviewData?.data.title || (products[0]?.title ?? 'Produto Importado')}
+          productImage={reviewData?.data.image || (products[0]?.images[0] ?? 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500')}
         />
       </div>
 
