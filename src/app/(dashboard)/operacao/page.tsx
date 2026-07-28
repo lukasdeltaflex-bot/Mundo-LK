@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import {
   PlugZap, Wand2, RefreshCw, CheckCircle2, AlertCircle,
   ShieldCheck, Server, ExternalLink, Zap, Lock, Activity,
-  Clock, Info, ChevronRight, Play, Check, Link as LinkIcon, Sparkles
+  Clock, Info, ChevronRight, Play, Check, Link as LinkIcon, Sparkles,
+  Share2, Cpu, Globe, Key, Layers
 } from 'lucide-react';
 import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
@@ -14,12 +15,13 @@ import {
   MarketplaceIntegrationState,
   DiagnosticTestResult,
   SystemCredentialDiagnostic,
+  IntegrationCategory,
 } from '@/core/domain/services/marketplace-integration-manager.service';
 import { SetupWizardModal } from '@/presentation/components/business/SetupWizardModal';
 import { MarketplaceLinkImporter } from '@/presentation/components/business/MarketplaceLinkImporter';
 
 export default function OperacaoIntegracoesPage() {
-  const [marketplaces, setMarketplaces] = useState<MarketplaceIntegrationState[]>(() =>
+  const [integrations, setIntegrations] = useState<MarketplaceIntegrationState[]>(() =>
     MarketplaceIntegrationManagerService.getMarketplacesStatus()
   );
 
@@ -27,7 +29,8 @@ export default function OperacaoIntegracoesPage() {
     MarketplaceIntegrationManagerService.getSystemCredentialsDiagnostic()
   );
 
-  const [activeTab, setActiveTab] = useState<'import' | 'cards' | 'diagnostic'>('import');
+  const [activeTab, setActiveTab] = useState<'import' | 'integrations' | 'diagnostic'>('import');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | IntegrationCategory>('all');
   const [showWizard, setShowWizard] = useState<boolean>(false);
 
   // Test connection state
@@ -36,21 +39,21 @@ export default function OperacaoIntegracoesPage() {
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
 
-  const handleConnectOAuth = (mp: MarketplaceIntegrationState) => {
-    if (mp.oauthAuthUrl) {
-      window.open(mp.oauthAuthUrl, '_blank', 'width=600,height=700');
+  const handleConnectOAuth = (item: MarketplaceIntegrationState) => {
+    if (item.oauthAuthUrl) {
+      window.open(item.oauthAuthUrl, '_blank', 'width=600,height=700');
     } else {
-      alert(`O marketplace ${mp.name} utiliza credenciais via API Key no Vercel (process.env).`);
+      alert(`A integração ${item.name} utiliza credenciais via API Key no Vercel (process.env).`);
     }
   };
 
-  const handleDisconnect = (mp: MarketplaceIntegrationState) => {
-    if (confirm(`Deseja desconectar a integração com ${mp.name}?`)) {
-      setMarketplaces((prev) =>
-        prev.map((item) =>
-          item.slug === mp.slug
-            ? { ...item, isConnected: false, status: 'DISCONNECTED', connectedStoreName: undefined }
-            : item
+  const handleDisconnect = (item: MarketplaceIntegrationState) => {
+    if (confirm(`Deseja desconectar a integração com ${item.name}?`)) {
+      setIntegrations((prev) =>
+        prev.map((it) =>
+          it.slug === item.slug
+            ? { ...it, isConnected: false, status: 'DISCONNECTED', connectedStoreName: undefined }
+            : it
         )
       );
     }
@@ -73,15 +76,19 @@ export default function OperacaoIntegracoesPage() {
     await new Promise((res) => setTimeout(res, 1200));
     setSyncingSlug(null);
 
-    setMarketplaces((prev) =>
-      prev.map((mp) =>
-        mp.slug === slug ? { ...mp, lastSyncAt: 'Agora mesmo' } : mp
+    setIntegrations((prev) =>
+      prev.map((item) =>
+        item.slug === slug ? { ...item, lastSyncAt: 'Agora mesmo' } : item
       )
     );
 
     setSyncSuccessMsg(`Sincronização com ${slug.toUpperCase()} concluída com sucesso!`);
     setTimeout(() => setSyncSuccessMsg(null), 3500);
   };
+
+  const filteredIntegrations = categoryFilter === 'all'
+    ? integrations
+    : integrations.filter((item) => item.category === categoryFilter);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6">
@@ -94,10 +101,10 @@ export default function OperacaoIntegracoesPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                Central de Marketplaces & Importação Inteligente
+                Hub de Integrações Enterprise Mundo LK
               </h1>
               <p className="text-xs text-slate-400">
-                Hub de integrações com marketplaces, extração multi-provider e cópias persuasivas com Gemini IA.
+                Gerenciamento unificado de Marketplaces, Canais Sociais, Provedores de Scraping e Motores de IA.
               </p>
             </div>
           </div>
@@ -108,7 +115,7 @@ export default function OperacaoIntegracoesPage() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => handleTestConnection('shopee')}
+            onClick={() => handleTestConnection('gemini')}
             leftIcon={<Activity className="h-4 w-4 text-purple-400" />}
             className="text-xs font-semibold"
           >
@@ -136,7 +143,7 @@ export default function OperacaoIntegracoesPage() {
         </div>
       )}
 
-      {/* ── TABS ── */}
+      {/* ── MAIN TABS ── */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto">
         <button
           onClick={() => setActiveTab('import')}
@@ -151,15 +158,15 @@ export default function OperacaoIntegracoesPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('cards')}
+          onClick={() => setActiveTab('integrations')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
-            activeTab === 'cards'
+            activeTab === 'integrations'
               ? 'border-blue-500 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <PlugZap className="h-4 w-4" />
-          <span>Marketplaces & Conexões ({marketplaces.length})</span>
+          <span>Central de Integrações ({integrations.length})</span>
         </button>
 
         <button
@@ -182,169 +189,211 @@ export default function OperacaoIntegracoesPage() {
         </div>
       )}
 
-      {/* ── TAB 2: MARKETPLACE CONNECTION CARDS ── */}
-      {activeTab === 'cards' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {marketplaces.map((mp) => {
-            const isConn = mp.isConnected;
-            const isPending = mp.status === 'EXPIRING';
-            const testRes = testResults[mp.slug];
-            const isTesting = testingSlug === mp.slug;
-            const isSyncing = syncingSlug === mp.slug;
+      {/* ── TAB 2: INTEGRATIONS GRID WITH CATEGORY FILTERS ── */}
+      {activeTab === 'integrations' && (
+        <div className="space-y-6">
+          {/* Category Sub-Filters */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <button
+              onClick={() => setCategoryFilter('all')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shrink-0 ${
+                categoryFilter === 'all'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              Todos ({integrations.length})
+            </button>
+            <button
+              onClick={() => setCategoryFilter('marketplace')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shrink-0 ${
+                categoryFilter === 'marketplace'
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <PlugZap className="h-3.5 w-3.5" /> Marketplaces ({integrations.filter(i => i.category === 'marketplace').length})
+            </button>
+            <button
+              onClick={() => setCategoryFilter('social')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shrink-0 ${
+                categoryFilter === 'social'
+                  ? 'bg-pink-600 text-white shadow-md'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Share2 className="h-3.5 w-3.5" /> Redes Sociais & Canais ({integrations.filter(i => i.category === 'social').length})
+            </button>
+            <button
+              onClick={() => setCategoryFilter('scraper')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shrink-0 ${
+                categoryFilter === 'scraper'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5" /> Provedores de Scrape ({integrations.filter(i => i.category === 'scraper').length})
+            </button>
+            <button
+              onClick={() => setCategoryFilter('ai')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shrink-0 ${
+                categoryFilter === 'ai'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Cpu className="h-3.5 w-3.5" /> Motores de IA ({integrations.filter(i => i.category === 'ai').length})
+            </button>
+          </div>
 
-            let statusBadge = (
-              <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 bg-slate-500/10 text-slate-400 border-slate-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                ⚪ Não configurado
-              </span>
-            );
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredIntegrations.map((item) => {
+              const isConn = item.isConnected;
+              const testRes = testResults[item.slug];
+              const isTesting = testingSlug === item.slug;
+              const isSyncing = syncingSlug === item.slug;
 
-            if (isConn) {
-              statusBadge = (
-                <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  🟢 Conectado
-                </span>
-              );
-            } else if (isPending) {
-              statusBadge = (
-                <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 bg-amber-500/10 text-amber-400 border-amber-500/20">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                  🟡 Aguardando conexão
-                </span>
-              );
-            }
-
-            return (
-              <div
-                key={mp.slug}
-                className={`rounded-2xl border bg-slate-900/90 p-5 shadow-xl transition-all duration-200 hover:border-slate-700 flex flex-col justify-between space-y-4 ${
-                  isConn ? 'border-slate-800' : 'border-slate-800/80 opacity-90'
-                }`}
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl border text-sm font-extrabold shadow-inner ${mp.logoSvgBg}`}>
-                      {mp.name.slice(0, 2).toUpperCase()}
+              return (
+                <div
+                  key={item.slug}
+                  className={`rounded-2xl border bg-slate-900/90 p-5 shadow-xl transition-all duration-200 hover:border-slate-700 flex flex-col justify-between space-y-4 ${
+                    isConn ? 'border-slate-800' : 'border-slate-800/80 opacity-90'
+                  }`}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-xl border text-sm font-extrabold shadow-inner ${item.logoSvgBg}`}>
+                        {item.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
+                          {item.name}
+                        </h3>
+                        <span className="text-[11px] text-slate-400 capitalize">
+                          {item.category === 'marketplace' ? 'Marketplace' : item.category === 'social' ? 'Rede Social / Canal' : item.category === 'scraper' ? 'Provedor Scrape' : 'Motor IA Core'}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
-                        {mp.name}
-                      </h3>
-                      <span className="text-[11px] text-slate-400">
-                        {mp.supportsOAuth ? 'OAuth v2 Oficial' : 'Integrador API / Web'}
+
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border flex items-center gap-1 ${
+                        isConn
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${isConn ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                      {isConn ? '🟢 Conectado' : '⚪ Não Configurado'}
+                    </span>
+                  </div>
+
+                  {/* Information Box */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-400">
+                      <span>Conta / Canal:</span>
+                      <span className="font-semibold text-white truncate max-w-[140px]">
+                        {item.connectedStoreName || '—'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-400">
+                      <span>Limite de Requisições:</span>
+                      <span className="font-medium text-slate-300">
+                        {item.requestLimit || 'Ilimitado'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-400">
+                      <span>Última Sincronização:</span>
+                      <span className="font-medium text-slate-300">
+                        {item.lastSyncAt || '—'}
                       </span>
                     </div>
                   </div>
 
-                  {statusBadge}
-                </div>
-
-                {/* Information Box */}
-                <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2 text-xs">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Status da Conexão:</span>
-                    <span className="font-semibold text-white truncate">
-                      {isConn ? 'Ativa e Autenticada' : 'Aguardando Credenciais'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-slate-400">
-                    <span>Loja Conectada:</span>
-                    <span className="font-semibold text-slate-200 truncate max-w-[140px]">
-                      {mp.connectedStoreName || '—'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-slate-400">
-                    <span>Última Sincronização:</span>
-                    <span className="font-medium text-slate-300">
-                      {mp.lastSyncAt || '—'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Diagnostic Result Banner (if tested) */}
-                {testRes && (
-                  <div
-                    className={`rounded-lg p-2.5 text-xs font-mono border flex items-center justify-between ${
-                      testRes.success
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                        : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                    }`}
-                  >
-                    <span className="truncate pr-2">{testRes.message}</span>
-                    <span className="text-[10px] opacity-80 shrink-0">{testRes.latencyMs}ms</span>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="space-y-2 pt-1 border-t border-slate-800">
-                  <div className="grid grid-cols-2 gap-2">
-                    {isConn ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleDisconnect(mp)}
-                        className="text-xs text-rose-400 hover:text-rose-300 border-rose-500/30"
-                      >
-                        Desconectar
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleConnectOAuth(mp)}
-                        leftIcon={<ExternalLink className="h-3.5 w-3.5" />}
-                        className="text-xs font-bold"
-                      >
-                        Conectar
-                      </Button>
-                    )}
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTestConnection(mp.slug)}
-                      disabled={isTesting}
-                      leftIcon={<RefreshCw className={`h-3.5 w-3.5 ${isTesting ? 'animate-spin' : ''}`} />}
-                      className="text-xs"
+                  {/* Diagnostic Result Banner (if tested) */}
+                  {testRes && (
+                    <div
+                      className={`rounded-lg p-2.5 text-xs font-mono border flex items-center justify-between ${
+                        testRes.success
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                      }`}
                     >
-                      {isTesting ? 'Testando...' : 'Testar Conexão'}
-                    </Button>
-                  </div>
-
-                  {isConn && (
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleConnectOAuth(mp)}
-                        className="w-1/2 text-[11px] text-slate-400 hover:text-white"
-                      >
-                        Renovar Token
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSyncNow(mp.slug)}
-                        disabled={isSyncing}
-                        className="w-1/2 text-[11px] text-blue-400 hover:text-blue-300"
-                      >
-                        {isSyncing ? 'Sincronizando...' : '⚡ Sincronizar'}
-                      </Button>
+                      <span className="truncate pr-2">{testRes.message}</span>
+                      <span className="text-[10px] opacity-80 shrink-0">{testRes.latencyMs}ms</span>
                     </div>
                   )}
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2 pt-1 border-t border-slate-800">
+                    <div className="grid grid-cols-2 gap-2">
+                      {isConn ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleDisconnect(item)}
+                          className="text-xs text-rose-400 hover:text-rose-300 border-rose-500/30"
+                        >
+                          Desconectar
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleConnectOAuth(item)}
+                          leftIcon={<ExternalLink className="h-3.5 w-3.5" />}
+                          className="text-xs font-bold"
+                        >
+                          Conectar
+                        </Button>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTestConnection(item.slug)}
+                        disabled={isTesting}
+                        leftIcon={<RefreshCw className={`h-3.5 w-3.5 ${isTesting ? 'animate-spin' : ''}`} />}
+                        className="text-xs"
+                      >
+                        {isTesting ? 'Testando...' : 'Testar Conexão'}
+                      </Button>
+                    </div>
+
+                    {isConn && (
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleConnectOAuth(item)}
+                          className="w-1/2 text-[11px] text-slate-400 hover:text-white"
+                        >
+                          Reconectar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSyncNow(item.slug)}
+                          disabled={isSyncing}
+                          className="w-1/2 text-[11px] text-blue-400 hover:text-blue-300"
+                        >
+                          {isSyncing ? 'Sincronizando...' : '⚡ Sincronizar'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -357,7 +406,7 @@ export default function OperacaoIntegracoesPage() {
             <div className="space-y-1 text-xs leading-relaxed">
               <span className="font-bold text-white block">Arquitetura de Segurança de Credenciais Enterprise:</span>
               <p>
-                Todas as credenciais de autenticação (`Client Secret`, `Partner Key`, `Access Token`, `Refresh Token`) são lidas e gerenciadas estritamente no ambiente seguro do servidor (`process.env`). Nenhuma chave privada é armazenada no banco de dados do cliente nem exposta no navegador.
+                Todas as credenciais de autenticação (`Client Secret`, `Partner Key`, `Access Token`, `Refresh Token`, `API Key`) são lidas e gerenciadas estritamente no ambiente seguro do servidor (`process.env`). Nenhuma chave privada é armazenada no banco de dados do cliente nem exposta no navegador.
               </p>
             </div>
           </div>
@@ -377,7 +426,7 @@ export default function OperacaoIntegracoesPage() {
                 <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
                   <tr>
                     <th className="p-3">Variável no Vercel</th>
-                    <th className="p-3">Marketplace</th>
+                    <th className="p-3">Serviço / Plataforma</th>
                     <th className="p-3">Descrição / Função</th>
                     <th className="p-3 text-right">Status no Servidor</th>
                   </tr>
