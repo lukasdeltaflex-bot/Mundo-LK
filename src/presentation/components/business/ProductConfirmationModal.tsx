@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Sparkles, Upload, ArrowRight, Image as ImageIcon, Tag, DollarSign, Truck, Star, Layers, HelpCircle } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Sparkles, Upload, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 
 interface ProductConfirmationModalProps {
@@ -50,6 +50,9 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   const [seller, setSeller] = useState(data.sellerName || '');
   const [rating, setRating] = useState(data.rating && data.rating > 0 ? String(data.rating) : '');
   const [shipping, setShipping] = useState(data.shippingType || '');
+  const [description, setDescription] = useState(data.description || '');
+  const [coupon, setCoupon] = useState(data.coupon || '');
+  const [cashback, setCashback] = useState(data.cashback || '');
 
   const score = (data as any).confidenceScore ?? 80;
   const isAutomatic = score >= 80;
@@ -79,6 +82,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
     const confirmed: ProductExtractionResult = {
       ...data,
       title: title.trim(),
+      description: description.trim(),
       currentPrice: isNaN(numericPrice) ? 0 : numericPrice,
       originalPrice: isNaN(numericPrevPrice) ? null : numericPrevPrice,
       discountPercentage: (!isNaN(numericPrevPrice) && !isNaN(numericPrice) && numericPrevPrice > numericPrice)
@@ -88,6 +92,8 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
       brand: brand.trim() || 'Desconhecida',
       category: category.trim() || 'Geral',
       sellerName: seller.trim(),
+      coupon: coupon.trim(),
+      cashback: cashback.trim(),
       rating: isNaN(numericRating) ? 4.8 : numericRating,
       shippingType: shipping.trim() || 'Envio Padrão',
     };
@@ -111,9 +117,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                 {isManual    && '⚠️ Precisamos confirmar alguns dados do produto (Modo Manual)'}
               </h2>
               <p className="text-xs text-slate-400">
-                {isAutomatic && 'Dados extraídos com alta confiança. Verifique e confirme para a IA criar a oferta.'}
-                {isAssisted  && 'Metadados parciais encontrados. Faça os ajustes rápidos abaixo.'}
-                {isManual    && 'O marketplace bloqueou as informações automáticas deste link. Confirme os dados abaixo para liberar a criação da oferta com IA.'}
+                Verifique e ajuste os dados reais do produto antes de gerar a oferta com IA.
               </p>
             </div>
           </div>
@@ -172,6 +176,18 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Ex: Garrafa Térmica Inox 1 Litro..."
                   className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-xs font-semibold text-slate-300">📝 Descrição / Detalhes</label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Descrição do produto..."
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
@@ -248,13 +264,13 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
-                    🚚 Informações de Frete
+                    🎟️ Cupom / Promoção
                   </label>
                   <input
                     type="text"
-                    value={shipping}
-                    onChange={(e) => setShipping(e.target.value)}
-                    placeholder="Ex: Frete Grátis / Envio FULL"
+                    value={coupon}
+                    onChange={(e) => setCoupon(e.target.value)}
+                    placeholder="Ex: CUPOM10"
                     className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
