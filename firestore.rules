@@ -126,6 +126,20 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
+    // 12. campaigns (Release 2.1 Campaign Analytics Engine)
+    match /campaigns/{campaignId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    // 13. campaign_events (Histórico Bruto de Interações)
+    match /campaign_events/{eventId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if false; // Eventos brutos são imutáveis
+    }
+
     // 12. prompts
     match /prompts/{promptId} {
       allow read: if isOwner(resource.data.userId) || isAdmin(); 
