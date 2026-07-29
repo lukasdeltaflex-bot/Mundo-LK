@@ -7,85 +7,64 @@ service cloud.firestore {
     // HELPER FUNCTIONS
     // =========================================================================
 
-    // Verifica se o usuário está autenticado
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Verifica se o ID do documento corresponde ao usuário autenticado (Owner)
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Verifica se os campos multi-tenant e owner estão estritamente vinculados ao request.auth.uid
     function isPayloadValid(userId) {
-      return request.auth.uid == userId &&
-             request.resource.data.userId == request.auth.uid &&
-             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == request.auth.uid);
+      return request.resource.data.userId == userId &&
+             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == userId);
     }
     
-    // Verifica a imutabilidade dos campos críticos (userId, tenantId, createdAt)
     function areCriticalFieldsUnchanged() {
       return (!('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId) &&
              (!('tenantId' in request.resource.data) || request.resource.data.tenantId == resource.data.tenantId) &&
              (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
     }
 
-    // Retorna true se o usuário for Admin (buscando na coleção users)
     function isAdmin() {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
     }
-
 
     // =========================================================================
     // COLLECTIONS
     // =========================================================================
 
-    // 1. users
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role || isAdmin());
-      allow delete: if false; // Apenas backend/admin pode deletar usuários
-    }
-
-    // 2. user_preferences
-    match /user_preferences/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
       allow delete: if false;
     }
 
-    // 3. ai_memory
+    match /user_preferences/{userId} {
+      allow read, create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
     match /ai_memory/{userId} {
       allow read, create, update: if isOwner(userId);
       allow delete: if false;
     }
 
-    // 4. offers
     match /offers/{offerId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isAuthenticated() && (
-        isOwner(resource.data.userId) ||
-        isOwner(request.resource.data.userId)
-      ) && areCriticalFieldsUnchanged();
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 5. products
     match /products/{productId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isAuthenticated() && (
-        isOwner(resource.data.userId) ||
-        isOwner(request.resource.data.userId)
-      ) && areCriticalFieldsUnchanged();
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 6. trash_products
     match /trash_products/{productId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -93,7 +72,6 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 7. collections
     match /collections/{collectionId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -101,7 +79,6 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 8. schedules
     match /schedules/{scheduleId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -109,7 +86,6 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 9. backup_logs
     match /backup_logs/{logId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -117,121 +93,6 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 10. system_logs (Auditoria Trilha Imutável)
-    match /system_logs/{logId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if false; // Logs de auditoria são imutáveis
-    }
-
-    // 11. export_jobs (Trabalhos de Exportação Assíncrona)
-    match /export_jobs/{jobId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isOwner(resource.data.userId);
-      allow delete: if isOwner(resource.data.userId);
-    }
-
-    // 12. campaigns (Release 2.1 Campaign Analytics Engine)
-    match /campaigns/{campaignId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if isOwner(resource.data.userId);
-    }
-
-    // 13. campaign_events (Histórico Bruto de Interações — Domínio Interno)
-    match /campaign_events/{eventId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if false; // Eventos brutos são imutáveis
-    }
-
-    // 14. analytics_events (Release 2.1.5 — Camada Universal de Eventos Externos)
-    match /analytics_events/{eventId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if false; // Imutável — fonte histórica de dados externos
-    }
-
-    // 15. automation_rules (Release 2.2.1 — Regras de Automação)
-    match /automation_rules/{ruleId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if isOwner(resource.data.userId);
-    }
-
-    // 16. automation_executions (Release 2.2.1 — Histórico Operacional de Automação)
-    match /automation_executions/{execId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if false; // Imutável — histórico de execuções
-    }
-
-    // 17. jobs (Release 2.2.2 — Fila de Trabalhos Assíncronos)
-    match /jobs/{jobId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isOwner(resource.data.userId); // Worker atualiza status
-      allow delete: if false; // Jobs são preservados para auditoria
-    }
-
-    // 21. marketplace_connections (Hub Oficial de Integrações Enterprise)
-    match /marketplace_connections/{connId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isAuthenticated() && (isOwner(resource.data.userId) || isOwner(request.resource.data.userId));
-      allow delete: if isOwner(resource.data.userId);
-    }
-
-    // 22. marketplace_listings (Release 2.2.7 — Histórico Preservado, Delete Proibido)
-    match /marketplace_listings/{listingId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isOwner(resource.data.userId);
-      allow delete: if false; // Anúncios publicados são preservados para histórico imutável
-    }
-
-    // 23. marketplace_listing_attempts (Imutável)
-    match /marketplace_listing_attempts/{attemptId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if false; // Imutável — histórico de tentativas de publicação
-    }
-
-    // 24. marketplace_health (Release 2.2.8 — Preservado, Delete Proibido)
-    match /marketplace_health/{healthId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isOwner(resource.data.userId);
-      allow delete: if false; // Preservado para histórico
-    }
-
-    // 25. marketplace_operation_logs (Release 2.2.8 — Imutável)
-    match /marketplace_operation_logs/{logId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if false; // Imutável
-    }
-
-    // 26. offer_generated_contents (Release 2.2.8.1 — Histórico de Gerações IA)
-    match /offer_generated_contents/{contentId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update, delete: if false; // Imutável
-    }
-
-    // 27. marketplace_connections (Release 2.2.8.2 — Hub de Credenciais & APIs Enterprise)
-    match /marketplace_connections/{connectionId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
-      allow update: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isOwner(request.resource.data.userId)
-      ) && areCriticalFieldsUnchanged();
-      allow delete: if isOwner(resource.data.userId);
-    }
-
-    // 12. prompts
     match /prompts/{promptId} {
       allow read: if isOwner(resource.data.userId) || isAdmin(); 
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -239,7 +100,6 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // 13. notifications
     match /notifications/{notifId} {
       allow read: if isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
@@ -247,20 +107,17 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // 14. extraction_cache
     match /extraction_cache/{cacheId} {
       allow read, create, update: if true;
-      allow delete: if false; // Deletado automaticamente por política TTL
+      allow delete: if false;
     }
 
-    // 15. analytics (Telemetria do ExtractionEngine)
     match /analytics/{metricId} {
       allow read: if isAuthenticated();
-      allow create: if true; // Telemetria enviada pelo backend de extração
+      allow create: if true;
       allow update, delete: if false;
     }
 
-    // Bloquear todo o resto
     match /{document=**} {
       allow read, write: if false;
     }
