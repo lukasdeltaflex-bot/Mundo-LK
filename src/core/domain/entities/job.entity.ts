@@ -4,7 +4,9 @@ export type JobType =
   | 'GENERATE_SOCIAL_POST'
   | 'SEND_WHATSAPP'
   | 'EVALUATE_AUTOMATION_RULES'
-  | 'OPTIMIZE_CAMPAIGN';
+  | 'OPTIMIZE_CAMPAIGN'
+  | 'PUBLISH_MARKETPLACE_LISTING'
+  | 'SYNC_MARKETPLACE_LISTING';
 
 export interface JobProps {
   id: string;

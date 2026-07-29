@@ -25,6 +25,7 @@ import { AIEnginePanel } from './components/AIEnginePanel';
 import { MediaStudioPanel } from './components/MediaStudioPanel';
 import { PublishPanelModal } from './components/PublishPanelModal';
 import { OfferHistoryTable } from './components/OfferHistoryTable';
+import { PublishedListingsTable } from './components/PublishedListingsTable';
 import { CredentialManagerModal } from './components/CredentialManagerModal';
 import { ImportEngine, ResolutionStepLog } from './services/ImportEngine';
 import { AIService } from './services/AIService';
@@ -260,6 +261,9 @@ export default function AffiliateOperationsHubPage() {
           productImage={reviewData?.data.image || (products[0]?.images[0] ?? 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500')}
         />
       </div>
+
+      {/* ── TABELA DE ANÚNCIOS PUBLICADOS NOS MARKETPLACES ── */}
+      <PublishedListingsTable />
 
       {/* ── MÓDULO 5: HISTÓRICO OPERACIONAL DO AFILIADO ── */}
       <OfferHistoryTable
