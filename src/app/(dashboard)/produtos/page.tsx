@@ -10,13 +10,14 @@ import {
   ShoppingBag, Plus, Layers, Sparkles, Trash2, X, AlertTriangle, CheckCircle2,
   Search, LayoutGrid, List, Filter, Copy, ExternalLink, RefreshCw, ChevronLeft, ChevronRight,
   TrendingDown, Tag, Clock, ArrowUpDown, Image as ImageIcon, Check, Send, History, AlertCircle,
-  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap
+  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2
 } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { Product, DispatchRecord, DispatchStatus } from '@/core/domain/entities/product.entity';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
+import { SocialShareModal, SocialShareData } from '@/presentation/components/business/SocialShareModal';
 
 // ─── Image Fallback Component with Lazy Loading ──────────────────────────────
 
@@ -176,6 +177,30 @@ export default function ProdutosPage() {
 
   // Dispatch History Modal State
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+
+  // Social Share Modal State
+  const [shareModalData, setShareModalData] = useState<SocialShareData | null>(null);
+
+  const handleShareProduct = (p: Product) => {
+    const formattedPrice = p.currentPrice ? p.currentPrice.formatBRL() : 'R$ 0,00';
+    const formattedOldPrice = p.previousPrice ? p.previousPrice.formatBRL() : undefined;
+    const discountPercent = p.discountPercentage ? `${p.discountPercentage.value}% OFF` : undefined;
+    const affiliateUrl = p.affiliateUrl ? String(p.affiliateUrl) : (p.originalUrl || '');
+    const imageUrl = p.images && p.images.length > 0 ? p.images[0] : undefined;
+
+    setShareModalData({
+      title: p.title,
+      price: formattedPrice,
+      previousPrice: formattedOldPrice,
+      discountPercent,
+      imageUrl,
+      affiliateUrl,
+      whatsAppText: `🔥 *${p.title}*\n\n💰 Por apenas *${formattedPrice}*${formattedOldPrice ? ` (De ${formattedOldPrice})` : ''}\n\n👉 Confira no link oficial:\n${affiliateUrl}`,
+      telegramText: `📢 *${p.title}*\n\nPreço Promocional: *${formattedPrice}*\n👉 Acesse: ${affiliateUrl}`,
+      instagramText: `✨ *${p.title}*\n\nPreço especial: ${formattedPrice}!\nLink no perfil ou acesse: ${affiliateUrl}`,
+      facebookText: `🔥 *${p.title}*\n\nPor apenas ${formattedPrice}!\nCompre com segurança: ${affiliateUrl}`,
+    });
+  };
 
   // Trash Modal State
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -734,11 +759,21 @@ export default function ProdutosPage() {
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <Button
+                      size="sm"
+                      className="text-[11px] px-1.5 py-1.5 h-7 bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm"
+                      leftIcon={<Share2 className="h-3 w-3" />}
+                      onClick={() => handleShareProduct(p)}
+                      title="Compartilhar nas Redes Sociais"
+                    >
+                      Compartilhar
+                    </Button>
+
                     <Button
                       size="sm"
                       variant={isCopied ? 'success' : 'secondary'}
-                      className="text-[11px] px-2 py-1.5 h-7"
+                      className="text-[11px] px-1.5 py-1.5 h-7"
                       leftIcon={isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                       onClick={() => handleCopyLink(p.id, targetUrl)}
                     >
@@ -748,7 +783,7 @@ export default function ProdutosPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-[11px] px-2 py-1.5 h-7"
+                      className="text-[11px] px-1.5 py-1.5 h-7"
                       leftIcon={<ExternalLink className="h-3 w-3" />}
                       onClick={() => window.open(targetUrl, '_blank')}
                     >
@@ -758,7 +793,7 @@ export default function ProdutosPage() {
                     <Button
                       size="sm"
                       variant="danger"
-                      className="text-[11px] px-2 py-1.5 h-7"
+                      className="text-[11px] px-1.5 py-1.5 h-7"
                       title="Mover para a Lixeira"
                       onClick={() => handleOpenTrashModal(p)}
                     >
@@ -832,6 +867,15 @@ export default function ProdutosPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                            leftIcon={<Share2 className="h-3 w-3" />}
+                            onClick={() => handleShareProduct(p)}
+                            title="Compartilhar nas Redes Sociais"
+                          >
+                            Compartilhar
+                          </Button>
                           <Button
                             size="sm"
                             variant="primary"
@@ -1149,6 +1193,11 @@ export default function ProdutosPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* ── Modal Compartilhar nas Redes Sociais ───────────────────────────────── */}
+      {shareModalData && (
+        <SocialShareModal data={shareModalData} onClose={() => setShareModalData(null)} />
       )}
     </div>
   );
