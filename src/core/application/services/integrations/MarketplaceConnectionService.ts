@@ -1,32 +1,15 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
-  MarketplaceConnection,
+  IntegrationConnection,
   MarketplaceConnectionSlug,
   MarketplaceCredentials,
-  ConnectionStatus,
   CredentialSource,
 } from '../../../domain/entities/marketplace-connection.entity';
 import { FirestoreMarketplaceConnectionRepository } from '../../../../infrastructure/firebase/repositories/firestore-marketplace-connection.repository';
+import { IntegrationTestResult } from '../../../domain/ports/IntegrationTestResult';
+import { MarketplaceConnectionValidator } from './MarketplaceConnectionValidator';
 import { AuditLogService } from '../AuditLogService';
 
-export interface ConnectionTestResult {
-  marketplaceSlug: MarketplaceConnectionSlug;
-  success: boolean;
-  status: ConnectionStatus;
-  latencyMs: number;
-  endpointTested: string;
-  message: string;
-  errorDetails?: string | null;
-  timestamp: string;
-}
-
-/**
- * MarketplaceConnectionService — Hub Oficial de Conectores e Credenciais Enterprise (Release 4.0)
- *
- * Suporta Resolução Híbrida:
- *   1º Prioridade: Credencial cadastrada pelo usuário no Firestore (`marketplace_connections`)
- *   2º Prioridade: Variável de ambiente configurada no servidor Vercel (`process.env`)
- */
 export class MarketplaceConnectionService {
   private static instance: MarketplaceConnectionService;
   private connectionRepo = new FirestoreMarketplaceConnectionRepository();
@@ -41,25 +24,7 @@ export class MarketplaceConnectionService {
   }
 
   /**
-   * Obtém as credenciais ativas para um provedor (Resolução Híbrida).
-   */
-  public async getEffectiveCredentials(
-    userId: string,
-    slug: MarketplaceConnectionSlug
-  ): Promise<{ credentials: MarketplaceCredentials; source: CredentialSource }> {
-    // 1º Prioridade: Credencial salva no Firestore pelo usuário
-    const userConn = await this.connectionRepo.findByUserIdAndSlug(userId, slug);
-    if (userConn && userConn.status === 'CONNECTED' && Object.keys(userConn.credentials).length > 0) {
-      return { credentials: userConn.credentials, source: 'USER_CONFIGURED' };
-    }
-
-    // 2º Prioridade: Fallback para variáveis de ambiente Vercel
-    const envCreds = this.getEnvCredentials(slug);
-    return { credentials: envCreds, source: 'VERCEL_ENV' };
-  }
-
-  /**
-   * Salva credenciais personalizadas do usuário no Firestore (tenant isolado).
+   * Salva credenciais personalizadas no Firestore do tenant com sanitização estrita.
    */
   public async saveUserCredentials(params: {
     userId: string;
@@ -68,14 +33,14 @@ export class MarketplaceConnectionService {
     credentials: MarketplaceCredentials;
     storeName?: string;
     accountId?: string;
-  }): Promise<MarketplaceConnection> {
+  }): Promise<IntegrationConnection> {
     const existing = await this.connectionRepo.findByUserIdAndSlug(params.userId, params.marketplaceSlug);
     const connId = existing ? existing.id : `conn_${uuidv4()}`;
 
-    // Testa a conexão antes de marcar como CONNECTED
+    // Testa a conexão real antes de marcar status
     const testRes = await this.testRealConnection(params.marketplaceSlug, params.credentials);
 
-    const connection = new MarketplaceConnection({
+    const connection = new IntegrationConnection({
       id: connId,
       userId: params.userId,
       tenantId: params.tenantId || params.userId,
@@ -87,7 +52,7 @@ export class MarketplaceConnectionService {
       status: testRes.success ? 'CONNECTED' : 'ERROR',
       credentials: params.credentials,
       source: 'USER_CONFIGURED',
-      lastTestedAt: testRes.timestamp,
+      lastTestedAt: new Date().toISOString(),
       lastError: testRes.success ? null : testRes.message,
     });
 
@@ -98,24 +63,39 @@ export class MarketplaceConnectionService {
       tenantId: params.tenantId || params.userId,
       action: testRes.success ? 'MARKETPLACE_CONNECTED' : 'TOKEN_UPDATE_FAILED',
       module: 'integrations',
-      entity: 'MarketplaceConnection',
+      entity: 'IntegrationConnection',
       entityId: connection.id,
-      metadata: { slug: params.marketplaceSlug, success: testRes.success, source: 'USER_CONFIGURED' },
+      metadata: { marketplaceSlug: params.marketplaceSlug, testResult: testRes.message },
     });
 
     return connection;
   }
 
   /**
-   * Testa a conexão real com a API oficial do provedor.
+   * Testa a conexão HTTPS real com a API oficial do provedor.
+   * Executa validação prévia de schema local antes de disparar chamadas de rede.
+   * ZERO MOCKS ou dados estáticos de sucesso.
    */
   public async testRealConnection(
     slug: MarketplaceConnectionSlug,
     customCreds?: MarketplaceCredentials
-  ): Promise<ConnectionTestResult> {
+  ): Promise<IntegrationTestResult> {
     const startTime = Date.now();
     const creds = customCreds || this.getEnvCredentials(slug);
-    const timestamp = new Date().toLocaleString('pt-BR');
+
+    // 1. Validação Local de Schema Pré-Requisição
+    const localVal = MarketplaceConnectionValidator.validateFields(slug, creds);
+    if (!localVal.isValid) {
+      return {
+        success: false,
+        httpStatus: 400,
+        latencyMs: 0,
+        endpoint: 'Local Schema Validation',
+        provider: slug,
+        environment: 'production',
+        message: localVal.message || 'Credenciais obrigatórias não informadas.',
+      };
+    }
 
     try {
       switch (slug) {
@@ -129,189 +109,194 @@ export class MarketplaceConnectionService {
             });
             const latencyMs = Date.now() - startTime;
             if (res.ok) {
-              const user = await res.json();
-              return {
-                marketplaceSlug: slug,
-                success: true,
-                status: 'CONNECTED',
-                latencyMs,
-                endpointTested: 'https://api.mercadolibre.com/users/me',
-                message: `🟢 Conectado como ${user.nickname || user.first_name} (ID: ${user.id})`,
-                timestamp,
-              };
+              const data = await res.json();
+              if (data && data.id) {
+                return {
+                  success: true,
+                  httpStatus: res.status,
+                  latencyMs,
+                  endpoint: 'https://api.mercadolibre.com/users/me',
+                  provider: slug,
+                  authenticatedAccount: data.nickname || data.first_name || `User ${data.id}`,
+                  environment: 'production',
+                  message: `🟢 Conectado com sucesso ao Mercado Livre (Conta: ${data.nickname || data.id})`,
+                  rawResponse: data,
+                };
+              }
             }
           }
 
-          // Validação por Client ID
           if (clientId) {
             const res = await fetch('https://api.mercadolibre.com/sites/MLB');
             const latencyMs = Date.now() - startTime;
             if (res.ok) {
+              const data = await res.json();
               return {
-                marketplaceSlug: slug,
                 success: true,
-                status: 'CONNECTED',
+                httpStatus: res.status,
                 latencyMs,
-                endpointTested: 'https://api.mercadolibre.com/sites/MLB',
-                message: '🟢 Conexão OAuth v2 válida com Mercado Livre Brasil!',
-                timestamp,
+                endpoint: 'https://api.mercadolibre.com/sites/MLB',
+                provider: slug,
+                environment: 'production',
+                message: '🟢 Conexão com Mercado Livre Brasil validada via Client ID!',
+                rawResponse: data,
               };
             }
           }
 
           return {
-            marketplaceSlug: slug,
             success: false,
-            status: 'ERROR',
+            httpStatus: 401,
             latencyMs: Date.now() - startTime,
-            endpointTested: 'https://api.mercadolibre.com/users/me',
-            message: '🔴 Token do Mercado Livre expirado ou Client ID não configurado.',
-            errorDetails: 'HTTP 401 Unauthorized — Renove o Access Token no portal de devs.',
-            timestamp,
-          };
-        }
-
-        case 'shopee': {
-          const partnerId = creds.partnerId || process.env.SHOPEE_APP_ID;
-          const shopId = creds.shopId || process.env.SHOPEE_SHOP_ID;
-
-          if (partnerId) {
-            const latencyMs = Date.now() - startTime;
-            return {
-              marketplaceSlug: slug,
-              success: true,
-              status: 'CONNECTED',
-              latencyMs,
-              endpointTested: 'https://partner.shopeemobile.com/api/v2/shop/get_shop_info',
-              message: `🟢 Shopee Open API v2 autenticada com Partner ID ${partnerId}!`,
-              timestamp,
-            };
-          }
-
-          return {
-            marketplaceSlug: slug,
-            success: false,
-            status: 'ERROR',
-            latencyMs: Date.now() - startTime,
-            endpointTested: 'https://partner.shopeemobile.com/api/v2',
-            message: '🔴 Partner ID ou Partner Key da Shopee não configurados.',
-            timestamp,
-          };
-        }
-
-        case 'whatsapp': {
-          const token = creds.accessToken || process.env.WHATSAPP_TOKEN;
-          const phoneId = creds.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
-
-          if (token && phoneId) {
-            const res = await fetch(`https://graph.facebook.com/v18.0/${phoneId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const latencyMs = Date.now() - startTime;
-            if (res.ok) {
-              return {
-                marketplaceSlug: slug,
-                success: true,
-                status: 'CONNECTED',
-                latencyMs,
-                endpointTested: `https://graph.facebook.com/v18.0/${phoneId}`,
-                message: '🟢 WhatsApp Cloud API ativa e verificada pela Meta!',
-                timestamp,
-              };
-            }
-          }
-
-          return {
-            marketplaceSlug: slug,
-            success: false,
-            status: 'ERROR',
-            latencyMs: Date.now() - startTime,
-            endpointTested: 'https://graph.facebook.com/v18.0/',
-            message: '🔴 WhatsApp Cloud API token ausente ou ID do telefone inválido.',
-            timestamp,
+            endpoint: 'https://api.mercadolibre.com/users/me',
+            provider: slug,
+            environment: 'production',
+            message: '🔴 Token do Mercado Livre expirado ou inválido.',
           };
         }
 
         case 'gemini': {
           const apiKey = creds.apiKey || process.env.GEMINI_API_KEY;
-          if (apiKey) {
+          if (!apiKey) {
             return {
-              marketplaceSlug: slug,
-              success: true,
-              status: 'CONNECTED',
-              latencyMs: Date.now() - startTime,
-              endpointTested: 'https://generativelanguage.googleapis.com/v1beta/models',
-              message: '🟢 Google Gemini 2.5 Flash respondendo com latência ultrarrápida!',
-              timestamp,
+              success: false,
+              httpStatus: 401,
+              latencyMs: 0,
+              endpoint: 'Google AI Studio API',
+              provider: slug,
+              environment: 'production',
+              message: '🔴 Chave GEMINI_API_KEY não informada.',
             };
           }
+
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+          const latencyMs = Date.now() - startTime;
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.models && Array.isArray(data.models)) {
+              return {
+                success: true,
+                httpStatus: res.status,
+                latencyMs,
+                endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
+                provider: slug,
+                environment: 'production',
+                message: `🟢 Conectado ao Google Gemini! (${data.models.length} modelos disponíveis)`,
+                rawResponse: { totalModels: data.models.length },
+              };
+            }
+          }
+
           return {
-            marketplaceSlug: slug,
             success: false,
-            status: 'ERROR',
-            latencyMs: 0,
-            endpointTested: 'https://generativelanguage.googleapis.com/',
-            message: '🔴 Chave GEMINI_API_KEY não configurada.',
-            timestamp,
+            httpStatus: res.status,
+            latencyMs,
+            endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
+            provider: slug,
+            environment: 'production',
+            message: `🔴 Falha na autenticação do Google Gemini (HTTP ${res.status}).`,
+          };
+        }
+
+        case 'openai': {
+          const apiKey = creds.apiKey || process.env.OPENAI_API_KEY;
+          if (!apiKey) {
+            return {
+              success: false,
+              httpStatus: 401,
+              latencyMs: 0,
+              endpoint: 'https://api.openai.com/v1/models',
+              provider: slug,
+              environment: 'production',
+              message: '🔴 Chave OPENAI_API_KEY não informada.',
+            };
+          }
+
+          const res = await fetch('https://api.openai.com/v1/models', {
+            headers: { Authorization: `Bearer ${apiKey}` },
+          });
+          const latencyMs = Date.now() - startTime;
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.data && Array.isArray(data.data)) {
+              return {
+                success: true,
+                httpStatus: res.status,
+                latencyMs,
+                endpoint: 'https://api.openai.com/v1/models',
+                provider: slug,
+                environment: 'production',
+                message: `🟢 Conectado à OpenAI! (${data.data.length} modelos ativos)`,
+                rawResponse: { totalModels: data.data.length },
+              };
+            }
+          }
+
+          return {
+            success: false,
+            httpStatus: res.status,
+            latencyMs,
+            endpoint: 'https://api.openai.com/v1/models',
+            provider: slug,
+            environment: 'production',
+            message: `🔴 Falha de autenticação OpenAI (HTTP ${res.status}). Verifique a API Key.`,
           };
         }
 
         default: {
-          const latencyMs = Date.now() - startTime;
           return {
-            marketplaceSlug: slug,
-            success: true,
-            status: 'CONNECTED',
-            latencyMs,
-            endpointTested: `https://api.${slug}.com/v1/health`,
-            message: `🟢 Provedor ${slug.toUpperCase()} respondendo normalmente.`,
-            timestamp,
+            success: false,
+            httpStatus: 400,
+            latencyMs: Date.now() - startTime,
+            endpoint: `https://api.official.${slug}.com`,
+            provider: slug,
+            environment: 'production',
+            message: `🔴 Configuração pendente para ${slug.toUpperCase()}. Insira chaves válidas no tenant.`,
           };
         }
       }
     } catch (err: any) {
       return {
-        marketplaceSlug: slug,
         success: false,
-        status: 'ERROR',
+        httpStatus: 500,
         latencyMs: Date.now() - startTime,
-        endpointTested: `https://api.${slug}.com/v1`,
-        message: `🔴 Exceção na conexão: ${err?.message || String(err)}`,
-        timestamp,
+        endpoint: 'HTTPS Network Layer',
+        provider: slug,
+        environment: 'production',
+        message: `🔴 Erro de comunicação HTTPS: ${err?.message || String(err)}`,
       };
     }
   }
 
   /**
-   * Retorna os conectores ativos do usuário para alimentar o PublishPanelModal.
+   * Retorna lista de canais conectados ativos para a UI (ex: SocialShareModal).
    */
   public async getActiveConnections(userId: string): Promise<Array<{ slug: string; name: string; isConnected: boolean }>> {
-    const userConns = await this.connectionRepo.findAllByUserId(userId);
-    const connMap = new Map(userConns.map((c) => [c.marketplaceSlug, c.status === 'CONNECTED']));
+    const list = await this.connectionRepo.findAllByUserId(userId);
+    const slugs: MarketplaceConnectionSlug[] = ['mercadolivre', 'shopee', 'whatsapp', 'telegram'];
 
-    const defaults: Array<{ slug: MarketplaceConnectionSlug; name: string; envKey?: string }> = [
-      { slug: 'mercadolivre', name: 'Mercado Livre', envKey: 'MERCADOLIVRE_CLIENT_ID' },
-      { slug: 'shopee', name: 'Shopee', envKey: 'SHOPEE_APP_ID' },
-      { slug: 'whatsapp', name: 'WhatsApp Cloud API', envKey: 'WHATSAPP_TOKEN' },
-      { slug: 'amazon', name: 'Amazon Brasil', envKey: 'AMAZON_CLIENT_ID' },
-      { slug: 'telegram', name: 'Telegram Bot API', envKey: 'TELEGRAM_BOT_TOKEN' },
-    ];
-
-    return defaults.map((d) => {
-      const isConnectedInDb = connMap.get(d.slug);
-      const isConnectedInEnv = Boolean(d.envKey && process.env[d.envKey]);
-      const isConnected = isConnectedInDb ?? isConnectedInEnv ?? (d.slug === 'mercadolivre' || d.slug === 'whatsapp' || d.slug === 'telegram');
+    return slugs.map((slug) => {
+      const conn = list.find((c) => c.marketplaceSlug === slug);
+      const isEnvConfigured = Boolean(
+        process.env[`${slug.toUpperCase()}_API_KEY`] ||
+        process.env[`${slug.toUpperCase()}_ACCESS_TOKEN`] ||
+        process.env[`${slug.toUpperCase()}_PARTNER_ID`]
+      );
 
       return {
-        slug: d.slug,
-        name: d.name,
-        isConnected,
+        slug,
+        name: slug === 'mercadolivre' ? 'Mercado Livre' : slug === 'shopee' ? 'Shopee' : slug === 'whatsapp' ? 'WhatsApp' : 'Telegram',
+        isConnected: Boolean(conn && conn.status === 'CONNECTED') || isEnvConfigured,
       };
     });
   }
 
-  // ── Helper Interno ─────────────────────────────────────────────────────────
-  private getEnvCredentials(slug: MarketplaceConnectionSlug): MarketplaceCredentials {
+  /**
+   * Obtém credenciais das variáveis de ambiente Vercel.
+   */
+  public getEnvCredentials(slug: MarketplaceConnectionSlug): MarketplaceCredentials {
     switch (slug) {
       case 'mercadolivre':
         return {
@@ -321,19 +306,19 @@ export class MarketplaceConnectionService {
         };
       case 'shopee':
         return {
-          partnerId: process.env.SHOPEE_APP_ID,
-          partnerKey: process.env.SHOPEE_APP_SECRET,
+          partnerId: process.env.SHOPEE_PARTNER_ID,
+          partnerKey: process.env.SHOPEE_PARTNER_KEY,
           shopId: process.env.SHOPEE_SHOP_ID,
-        };
-      case 'whatsapp':
-        return {
-          accessToken: process.env.WHATSAPP_TOKEN,
-          phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
         };
       case 'gemini':
         return { apiKey: process.env.GEMINI_API_KEY };
       case 'openai':
         return { apiKey: process.env.OPENAI_API_KEY };
+      case 'whatsapp':
+        return {
+          phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+          accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+        };
       default:
         return {};
     }

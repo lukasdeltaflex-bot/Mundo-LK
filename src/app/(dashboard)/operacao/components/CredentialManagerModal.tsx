@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/presentation/components/ui/Button';
 import { useAuth } from '@/presentation/context/AuthContext';
-import { MarketplaceConnectionService, ConnectionTestResult } from '@/core/application/services/integrations/MarketplaceConnectionService';
+import { MarketplaceConnectionService } from '@/core/application/services/integrations/MarketplaceConnectionService';
+import { IntegrationTestResult } from '@/core/domain/ports/IntegrationTestResult';
 import {
   MarketplaceConnectionSlug,
   MarketplaceCredentials,
@@ -25,7 +26,7 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+  const [testResult, setTestResult] = useState<IntegrationTestResult | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Catálogo Completo & Categorizado com Schemas Dinâmicos
@@ -174,13 +175,13 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
       setTestResult(result);
     } catch (err: any) {
       setTestResult({
-        marketplaceSlug: selectedSlug,
+        provider: selectedSlug,
         success: false,
-        status: 'ERROR',
+        httpStatus: 500,
         latencyMs: 0,
-        endpointTested: 'API Test Endpoint',
-        message: `🔴 Falha ao testar conexão: ${err?.message || String(err)}`,
-        timestamp: new Date().toLocaleTimeString('pt-BR'),
+        endpoint: 'HTTPS Client Error',
+        environment: 'production',
+        message: `🔴 Falha de execução no cliente: ${err?.message || String(err)}`,
       });
     } finally {
       setIsTesting(false);
@@ -335,16 +336,24 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
             </div>
           )}
 
-          {/* Resultado do Teste de API */}
+          {/* Resultado do Teste HTTPS Real */}
           {testResult && (
-            <div className={`p-3 rounded-lg border text-xs space-y-1 ${
+            <div className={`p-3 rounded-lg border text-xs space-y-1.5 ${
               testResult.success ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200' : 'bg-rose-950/40 border-rose-500/30 text-rose-200'
             }`}>
               <div className="flex items-center justify-between">
-                <span className="font-bold">{testResult.message}</span>
+                <span className="font-bold flex items-center gap-2">
+                  <span>{testResult.message}</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-900 rounded border border-slate-700">
+                    HTTP {testResult.httpStatus}
+                  </span>
+                </span>
                 <span className="font-mono text-[10px] opacity-80">{testResult.latencyMs}ms</span>
               </div>
-              <p className="text-[11px] font-mono opacity-70">Endpoint: {testResult.endpointTested}</p>
+              <div className="flex items-center justify-between text-[10px] font-mono opacity-70 border-t border-slate-800/60 pt-1">
+                <span>Endpoint: {testResult.endpoint}</span>
+                <span className="uppercase">Ambiente: {testResult.environment}</span>
+              </div>
             </div>
           )}
 
