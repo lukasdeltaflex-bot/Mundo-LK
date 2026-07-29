@@ -191,6 +191,21 @@ service cloud.firestore {
       allow update, delete: if false; // Imutável — histórico de tentativas de publicação
     }
 
+    // 24. marketplace_health (Release 2.2.8 — Preservado, Delete Proibido)
+    match /marketplace_health/{healthId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId);
+      allow delete: if false; // Preservado para histórico
+    }
+
+    // 25. marketplace_operation_logs (Release 2.2.8 — Imutável)
+    match /marketplace_operation_logs/{logId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if false; // Imutável
+    }
+
     // 12. prompts
     match /prompts/{promptId} {
       allow read: if isOwner(resource.data.userId) || isAdmin(); 

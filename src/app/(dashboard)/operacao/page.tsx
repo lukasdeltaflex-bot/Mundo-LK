@@ -19,6 +19,7 @@ import { SocialShareData } from '@/presentation/components/business/SocialShareM
 
 // ── Sub-componentes Modulares da Central de Marketplaces ───────────────────────
 import { IntegrationStatus } from './components/IntegrationStatus';
+import { MarketplaceHealthDashboard } from './components/MarketplaceHealthDashboard';
 import { ProductImporter, ImportMode } from './components/ProductImporter';
 import { ProductReviewModal } from './components/ProductReviewModal';
 import { AIEnginePanel } from './components/AIEnginePanel';
@@ -224,7 +225,10 @@ export default function AffiliateOperationsHubPage() {
         </div>
       </div>
 
-      {/* ── MÓDULO 1: STATUS DAS INTEGRAÇÕES (TOPO) ── */}
+      {/* ── RELEASE 2.2.8: TORRE DE CONTROLE OPERACIONAL (MARKETPLACE OPERATIONS CENTER) ── */}
+      <MarketplaceHealthDashboard onOpenCredentials={() => setShowCredentialModal(true)} />
+
+      {/* ── DIAGNÓSTICO DE CREDENCIAIS & PROVEDORES ── */}
       <IntegrationStatus
         integrations={integrations}
         onTestConnection={handleTestConnection}
