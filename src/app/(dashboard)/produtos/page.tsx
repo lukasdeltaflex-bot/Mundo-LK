@@ -185,7 +185,18 @@ export default function ProdutosPage() {
     const formattedPrice = p.currentPrice ? p.currentPrice.formatBRL() : 'R$ 0,00';
     const formattedOldPrice = p.previousPrice ? p.previousPrice.formatBRL() : undefined;
     const discountPercent = p.discountPercentage ? `${p.discountPercentage.value}% OFF` : undefined;
-    const affiliateUrl = p.affiliateUrl ? String(p.affiliateUrl) : (p.originalUrl || '');
+
+    const getUrlString = (link: any, defaultUrl: string = ''): string => {
+      if (!link) return defaultUrl;
+      if (typeof link === 'string') return link;
+      if (typeof link === 'object') {
+        if (typeof link.url === 'string' && link.url) return link.url;
+        if (typeof link.value === 'string' && link.value) return link.value;
+      }
+      return defaultUrl;
+    };
+
+    const affiliateUrl = getUrlString(p.affiliateUrl, p.originalUrl || '');
     const imageUrl = p.images && p.images.length > 0 ? p.images[0] : undefined;
 
     setShareModalData({
@@ -737,12 +748,13 @@ export default function ProdutosPage() {
 
                 {/* Campaign Dispatch Action Footer */}
                 <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
+                  {/* Linha 1: Ações Principais — Registrar Envio & Compartilhar Redes */}
                   <div className="grid grid-cols-2 gap-1.5">
                     <Button
                       size="sm"
                       variant="primary"
-                      className="text-[11px] px-2 py-1.5 h-8 font-semibold shadow-md shadow-blue-600/20"
-                      leftIcon={<Send className="h-3 w-3" />}
+                      className="text-xs px-2 py-1.5 h-8 font-semibold shadow-md shadow-blue-600/20"
+                      leftIcon={<Send className="h-3.5 w-3.5" />}
                       onClick={() => setDispatchingProduct(p)}
                     >
                       Registrar Envio
@@ -750,40 +762,42 @@ export default function ProdutosPage() {
 
                     <Button
                       size="sm"
-                      variant="secondary"
-                      className="text-[11px] px-2 py-1.5 h-8"
-                      leftIcon={<History className="h-3 w-3" />}
-                      onClick={() => setHistoryProduct(p)}
-                    >
-                      Ver Histórico
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-1.5">
-                    <Button
-                      size="sm"
-                      className="text-[11px] px-1.5 py-1.5 h-7 bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm"
-                      leftIcon={<Share2 className="h-3 w-3" />}
+                      className="text-xs px-2 py-1.5 h-8 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold shadow-md shadow-emerald-600/20"
+                      leftIcon={<Share2 className="h-3.5 w-3.5" />}
                       onClick={() => handleShareProduct(p)}
                       title="Compartilhar nas Redes Sociais"
                     >
                       Compartilhar
                     </Button>
+                  </div>
+
+                  {/* Linha 2: Ações Complementares — Histórico, Copiar, Ver, Excluir */}
+                  <div className="grid grid-cols-4 gap-1">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-[10px] px-1 py-1 h-7 font-medium"
+                      leftIcon={<History className="h-3 w-3" />}
+                      onClick={() => setHistoryProduct(p)}
+                      title="Ver Histórico de Envios"
+                    >
+                      Histórico
+                    </Button>
 
                     <Button
                       size="sm"
                       variant={isCopied ? 'success' : 'secondary'}
-                      className="text-[11px] px-1.5 py-1.5 h-7"
+                      className="text-[10px] px-1 py-1 h-7 font-medium"
                       leftIcon={isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                       onClick={() => handleCopyLink(p.id, targetUrl)}
                     >
-                      {isCopied ? 'Copiado!' : 'Copiar'}
+                      {isCopied ? 'Copiado' : 'Copiar'}
                     </Button>
 
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-[11px] px-1.5 py-1.5 h-7"
+                      className="text-[10px] px-1 py-1 h-7 font-medium"
                       leftIcon={<ExternalLink className="h-3 w-3" />}
                       onClick={() => window.open(targetUrl, '_blank')}
                     >
@@ -793,7 +807,7 @@ export default function ProdutosPage() {
                     <Button
                       size="sm"
                       variant="danger"
-                      className="text-[11px] px-1.5 py-1.5 h-7"
+                      className="text-[10px] px-1 py-1 h-7 font-medium"
                       title="Mover para a Lixeira"
                       onClick={() => handleOpenTrashModal(p)}
                     >
