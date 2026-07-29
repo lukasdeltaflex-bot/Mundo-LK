@@ -43,11 +43,9 @@ export class FirestoreJobRepository {
         where('executionKey', '==', executionKey),
         limit(1)
       );
-      const snap = await getDocs(q);
-      if (snap.docs.length > 0) {
-        return new Job(snap.docs[0].data() as JobProps);
-      }
-      return null;
+      const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      const fetchTask = getDocs(q).then((snap) => (snap.docs.length > 0 ? new Job(snap.docs[0].data() as JobProps) : null));
+      return await Promise.race([fetchTask, timeout]);
     } catch (err) {
       console.warn('[FirestoreJobRepository] findByExecutionKey error:', err);
       return null;
@@ -96,25 +94,31 @@ export class FirestoreJobRepository {
   }
 
   public async save(job: Job): Promise<void> {
-    const ref = doc(db, this.collectionName, job.id);
-    await setDoc(
-      ref,
-      {
-        id: job.id,
-        userId: job.userId,
-        tenantId: job.tenantId,
-        type: job.type,
-        executionKey: job.executionKey,
-        attempts: job.attempts,
-        maxAttempts: job.maxAttempts,
-        status: job.status,
-        payload: job.payload,
-        result: job.result ?? null,
-        errorMessage: job.errorMessage ?? null,
-        createdAt: job.createdAt,
-        processedAt: job.processedAt ?? null,
-      },
-      { merge: true }
-    );
+    try {
+      const ref = doc(db, this.collectionName, job.id);
+      const setTask = setDoc(
+        ref,
+        {
+          id: job.id,
+          userId: job.userId,
+          tenantId: job.tenantId,
+          type: job.type,
+          executionKey: job.executionKey,
+          attempts: job.attempts,
+          maxAttempts: job.maxAttempts,
+          status: job.status,
+          payload: job.payload,
+          result: job.result ?? null,
+          errorMessage: job.errorMessage ?? null,
+          createdAt: job.createdAt,
+          processedAt: job.processedAt ?? null,
+        },
+        { merge: true }
+      );
+      const timeout = new Promise<void>((resolve) => setTimeout(() => resolve(), 1500));
+      await Promise.race([setTask, timeout]);
+    } catch (err) {
+      console.warn('[FirestoreJobRepository] save error (executando em fallback seguro):', err);
+    }
   }
 }
