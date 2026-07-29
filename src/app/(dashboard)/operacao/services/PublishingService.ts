@@ -38,7 +38,7 @@ export class PublishingService {
       categoryId: extraction.category || 'Geral',
       marketplaceSlug: extraction.marketplace.toLowerCase(),
       originalUrl: extraction.originalUrl || extraction.canonicalUrl || 'https://shopee.com.br',
-      affiliateUrl: AffiliateLink.create(extraction.canonicalUrl || extraction.originalUrl || 'https://shopee.com.br'),
+      affiliateUrl: AffiliateLink.create(extraction.originalUrl || extraction.canonicalUrl || 'https://shopee.com.br'),
       currentPrice: Price.create(extraction.currentPrice || 0),
       previousPrice: extraction.originalPrice ? Price.create(extraction.originalPrice) : null,
       discountPercentage: DiscountPercentage.create(extraction.discountPercentage || 0),

@@ -117,7 +117,7 @@ export async function extractProductDetailsAction(input: {
     if (cached && !cached.isPriceStale) {
       console.log(`[Cache] ⚡ Hit de Cache ${cached.tier} (<50ms) para ${productIdKey}`);
 
-      const affiliateUrl = `${expandedUrl}${expandedUrl.includes('?') ? '&' : '?'}tag=${input.affiliateTag || 'mundolk'}`;
+      const affiliateUrl = rawUrl || expandedUrl;
 
       await analyticsLogger.logMetric({
         sessionId: `sess_${Date.now()}`,
@@ -161,7 +161,7 @@ export async function extractProductDetailsAction(input: {
       await cacheService.saveProductCache(productIdKey, normalizedProduct, confidenceReport.score);
     }
 
-    const affiliateUrl = `${expandedUrl}${expandedUrl.includes('?') ? '&' : '?'}tag=${input.affiliateTag || 'mundolk'}`;
+      const affiliateUrl = rawUrl || expandedUrl;
 
     await analyticsLogger.logMetric({
       sessionId: `sess_${Date.now()}`,
