@@ -1,4 +1,5 @@
 import { MarketplaceSlug, OfferProductData, OfferPricing, OfferCommission } from '../entities/affiliate-offer.entity';
+export type { MarketplaceSlug };
 
 export interface RawMarketplaceExtractionResult {
   marketplace: MarketplaceSlug;

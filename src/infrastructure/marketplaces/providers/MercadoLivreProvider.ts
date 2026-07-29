@@ -2,14 +2,94 @@ import { IMarketplaceProvider, RawMarketplaceExtractionResult } from '../../../c
 import { MarketplaceSlug } from '../../../core/domain/entities/affiliate-offer.entity';
 import { SourceOfTruthService } from '../../../core/domain/services/SourceOfTruthService';
 
+export interface MercadoLivreOAuthTokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  scope: string;
+  user_id: number;
+  refresh_token: string;
+}
+
+/**
+ * MercadoLivreProvider — Conector Oficial da API do Mercado Livre (App ID: 5566961113388868)
+ *
+ * Suporta consulta oficial de produtos via https://api.mercadolibre.com/items/
+ * e autenticação OAuth 2.0 com fluxo de Authorization Code.
+ */
 export class MercadoLivreProvider implements IMarketplaceProvider {
   public readonly marketplaceSlug: MarketplaceSlug = 'mercadolivre';
   private sourceOfTruth = SourceOfTruthService.getInstance();
 
+  private clientId: string;
+  private clientSecret: string;
+  private redirectUri: string;
+
+  constructor() {
+    this.clientId = process.env.MERCADO_LIVRE_CLIENT_ID || '5566961113388868';
+    this.clientSecret = process.env.MERCADO_LIVRE_CLIENT_SECRET || 'MYzqjkE4KqTFuIR7025DDnfnVNflBRek';
+    this.redirectUri = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/mercadolivre/callback`
+      : 'https://mundo-lk.vercel.app/api/auth/mercadolivre/callback';
+  }
+
+  /**
+   * Troca o authorization_code enviado pelo Mercado Livre por um access_token oficial.
+   */
+  public async exchangeCodeForToken(authorizationCode: string): Promise<MercadoLivreOAuthTokenResponse> {
+    const url = 'https://api.mercadolibre.com/oauth/token';
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      code: authorizationCode,
+      redirect_uri: this.redirectUri,
+    });
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`[MercadoLivre OAuth Error] Falha na troca de token: ${errText}`);
+    }
+
+    return (await res.json()) as MercadoLivreOAuthTokenResponse;
+  }
+
+  /**
+   * Renova o access_token utilizando o refresh_token.
+   */
+  public async refreshToken(refreshToken: string): Promise<MercadoLivreOAuthTokenResponse> {
+    const url = 'https://api.mercadolibre.com/oauth/token';
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      refresh_token: refreshToken,
+    });
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`[MercadoLivre OAuth Refresh Error]: ${errText}`);
+    }
+
+    return (await res.json()) as MercadoLivreOAuthTokenResponse;
+  }
+
   public async extractOfferData(url: string): Promise<RawMarketplaceExtractionResult> {
     const trimmedUrl = url.trim();
 
-    // Tenta extrair o ID do item MLB (ex: MLB1234567890)
+    // Extrai o ID do item MLB (ex: MLB1234567890 ou MLB-1234567890)
     const mlbMatch = trimmedUrl.match(/MLB-?(\d+)/i);
     const itemId = mlbMatch ? `MLB${mlbMatch[1]}` : `MLB_${Date.now()}`;
 
@@ -38,7 +118,7 @@ export class MercadoLivreProvider implements IMarketplaceProvider {
         }
       }
     } catch (err) {
-      console.warn('[MercadoLivreProvider] Falha ao consultar API pública do ML, fallback seguro executado:', err);
+      console.warn('[MercadoLivreProvider] Falha ao consultar API oficial do Mercado Livre:', err);
     }
 
     const pricing = this.sourceOfTruth.validatePricing({
@@ -61,11 +141,11 @@ export class MercadoLivreProvider implements IMarketplaceProvider {
           main: mainImage,
           gallery: galleryImages,
         },
-        category: 'Ofertas Mercado Livre',
+        category: 'Mercado Livre Oficial',
         seller,
       },
       pricing,
-      commission, // NOT_AVAILABLE pois a API pública de itens do ML não retorna comissão de afiliado
+      commission,
     };
   }
 }
