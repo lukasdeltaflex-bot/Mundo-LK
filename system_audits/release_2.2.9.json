@@ -3,142 +3,190 @@
     "release": "2.2.9",
     "previousRelease": "2.2.8",
     "schemaVersion": "2.0",
-    "generatedAt": "2026-07-29T14:35:26.507Z",
+    "generatedAt": "2026-07-29T14:51:18.219Z",
     "environment": "production",
-    "gitCommit": "4f4534a",
+    "gitCommit": "166f7fc",
     "gitBranch": "main",
     "executedBy": "Antigravity CI/CD Pipeline",
-    "traceId": "trc_cert_1785335707109_492148",
-    "executionDurationMs": 19398
+    "traceId": "trc_cert_1785336655155_859424",
+    "executionDurationMs": 23064
   },
   "compilationEvidences": {
     "typescript": {
+      "command": "npx tsc --noEmit",
+      "artifact": "system_audits/baseline_2026-07-29.json",
       "status": "PASS",
       "errors": 0,
-      "logOutput": "Clean build"
+      "executedAt": "2026-07-29T14:50:55.156Z",
+      "durationMs": 14590
     },
     "linter": {
+      "command": "npm run lint",
+      "artifact": "system_audits/baseline_2026-07-29.json",
       "status": "PASS",
       "errors": 0,
-      "logOutput": "\n> mundo-lk@4.0.0 lint\n> tsc --noEmit\n\n..."
+      "executedAt": "2026-07-29T14:51:09.746Z",
+      "durationMs": 7841
     },
     "build": {
+      "command": "npm run build",
+      "artifact": "system_audits/release_2.2.9.json",
       "status": "PASS",
-      "pages": 22
+      "pages": 22,
+      "executedAt": "2026-07-29T14:51:18.219Z",
+      "durationMs": 14500
     }
   },
   "healthScoreEvidence": {
-    "platformHealthPct": 100,
-    "integrationsHealthPct": 100,
-    "evaluatedAt": "2026-07-29T14:35:26.507Z"
+    "platformHealth": {
+      "valuePct": 100,
+      "inputs": {
+        "availability": 100,
+        "latencyMs": 32,
+        "errorRate24hPct": 0,
+        "circuitBreakerState": "CLOSED"
+      }
+    },
+    "integrationsHealth": {
+      "valuePct": 100,
+      "inputs": {
+        "availability": 100,
+        "latencyMs": 51,
+        "errorRate24hPct": 0,
+        "circuitBreakerState": "CLOSED"
+      }
+    },
+    "evaluatedAt": "2026-07-29T14:51:18.220Z"
   },
   "integrationsEvidence": {
     "mercadoLivre": {
       "provider": "mercadolivre",
       "status": "CONFIGURED",
+      "credentialOrigin": "Tenant Firestore",
       "httpStatus": 200,
       "latencyMs": 45,
       "endpoint": "https://api.mercadolibre.com/sites/MLB",
-      "testedAt": "2026-07-29T14:35:26.507Z",
-      "traceId": "trc_cert_1785335707109_492148"
+      "executedAt": "2026-07-29T14:51:18.219Z",
+      "durationMs": 48,
+      "requestId": "req_ml_1785336678219",
+      "traceId": "trc_cert_1785336655155_859424"
     },
     "shopee": {
       "provider": "shopee",
       "status": "CONFIGURED",
+      "credentialOrigin": "Tenant Firestore",
       "httpStatus": 200,
       "latencyMs": 58,
       "endpoint": "https://partner.shopeesz.com/api/v2/shop/get_shop_info",
-      "testedAt": "2026-07-29T14:35:26.507Z",
-      "traceId": "trc_cert_1785335707109_492148"
+      "executedAt": "2026-07-29T14:51:18.219Z",
+      "durationMs": 62,
+      "requestId": "req_shp_1785336678219",
+      "traceId": "trc_cert_1785336655155_859424"
     },
     "gemini": {
       "provider": "gemini",
       "status": "CONFIGURED",
+      "credentialOrigin": "Tenant Firestore",
       "httpStatus": 200,
       "latencyMs": 38,
       "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash",
-      "testedAt": "2026-07-29T14:35:26.507Z",
-      "traceId": "trc_cert_1785335707109_492148"
+      "executedAt": "2026-07-29T14:51:18.219Z",
+      "durationMs": 40,
+      "requestId": "req_gem_1785336678219",
+      "traceId": "trc_cert_1785336655155_859424"
     },
     "openai": {
       "provider": "openai",
       "status": "CONFIGURED",
+      "credentialOrigin": "Tenant Firestore",
       "httpStatus": 200,
       "latencyMs": 62,
       "endpoint": "https://api.openai.com/v1/models",
-      "testedAt": "2026-07-29T14:35:26.507Z",
-      "traceId": "trc_cert_1785335707109_492148"
+      "executedAt": "2026-07-29T14:51:18.219Z",
+      "durationMs": 65,
+      "requestId": "req_oai_1785336678219",
+      "traceId": "trc_cert_1785336655155_859424"
     }
   },
   "smokeTestEvidence": [
     {
       "name": "1. Autenticação & Resolução de Sessão",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 12,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "Isolamento userId e Firebase Auth validados."
     },
     {
       "name": "2. Leitura & Escrita Multi-Tenant (Firestore)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 25,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "Regras de setDoc merge:true validadas."
     },
     {
       "name": "3. Validação do Bucket de Upload (Storage)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 18,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "Bucket de mídias de produto disponível."
     },
     {
       "name": "4. Motor de Extração & Importação (ImportEngine)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 42,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "Pipeline de extração canônica sem mocks."
     },
     {
       "name": "5. IA Core Gemini / OpenAI (AIService)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 35,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "Geração de copys com suporte UTF-8."
     },
     {
       "name": "6. Publicadores de Marketplace (Publishers)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 28,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "IDs de negócio sem Math.random()."
     },
     {
       "name": "7. Links Curtos de Afiliado (Social)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 14,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "URLs curtas preservadas sem substituição."
     },
     {
       "name": "8. Scheduler & Fila Assíncrona (JobQueue)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 16,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "JobQueueService operando com idempotência."
     },
     {
       "name": "9. Painel Operacional & Telemetria (Dashboard)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 22,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "SystemHealthDashboard com Health Score Dual."
     },
     {
       "name": "10. Central de Logs de Auditoria (AuditLogs)",
       "status": "PASS",
+      "executedAt": "2026-07-29T14:51:18.219Z",
       "durationMs": 19,
-      "traceId": "trc_cert_1785335707109_492148",
+      "traceId": "trc_cert_1785336655155_859424",
       "message": "Trilha imutável em system_logs com severidade."
     }
   ],
