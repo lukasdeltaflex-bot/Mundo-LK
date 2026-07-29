@@ -44,7 +44,7 @@ export class ImportAndGenerateOfferWorkflow {
 
     if (!product) {
       product = new Product({
-        id: `prod_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `prod_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
         userId: input.userId,
         title: extractedData.title,
         description: extractedData.description,
@@ -71,7 +71,7 @@ export class ImportAndGenerateOfferWorkflow {
     const aiResult = await this.aiProvider.generateOfferContent(product);
 
     const offer = new Offer({
-      id: `off_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `off_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
       productId: product.id,
       userId: product.userId,
       scoreValue: aiResult.score.value,

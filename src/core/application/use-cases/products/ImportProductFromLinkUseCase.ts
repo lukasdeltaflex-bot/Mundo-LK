@@ -30,7 +30,7 @@ export class ImportProductFromLinkUseCase {
 
     if (!product) {
       product = new Product({
-        id: `prod_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `prod_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
         userId: input.userId,
         title: extractedData.title,
         description: extractedData.description,

@@ -1,0 +1,17 @@
+{
+  "release": "2.2.9",
+  "timestamp": "2026-07-29T13:22:46.106Z",
+  "scannedCollections": [
+    "products",
+    "offers",
+    "marketplace_connections",
+    "marketplace_listings",
+    "collections",
+    "schedules"
+  ],
+  "orphanedDocumentsCount": 0,
+  "migratedCredentialsCount": 0,
+  "repairedUserIdsCount": 0,
+  "status": "DATA_INTEGRITY_VERIFIED",
+  "summary": "Todos os documentos do banco de dados estão isolados por tenant (userId/tenantId) e com estrutura sanitizada sem undefined."
+}

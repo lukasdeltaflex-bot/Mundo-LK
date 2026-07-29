@@ -7,7 +7,11 @@ import { Badge } from '@/presentation/components/ui/Badge';
 import { Layers, Play, Pause, XCircle, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { BatchImportService, BatchItem } from '@/infrastructure/queue/batch-import.service';
 
+import { ImportEngine } from '../operacao/services/ImportEngine';
+import { useAuth } from '@/presentation/context/AuthContext';
+
 export default function LotePage() {
+  const { user } = useAuth();
   const [urlsInput, setUrlsInput] = useState('');
   const [queue, setQueue] = useState<BatchItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -15,31 +19,69 @@ export default function LotePage() {
 
   const batchService = BatchImportService.getInstance();
 
-  const handleStartBatch = () => {
-    const urls = urlsInput.split('\n');
+  const handleStartBatch = async () => {
+    const urls = urlsInput.split('\n').filter((u) => u.trim());
+    if (urls.length === 0) return;
+
     const items = batchService.createBatch(urls);
     setQueue(items);
     setIsProcessing(true);
     setIsPaused(false);
 
-    // Simulate batch execution
-    items.forEach((item, index) => {
-      setTimeout(() => {
+    const activeUid = user?.uid || 'guest';
+
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      setQueue((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, status: 'PROCESSING', progress: 30 } : i))
+      );
+
+      try {
+        const result = await new ImportEngine().resolveProduct(item.url);
+        if (result && result.data) {
+          setQueue((prev) =>
+            prev.map((i) =>
+              i.id === item.id
+                ? {
+                    ...i,
+                    status: 'COMPLETED',
+                    progress: 100,
+                    productTitle: result.data.title,
+                  }
+                : i
+            )
+          );
+        } else {
+          setQueue((prev) =>
+            prev.map((i) =>
+              i.id === item.id
+                ? {
+                    ...i,
+                    status: 'FAILED',
+                    progress: 100,
+                    error: result.reviewReason || 'Falha ao extrair dados do produto',
+                  }
+                : i
+            )
+          );
+        }
+      } catch (err: any) {
         setQueue((prev) =>
           prev.map((i) =>
             i.id === item.id
               ? {
                   ...i,
-                  status: index % 4 === 3 ? 'FAILED' : 'COMPLETED',
+                  status: 'FAILED',
                   progress: 100,
-                  productTitle: index % 4 === 3 ? undefined : `Produto Importado Lote #${index + 1}`,
-                  error: index % 4 === 3 ? 'URL não reconhecida' : undefined,
+                  error: err?.message || 'Erro de processamento',
                 }
               : i
           )
         );
-      }, (index + 1) * 1200);
-    });
+      }
+    }
+
+    setIsProcessing(false);
   };
 
   const completedCount = queue.filter((i) => i.status === 'COMPLETED').length;

@@ -12,4 +12,5 @@ export interface IntegrationTestResult {
   scopes?: string[];
   message: string;
   rawResponse?: Record<string, unknown>;
+  details?: Record<string, unknown>;
 }

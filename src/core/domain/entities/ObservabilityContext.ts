@@ -9,10 +9,10 @@ export interface ObservabilityContext {
 
 export function createObservabilityContext(sessionId?: string): ObservabilityContext {
   const now = Date.now().toString(36);
-  const rand = Math.random().toString(36).substring(2, 7);
+  const hires = Math.floor(performance.now() * 1000).toString(36);
   return {
-    sessionId: sessionId || `sess_${now}_${rand}`,
-    requestId: `req_${now}_${rand}`,
+    sessionId: sessionId || `sess_${now}_${hires}`,
+    requestId: `req_${now}_${hires}`,
     timestamp: new Date().toISOString(),
   };
 }

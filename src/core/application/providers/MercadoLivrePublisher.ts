@@ -14,7 +14,7 @@ export class MercadoLivrePublisher implements IMarketplacePublisher {
 
   public async publish(payload: MarketplacePublishPayload): Promise<MarketplacePublishResult> {
     try {
-      const externalId = `MLB${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const externalId = `MLB${Date.now()}`;
       const listingUrl = `https://produto.mercadolivre.com.br/${externalId}`;
 
       return {

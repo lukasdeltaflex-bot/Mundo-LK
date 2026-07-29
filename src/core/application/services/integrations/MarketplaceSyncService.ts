@@ -1,5 +1,7 @@
 import { MarketplaceConnectionSlug } from '../../../domain/entities/marketplace-connection.entity';
 import { FirestoreMarketplaceConnectionRepository } from '../../../../infrastructure/firebase/repositories/firestore-marketplace-connection.repository';
+import { FirestoreProductRepository } from '../../../../infrastructure/firebase/repositories/firestore-product.repository';
+import { Product } from '../../../domain/entities/product.entity';
 import { AuditLogService } from '../AuditLogService';
 
 export interface SyncResult {
@@ -11,15 +13,10 @@ export interface SyncResult {
   errorMessage?: string | null;
 }
 
-/**
- * MarketplaceSyncService — Serviço de Sincronização Real de Produtos e Pedidos (Release 4.0)
- *
- * Responsável por executar ciclos de sincronização nos canais conectados,
- * atualizar `lastSyncAt` e `lastError` sem travar a interface do usuário.
- */
 export class MarketplaceSyncService {
   private static instance: MarketplaceSyncService;
   private connectionRepo = new FirestoreMarketplaceConnectionRepository();
+  private productRepo = new FirestoreProductRepository();
 
   private constructor() {}
 
@@ -56,11 +53,14 @@ export class MarketplaceSyncService {
         await this.connectionRepo.save(conn);
       }
 
+      const userProducts = await this.productRepo.findAll(userId);
+      const syncedProductsCount = userProducts.filter((p: Product) => p.marketplaceSlug === marketplaceSlug).length;
+
       const result: SyncResult = {
         marketplaceSlug,
         success: true,
-        syncedProductsCount: Math.floor(Math.random() * 15) + 5,
-        syncedOrdersCount: Math.floor(Math.random() * 8) + 2,
+        syncedProductsCount,
+        syncedOrdersCount: 0,
         lastSyncAt: now,
       };
 

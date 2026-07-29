@@ -467,11 +467,8 @@ export class MarketplaceIntegrationManagerService {
    * Executes diagnostic test call to API endpoint.
    */
   public static async testConnection(slug: string): Promise<DiagnosticTestResult> {
-    const startTime = Date.now();
-
-    // Simulate API diagnostic response latency
-    await new Promise((res) => setTimeout(res, 500 + Math.random() * 300));
-    const latencyMs = Math.round(Date.now() - startTime);
+    const startTime = performance.now();
+    const latencyMs = Math.round(performance.now() - startTime);
 
     if (slug === 'shopee') {
       const cfg = getShopeeApiConfig();

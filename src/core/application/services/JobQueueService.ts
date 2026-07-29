@@ -61,6 +61,10 @@ export class JobQueueService {
     return job;
   }
 
+  public async getPendingJobs(userId: string): Promise<Job[]> {
+    return this.jobRepo.findPendingByUserId(userId, 20);
+  }
+
   /**
    * Worker Assíncrono: processa lote de até 10 jobs pendentes do usuário.
    */

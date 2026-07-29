@@ -28,6 +28,9 @@ import { PublishPanelModal } from './components/PublishPanelModal';
 import { OfferHistoryTable } from './components/OfferHistoryTable';
 import { PublishedListingsTable } from './components/PublishedListingsTable';
 import { CredentialManagerModal } from './components/CredentialManagerModal';
+import { SystemHealthDashboard } from './components/SystemHealthDashboard';
+import { AuditLogsTable } from './components/AuditLogsTable';
+import { QueueMonitorDashboard } from './components/QueueMonitorDashboard';
 import { ImportEngine, ResolutionStepLog } from './services/ImportEngine';
 import { AIService } from './services/AIService';
 import { MediaService, MediaItem } from './services/MediaService';
@@ -242,6 +245,9 @@ export default function AffiliateOperationsHubPage() {
         </div>
       </div>
 
+      {/* ── RELEASE 2.2.9: STATUS GERAL DO SISTEMA & SAÚDE DAS INTEGRAÇÕES ── */}
+      <SystemHealthDashboard />
+
       {/* ── RELEASE 2.2.8: TORRE DE CONTROLE OPERACIONAL (MARKETPLACE OPERATIONS CENTER) ── */}
       <MarketplaceHealthDashboard onOpenCredentials={() => setShowCredentialModal(true)} />
 
@@ -366,6 +372,12 @@ export default function AffiliateOperationsHubPage() {
         onExportCSV={() => handleExportData('csv')}
         onExportJSON={() => handleExportData('json')}
       />
+
+      {/* ── SCHEDULER & JOB QUEUE MONITOR ── */}
+      <QueueMonitorDashboard />
+
+      {/* ── CENTRAL DE LOGS DE AUDITORIA ── */}
+      <AuditLogsTable />
 
       {/* ── MODAIS E PAINÉIS FLUTUANTES ── */}
       {reviewData && (

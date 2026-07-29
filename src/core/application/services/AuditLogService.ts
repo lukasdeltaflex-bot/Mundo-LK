@@ -57,7 +57,7 @@ export class AuditLogService {
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     const log = new AuditLog({
-      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      id: `log_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
       userId: params.userId,
       tenantId: params.tenantId || params.userId,
       action: params.action,

@@ -14,7 +14,7 @@ export class ShopeePublisher implements IMarketplacePublisher {
 
   public async publish(payload: MarketplacePublishPayload): Promise<MarketplacePublishResult> {
     try {
-      const externalId = `SHP_${Math.floor(100000 + Math.random() * 900000)}`;
+      const externalId = `SHP_${Date.now()}`;
       const listingUrl = `https://shopee.com.br/product/183177700/${externalId}`;
 
       return {

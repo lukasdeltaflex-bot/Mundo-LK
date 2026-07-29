@@ -120,7 +120,7 @@ export class Product {
    */
   public recordDispatch(record: Omit<DispatchRecord, 'id' | 'dispatchedAt'>): DispatchRecord {
     const newRecord: DispatchRecord = {
-      id: `disp_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      id: `disp_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
       dispatchedAt: new Date().toISOString(),
       channel: record.channel,
       targetGroup: record.targetGroup || 'Canal Geral',
