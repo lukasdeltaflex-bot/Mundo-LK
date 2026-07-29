@@ -3,54 +3,51 @@ import {
   doc,
   getDoc,
   setDoc,
-  deleteDoc,
   query,
   where,
   getDocs,
-  limit,
-  startAfter,
-  QueryDocumentSnapshot,
-  orderBy,
 } from 'firebase/firestore';
 import { db } from '../config/firebase.config';
 import {
-  MarketplaceConnection,
-  MarketplaceConnectionProps,
+  IntegrationConnection,
+  IntegrationConnectionProps,
   MarketplaceConnectionSlug,
 } from '../../../core/domain/entities/marketplace-connection.entity';
-import { PaginationResult } from '../../../core/domain/value-objects/PaginationResult';
 
 export class FirestoreMarketplaceConnectionRepository {
   private collectionName = 'marketplace_connections';
 
-  public async findById(id: string): Promise<MarketplaceConnection | null> {
-    try {
-      const ref = doc(db, this.collectionName, id);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        return new MarketplaceConnection(snap.data() as MarketplaceConnectionProps);
+  /**
+   * Sanitizador Estrito — Remove recursivamente campos com valor undefined
+   * para evitar o erro "Unsupported field value: undefined" no Firestore setDoc().
+   */
+  private sanitizeData<T extends Record<string, any>>(obj: T): Record<string, any> {
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          result[key] = this.sanitizeData(value);
+        } else {
+          result[key] = value;
+        }
       }
-      return null;
-    } catch (err) {
-      console.warn('[FirestoreMarketplaceConnectionRepository] findById error:', err);
-      return null;
     }
+    return result;
   }
 
   public async findByUserIdAndSlug(
     userId: string,
     marketplaceSlug: MarketplaceConnectionSlug
-  ): Promise<MarketplaceConnection | null> {
+  ): Promise<IntegrationConnection | null> {
     try {
       const q = query(
         collection(db, this.collectionName),
         where('userId', '==', userId),
-        where('marketplaceSlug', '==', marketplaceSlug),
-        limit(1)
+        where('marketplaceSlug', '==', marketplaceSlug)
       );
       const snap = await getDocs(q);
-      if (snap.docs.length > 0) {
-        return new MarketplaceConnection(snap.docs[0].data() as MarketplaceConnectionProps);
+      if (!snap.empty) {
+        return new IntegrationConnection(snap.docs[0].data() as IntegrationConnectionProps);
       }
       return null;
     } catch (err) {
@@ -59,71 +56,43 @@ export class FirestoreMarketplaceConnectionRepository {
     }
   }
 
-  public async findAllByUserId(userId: string): Promise<MarketplaceConnection[]> {
+  public async findAllByUserId(userId: string): Promise<IntegrationConnection[]> {
     try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('userId', '==', userId)
-      );
+      const q = query(collection(db, this.collectionName), where('userId', '==', userId));
       const snap = await getDocs(q);
-      return snap.docs.map((d) => new MarketplaceConnection(d.data() as MarketplaceConnectionProps));
+      return snap.docs.map((d) => new IntegrationConnection(d.data() as IntegrationConnectionProps));
     } catch (err) {
       console.warn('[FirestoreMarketplaceConnectionRepository] findAllByUserId error:', err);
       return [];
     }
   }
 
-  public async findPagedByUserId(
-    userId: string,
-    pageSize: number = 20,
-    lastDocSnap?: QueryDocumentSnapshot
-  ): Promise<PaginationResult<MarketplaceConnection>> {
-    try {
-      const constraints: any[] = [
-        where('userId', '==', userId),
-        orderBy('updatedAt', 'desc'),
-        limit(pageSize),
-      ];
-      if (lastDocSnap) constraints.push(startAfter(lastDocSnap));
+  public async save(conn: IntegrationConnection): Promise<void> {
+    const docId = `conn_${conn.userId}_${conn.marketplaceSlug}`;
+    const ref = doc(db, this.collectionName, docId);
 
-      const q = query(collection(db, this.collectionName), ...constraints);
-      const snap = await getDocs(q);
-      const items = snap.docs.map((d) => new MarketplaceConnection(d.data() as MarketplaceConnectionProps));
-      const cursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : undefined;
+    const rawData = {
+      id: docId,
+      userId: conn.userId,
+      tenantId: conn.tenantId,
+      marketplaceSlug: conn.marketplaceSlug,
+      name: conn.name,
+      category: conn.category,
+      credentials: conn.credentials,
+      status: conn.status,
+      capabilities: conn.capabilities || [],
+      schemaVersion: conn.schemaVersion || 1,
+      healthScore: conn.healthScore ?? 100,
+      lastTestedAt: conn.lastTestedAt ?? null,
+      lastSyncAt: conn.lastSyncAt ?? null,
+      lastError: conn.lastError ?? null,
+      createdAt: conn.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
 
-      return { items, cursor, hasMore: snap.docs.length === pageSize };
-    } catch (err) {
-      console.warn('[FirestoreMarketplaceConnectionRepository] findPagedByUserId error:', err);
-      return { items: [], hasMore: false };
-    }
-  }
+    // Aplica sanitização estrita para eliminar qualquer 'undefined'
+    const cleanData = this.sanitizeData(rawData);
 
-  public async save(connection: MarketplaceConnection): Promise<void> {
-    const ref = doc(db, this.collectionName, connection.id);
-    await setDoc(
-      ref,
-      {
-        id: connection.id,
-        userId: connection.userId,
-        tenantId: connection.tenantId,
-        marketplaceSlug: connection.marketplaceSlug,
-        storeName: connection.storeName ?? null,
-        accountId: connection.accountId ?? null,
-        status: connection.status,
-        credentials: connection.credentials,
-        source: connection.source,
-        lastSyncAt: connection.lastSyncAt ?? null,
-        lastTestedAt: connection.lastTestedAt ?? null,
-        lastError: connection.lastError ?? null,
-        createdAt: connection.createdAt,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
-  }
-
-  public async delete(id: string): Promise<void> {
-    const ref = doc(db, this.collectionName, id);
-    await deleteDoc(ref);
+    await setDoc(ref, cleanData, { merge: true });
   }
 }

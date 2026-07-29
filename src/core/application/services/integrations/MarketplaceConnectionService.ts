@@ -80,6 +80,8 @@ export class MarketplaceConnectionService {
       userId: params.userId,
       tenantId: params.tenantId || params.userId,
       marketplaceSlug: params.marketplaceSlug,
+      name: params.storeName || existing?.name || `${params.marketplaceSlug.toUpperCase()} Connection`,
+      category: existing?.category || 'Marketplaces',
       storeName: params.storeName || existing?.storeName || `${params.marketplaceSlug.toUpperCase()} Store`,
       accountId: params.accountId || existing?.accountId || `ACC_${Date.now().toString().slice(-6)}`,
       status: testRes.success ? 'CONNECTED' : 'ERROR',
