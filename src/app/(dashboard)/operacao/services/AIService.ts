@@ -2,6 +2,8 @@ import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractio
 import { ChannelContent } from '@/core/domain/value-objects/channel-content.vo';
 import { ScoreType } from '@/core/domain/value-objects/score-level.vo';
 import { OfferProps } from '@/core/domain/entities/offer.entity';
+import { AffiliateOffer, OfferContent } from '@/core/domain/entities/affiliate-offer.entity';
+import { AffiliateAIOrchestrator } from '@/core/domain/services/AffiliateAIOrchestrator';
 
 export interface AIEnrichmentResult {
   success: boolean;
@@ -19,6 +21,12 @@ export interface AIOfferCopyParams {
 }
 
 export class AIService {
+  /**
+   * Gera o conteúdo multicanal completo (WhatsApp, Instagram, TikTok, Pinterest) para uma AffiliateOffer.
+   */
+  public static generateAffiliateOfferContent(offer: AffiliateOffer): OfferContent {
+    return AffiliateAIOrchestrator.getInstance().generateMultiChannelContent(offer);
+  }
   /**
    * Gera cópia persuasiva sob medida para cada canal/estilo com foco em alta conversão.
    */
