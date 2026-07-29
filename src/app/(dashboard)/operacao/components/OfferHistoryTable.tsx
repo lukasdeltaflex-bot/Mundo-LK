@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Product } from '@/core/domain/entities/product.entity';
 import { Button } from '@/presentation/components/ui/Button';
+import { OfferShareService } from '@/core/application/services/content/OfferShareService';
 
 export interface OfferAnalytics {
   offerId: string;
@@ -132,12 +133,21 @@ export const OfferHistoryTable: React.FC<OfferHistoryTableProps> = ({
                           <button
                             type="button"
                             onClick={() => onShareProduct(p)}
-                            title="Compartlhar Novamente"
+                            title="Compartilhar Novamente"
                             className="p-1.5 rounded-lg border border-slate-800 text-blue-400 hover:bg-blue-500/10 transition"
                           >
                             <Share2 className="h-3.5 w-3.5" />
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => OfferShareService.getInstance().copyLink(p.affiliateUrl ? String(p.affiliateUrl) : (p.originalUrl || ''))}
+                          title="Copiar Link de Afiliado"
+                          className="p-1.5 rounded-lg border border-slate-800 text-emerald-400 hover:bg-emerald-500/10 transition"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </button>
 
                         {onEditProduct && (
                           <button

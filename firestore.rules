@@ -206,6 +206,13 @@ service cloud.firestore {
       allow update, delete: if false; // Imutável
     }
 
+    // 26. offer_generated_contents (Release 2.2.8.1 — Histórico de Gerações IA)
+    match /offer_generated_contents/{contentId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update, delete: if false; // Imutável
+    }
+
     // 12. prompts
     match /prompts/{promptId} {
       allow read: if isOwner(resource.data.userId) || isAdmin(); 

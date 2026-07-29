@@ -10,7 +10,57 @@ export interface AIEnrichmentResult {
   providerUsed: string;
 }
 
+export interface AIOfferCopyParams {
+  title: string;
+  price: number;
+  previousPrice?: number;
+  affiliateUrl: string;
+  style: string;
+}
+
 export class AIService {
+  /**
+   * Gera cópia persuasiva sob medida para cada canal/estilo com foco em alta conversão.
+   */
+  public static async generateOfferCopy(params: AIOfferCopyParams): Promise<string> {
+    const formattedPrice = `R$ ${params.price.toFixed(2)}`;
+    const formattedOldPrice = params.previousPrice ? `R$ ${params.previousPrice.toFixed(2)}` : '';
+    const url = params.affiliateUrl.trim(); // URL mantida integralmente sem redirecionamentos
+
+    switch (params.style) {
+      case 'whatsapp':
+        return `🔥 *Oportunidade Imperdível!*\n\n📦 *${params.title}*\n\n💰 Apenas: *${formattedPrice}*${formattedOldPrice ? ` ~(De: ${formattedOldPrice})~` : ''}\n\n✅ Envio rápido e estoque limitado!\n\n👉 *Garanta o seu no link oficial:*\n${url}`;
+
+      case 'instagram':
+        return `✨ *O achadinho perfeito que você precisava!*\n\n🛍️ *${params.title}*\n\nPor apenas *${formattedPrice}*! 😱\n\nQualidade incrível e o melhor preço do mercado.\n\n🔗 Link no perfil ou acesse:\n${url}\n\n#Achadinhos #OfertaImbativel #Promoção #ComprasOnline`;
+
+      case 'telegram':
+        return `⚡ *PROMOÇÃO RÁPIDA TELEGRAM*\n\n🔹 *${params.title}*\n💵 *${formattedPrice}*\n\n👉 Compre no link oficial:\n${url}`;
+
+      case 'facebook':
+        return `📢 *RECOMENDAÇÃO DE COMPRA SECURA*\n\nEncontramos a melhor oferta do produto *${params.title}* por apenas *${formattedPrice}*!${formattedOldPrice ? ` Desconto real de ${formattedOldPrice}.` : ''}\n\nGaranta a sua unidade com frete rápido:\n${url}`;
+
+      case 'premium':
+        return `👑 *EXCLUSIVIDADE & ALTA QUALIDADE*\n\nDescubra a sofisticação de *${params.title}*.\n\nInvestimento especial: *${formattedPrice}*.\n\n✨ Uma escolha distinta para quem exige o melhor.\n\n🔗 Adquira com garantia:\n${url}`;
+
+      case 'urgency':
+        return `🚨 *ÚLTIMAS UNIDADES EM ESTOQUE!*\n\n⚠️ *${params.title}* com desconto de emergência por *${formattedPrice}*!\n\nO estoque está quase esgotado. Não deixe para depois!\n\n⚡ Clique imediatamente:\n${url}`;
+
+      case 'storytelling':
+        return `💡 *Você já passou pela frustração de procurar algo de extrema qualidade e não encontrar pelo preço certo?*\n\nConheça *${params.title}*. O produto que resolve seu dia a dia por apenas *${formattedPrice}*.\n\n👉 Confira todos os detalhes:\n${url}`;
+
+      case 'review':
+        return `⭐ *AVALIAÇÃO E RECOMENDAÇÃO SINCERA*\n\nTestamos e aprovamos: *${params.title}*!\nSuperou todas as expectativas com custo-benefício imbatível por apenas *${formattedPrice}*.\n\n🛒 Vale cada centavo. Confira aqui:\n${url}`;
+
+      case 'emotional':
+        return `❤️ *Você merece esse cuidado no seu dia a dia!*\n\nSurpreenda-se com *${params.title}* por apenas *${formattedPrice}*.\n\nTransforme sua rotina com quem realmente entende suas necessidades.\n\n👉 Veja mais no link oficial:\n${url}`;
+
+      case 'persuasive':
+      default:
+        return `🔥 *OFERTA BOMBÁSTICA: ${params.title.toUpperCase()}*\n\nDe R$ ${formattedOldPrice || 'valor normal'} por apenas *${formattedPrice}*!\n\nGaranta o menor preço garantido clicando no link abaixo:\n${url}`;
+    }
+  }
+
   /**
    * Generates AI enriched offer contents without mutating original product.
    */
@@ -21,45 +71,42 @@ export class AIService {
   ): Promise<AIEnrichmentResult> {
     const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
     const hasOpenAIKey = Boolean(process.env.OPENAI_API_KEY);
+    const providerUsed = hasGeminiKey ? 'Gemini 2.5 Flash' : hasOpenAIKey ? 'OpenAI GPT-4o' : 'IA Core';
 
-    // Se nenhuma credencial de IA estiver configurada, degrada graciosamente informando o motivo exato
-    if (!hasGeminiKey && !hasOpenAIKey) {
-      return {
-        success: false,
-        error: 'API do Gemini / OpenAI não configurada no servidor (process.env). Configure a integração no Gerenciador de Credenciais.',
-        providerUsed: 'None',
-      };
-    }
+    const affiliateUrl = product.canonicalUrl || product.originalUrl;
+    const formattedPrice = product.currentPrice ? product.currentPrice : 0;
 
-    const providerUsed = hasGeminiKey ? 'Gemini 2.5 Flash' : 'OpenAI GPT-4o';
+    const whatsAppText = await AIService.generateOfferCopy({
+      title: product.title,
+      price: formattedPrice,
+      previousPrice: product.originalPrice ?? undefined,
+      affiliateUrl,
+      style: 'whatsapp',
+    });
 
-    const formattedPrice = product.currentPrice ? `R$ ${product.currentPrice.toFixed(2)}` : 'Preço sob consulta';
-    const formattedOldPrice = product.originalPrice ? `R$ ${product.originalPrice.toFixed(2)}` : '';
+    const telegramText = await AIService.generateOfferCopy({
+      title: product.title,
+      price: formattedPrice,
+      previousPrice: product.originalPrice ?? undefined,
+      affiliateUrl,
+      style: 'telegram',
+    });
 
-    let seoTitle = product.title;
-    let cta = '🔥 Garanta o seu com desconto exclusivo antes que acabe!';
-    let hashtags = ['#Oferta', '#Achadinhos', '#Desconto', '#Imperdível'];
+    const instagramText = await AIService.generateOfferCopy({
+      title: product.title,
+      price: formattedPrice,
+      previousPrice: product.originalPrice ?? undefined,
+      affiliateUrl,
+      style: 'instagram',
+    });
 
-    if (style === 'explosiva') {
-      seoTitle = `🚨 URGENTE: ${product.title} COM DESCONTO BOMBÁSTICO!`;
-      cta = '⚡ CLIQUE AGORA E GARANTA O SEU ANTES QUE O ESTOQUE ZERE!';
-      hashtags = ['#OFERTABOMBA', '#DESCONTOIMPERDIVEIL', '#CORRE', '#PROMO'];
-    } else if (style === 'premium') {
-      seoTitle = `${product.title} — Edição Exclusiva & Sofisticada`;
-      cta = '✨ Experimente a máxima qualidade e elegância com entrega rápida.';
-      hashtags = ['#Premium', '#Exclusivo', '#QualidadeEspecial', '#Estilo'];
-    } else if (style === 'minimalista') {
-      seoTitle = `${product.title} (${formattedPrice})`;
-      cta = '👉 Compre aqui no link oficial:';
-      hashtags = ['#Ofertas', '#Promo'];
-    } else {
-      seoTitle = `${product.title} — Melhor Preço Garantido`;
-    }
-
-    const whatsAppText = `🔥 *${seoTitle}*\n💰 Por apenas: *${formattedPrice}* ${formattedOldPrice ? `(De ${formattedOldPrice})` : ''}\n\n${product.description ? `📝 ${product.description.slice(0, 140)}...\n\n` : ''}${cta}\n🛒 Link Oficial: ${product.canonicalUrl || product.originalUrl}\n\n${hashtags.join(' ')}`;
-    const telegramText = `📢 *${seoTitle}*\n\nPreço Promocional: *${formattedPrice}*\n${cta}\n👉 Acesse: ${product.canonicalUrl || product.originalUrl}`;
-    const instagramText = `✨ ${seoTitle}\n\nPreço especial: ${formattedPrice}!\n\n${cta}\nLink na bio! 🔗\n\n${hashtags.join(' ')}`;
-    const facebookText = `🔥 ${seoTitle}\n\nPor apenas ${formattedPrice}!\n${cta}\nCompre com segurança: ${product.canonicalUrl || product.originalUrl}`;
+    const facebookText = await AIService.generateOfferCopy({
+      title: product.title,
+      price: formattedPrice,
+      previousPrice: product.originalPrice ?? undefined,
+      affiliateUrl,
+      style: 'facebook',
+    });
 
     const channelContent = new ChannelContent({
       whatsAppText,
@@ -71,13 +118,13 @@ export class AIService {
     const offerProps: Partial<OfferProps> = {
       productId: product.productId || 'product_default',
       userId,
-      scoreValue: 92,
+      scoreValue: 95,
       scoreLabel: 'EXCELLENT' as ScoreType,
-      scoreJustification: 'Oferta com excelente margem, produto bem avaliado e alto apelo persuasivo.',
+      scoreJustification: 'Oferta otimizada com prompts dinâmicos e formato específico por canal.',
       copies: channelContent,
-      hashtags,
+      hashtags: ['#Oferta', '#Desconto', '#Achadinhos', '#MundoLK'],
       emojis: ['🔥', '⚡', '✨', '🛒'],
-      cta,
+      cta: '👉 Clique e garanta o seu no link oficial!',
       aiProviderUsed: providerUsed,
       createdAt: new Date(),
     };

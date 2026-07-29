@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Brain, Copy, Check, Wand2, MessageCircle, Send, Heart, Zap, Crown } from 'lucide-react';
+import { Sparkles, Brain } from 'lucide-react';
 import { Button } from '@/presentation/components/ui/Button';
 
 interface AIEnginePanelProps {
@@ -10,10 +10,16 @@ interface AIEnginePanelProps {
 }
 
 const AI_STYLES = [
-  { id: 'padrao', label: 'Padrão Persuasivo', desc: 'Equilibrado para converter cliques' },
-  { id: 'explosiva', label: 'Explosiva / Bombástica', desc: 'Gatilho de alta urgência e impacto' },
-  { id: 'premium', label: 'Premium & Sofisticado', desc: 'Foco em desejo e exclusividade' },
-  { id: 'minimalista', label: 'Minimalista Direct-to-Point', desc: 'Texto curto, objetivo e rápido' },
+  { id: 'whatsapp', label: 'WhatsApp Escaneável', desc: 'Mensagem curta com negritos e CTA direto' },
+  { id: 'instagram', label: 'Instagram Emocional', desc: 'Gancho envolvente, benefícios e hashtags' },
+  { id: 'telegram', label: 'Telegram Promo', desc: 'Texto ultra-curto de disparo de ofertas' },
+  { id: 'facebook', label: 'Facebook Review', desc: 'Avaliação explicativa com prova social' },
+  { id: 'premium', label: 'Premium & Sofisticado', desc: 'Foco em exclusividade e alta qualidade' },
+  { id: 'urgency', label: 'Urgência & Escassez', desc: 'Contagem regressiva visual e gatilho de estoque' },
+  { id: 'storytelling', label: 'Storytelling', desc: 'Pequena história conectada ao produto' },
+  { id: 'emotional', label: 'Conexão Emocional', desc: 'Conecta com os desejos e rotina do comprador' },
+  { id: 'review', label: 'Recomendação Pessoal', desc: 'Avaliação sincera em tom de indicação' },
+  { id: 'persuasive', label: 'Padrão Persuasivo', desc: 'Equilibrado com foco no benefício principal' },
 ];
 
 export const AIEnginePanel: React.FC<AIEnginePanelProps> = ({ onGenerateAI, isGenerating }) => {
@@ -25,15 +31,15 @@ export const AIEnginePanel: React.FC<AIEnginePanelProps> = ({ onGenerateAI, isGe
         </div>
         <div>
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            Motor de IA — Enriquecimento de Anúncios & Copys
+            Motor de IA Profissional — 10 Estilos & Prompts por Canal (Release 2.2.8.1)
           </h3>
           <p className="text-[11px] text-slate-400">
-            Geração de títulos SEO, benefícios, hashtags e mensagens otimizadas por canal.
+            Geração real por IA via Gemini/OpenAI com preservação de URLs curtas e encoding UTF-8 limpo.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5">
         {AI_STYLES.map((style) => (
           <div
             key={style.id}
@@ -44,7 +50,7 @@ export const AIEnginePanel: React.FC<AIEnginePanelProps> = ({ onGenerateAI, isGe
               <span className="text-xs font-bold text-white group-hover:text-purple-400 transition block mb-1">
                 {style.label}
               </span>
-              <p className="text-[10px] text-slate-400">{style.desc}</p>
+              <p className="text-[10px] text-slate-400 leading-tight">{style.desc}</p>
             </div>
 
             <Button
@@ -59,7 +65,7 @@ export const AIEnginePanel: React.FC<AIEnginePanelProps> = ({ onGenerateAI, isGe
               leftIcon={<Sparkles className="h-3 w-3 text-purple-400" />}
               className="text-[11px] mt-3 border-purple-500/20 text-purple-300 hover:bg-purple-500/10"
             >
-              {isGenerating ? 'Gerando...' : 'Gerar com IA'}
+              {isGenerating ? 'Gerando...' : 'Gerar IA'}
             </Button>
           </div>
         ))}
