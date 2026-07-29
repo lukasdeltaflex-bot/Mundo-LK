@@ -34,6 +34,7 @@ import { MediaService, MediaItem } from './services/MediaService';
 import { PublishingService } from './services/PublishingService';
 import { AuditLogService } from '@/core/application/services/AuditLogService';
 import { BackupExportService } from '@/core/application/services/BackupExportService';
+import { MarketplaceConnectionService } from '@/core/application/services/integrations/MarketplaceConnectionService';
 
 export default function AffiliateOperationsHubPage() {
   const { user } = useAuth();
@@ -68,7 +69,21 @@ export default function AffiliateOperationsHubPage() {
   const [shareModalData, setShareModalData] = useState<SocialShareData | null>(null);
   const [showCredentialModal, setShowCredentialModal] = useState(false);
 
-  // Carregar histórico de produtos do Firestore
+  // Carregar conexões reais do tenant e histórico de produtos do Firestore
+  const loadIntegrations = async () => {
+    if (!user?.uid) {
+      setIntegrations(MarketplaceIntegrationManagerService.getMarketplacesStatus([]));
+      return;
+    }
+    try {
+      const activeConns = await MarketplaceConnectionService.getInstance().getActiveConnections(user.uid);
+      const updatedStatus = MarketplaceIntegrationManagerService.getMarketplacesStatus(activeConns);
+      setIntegrations(updatedStatus);
+    } catch (err) {
+      console.warn('[Hub] Erro ao carregar conexões reais:', err);
+    }
+  };
+
   const loadProducts = async () => {
     if (!user?.uid) return;
     try {
@@ -83,6 +98,7 @@ export default function AffiliateOperationsHubPage() {
   useEffect(() => {
     AuditLogService.getInstance().initListeners();
     loadProducts();
+    loadIntegrations();
   }, [user]);
 
   const handleExportData = async (format: 'csv' | 'json') => {
@@ -363,7 +379,12 @@ export default function AffiliateOperationsHubPage() {
       )}
 
       {showCredentialModal && (
-        <CredentialManagerModal onClose={() => setShowCredentialModal(false)} />
+        <CredentialManagerModal
+          onClose={() => {
+            setShowCredentialModal(false);
+            loadIntegrations();
+          }}
+        />
       )}
     </div>
   );

@@ -39,10 +39,48 @@ export interface DiagnosticTestResult {
 
 export class MarketplaceIntegrationManagerService {
   /**
-   * Returns connection states for all supported integrations across Marketplaces, Social Channels, Scrapers, and AI Engines.
+   * Checa se uma integração está realmente conectada via Firestore do Tenant ou process.env.
    */
-  public static getMarketplacesStatus(): MarketplaceIntegrationState[] {
-    const shopeeCfg = getShopeeApiConfig();
+  private static isProviderConnected(slug: string, userConns: any[] = []): boolean {
+    const userConn = userConns.find((c) => c.marketplaceSlug === slug || c.id === slug);
+    if (userConn && userConn.status === 'CONNECTED') return true;
+
+    switch (slug) {
+      case 'mercadolivre':
+        return Boolean(process.env.MERCADOLIVRE_ACCESS_TOKEN || process.env.MERCADOLIVRE_CLIENT_ID);
+      case 'shopee':
+        return Boolean(process.env.SHOPEE_PARTNER_ID && process.env.SHOPEE_PARTNER_KEY);
+      case 'amazon':
+        return Boolean(process.env.AMAZON_CLIENT_ID && process.env.AMAZON_REFRESH_TOKEN);
+      case 'whatsapp_business':
+      case 'whatsapp':
+        return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+      case 'telegram':
+        return Boolean(process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_API_KEY);
+      case 'instagram':
+        return Boolean(process.env.INSTAGRAM_ACCESS_TOKEN);
+      case 'facebook':
+        return Boolean(process.env.FACEBOOK_PAGE_ACCESS_TOKEN);
+      case 'gemini':
+        return Boolean(process.env.GEMINI_API_KEY);
+      case 'openai':
+        return Boolean(process.env.OPENAI_API_KEY);
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Retorna os estados REAIS de todas as integrações suportadas sem dados simulados.
+   */
+  public static getMarketplacesStatus(userConnections: any[] = []): MarketplaceIntegrationState[] {
+    const shopeeConnected = this.isProviderConnected('shopee', userConnections);
+    const mlConnected = this.isProviderConnected('mercadolivre', userConnections);
+    const amzConnected = this.isProviderConnected('amazon', userConnections);
+    const waConnected = this.isProviderConnected('whatsapp_business', userConnections);
+    const tgConnected = this.isProviderConnected('telegram', userConnections);
+    const igConnected = this.isProviderConnected('instagram', userConnections);
+    const fbConnected = this.isProviderConnected('facebook', userConnections);
 
     return [
       // ── MARKETPLACES ──────────────────────────────────────────────────────────
@@ -53,14 +91,10 @@ export class MarketplaceIntegrationManagerService {
         color: '#EE4D2D',
         logoSvgBg: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
         supportsOAuth: true,
-        isConnected: shopeeCfg.isEnabled,
-        connectedStoreName: shopeeCfg.isEnabled ? 'Loja Oficial Shopee' : undefined,
-        connectedAccountId: shopeeCfg.appId || undefined,
-        lastAuthAt: shopeeCfg.isEnabled ? new Date().toLocaleDateString('pt-BR') : undefined,
-        lastSyncAt: shopeeCfg.isEnabled ? 'Há 5 minutos' : undefined,
+        isConnected: shopeeConnected,
+        connectedStoreName: shopeeConnected ? 'Loja Oficial Shopee' : undefined,
         requestLimit: '10.000 req/dia',
-        status: shopeeCfg.isEnabled ? 'CONNECTED' : 'DISCONNECTED',
-        oauthAuthUrl: `https://partner.shopeemobile.com/api/v2/shop/auth_partner?partner_id=${shopeeCfg.appId || '18317770060'}&redirect=https://mundolk.com/oauth/shopee/callback`,
+        status: shopeeConnected ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'mercadolivre',
@@ -69,15 +103,10 @@ export class MarketplaceIntegrationManagerService {
         color: '#FFE600',
         logoSvgBg: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
         supportsOAuth: true,
-        isConnected: true,
-        connectedStoreName: 'Mundo LK Store (ML BR)',
-        connectedAccountId: 'MLB_USER_99214',
-        lastAuthAt: '25/07/2026 14:20',
-        lastSyncAt: 'Há 2 minutos',
-        tokenExpiresAt: '25/01/2027',
+        isConnected: mlConnected,
+        connectedStoreName: mlConnected ? 'Mercado Livre BR' : undefined,
         requestLimit: '50.000 req/mês',
-        status: 'CONNECTED',
-        oauthAuthUrl: 'https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=MERCADO_LIVRE_CLIENT_ID',
+        status: mlConnected ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'amazon',
@@ -86,14 +115,10 @@ export class MarketplaceIntegrationManagerService {
         color: '#FF9900',
         logoSvgBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
         supportsOAuth: true,
-        isConnected: true,
-        connectedStoreName: 'Amazon SP-API Brasil',
-        connectedAccountId: 'AMZ_SELLER_88190',
-        lastAuthAt: '20/07/2026 09:15',
-        lastSyncAt: 'Há 12 minutos',
+        isConnected: amzConnected,
+        connectedStoreName: amzConnected ? 'Amazon SP-API Brasil' : undefined,
         requestLimit: '25.000 req/dia',
-        status: 'CONNECTED',
-        oauthAuthUrl: 'https://sellercentral.amazon.com.br/apps/authorize/consent',
+        status: amzConnected ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'magalu',
@@ -105,7 +130,6 @@ export class MarketplaceIntegrationManagerService {
         isConnected: false,
         requestLimit: '5.000 req/dia',
         status: 'DISCONNECTED',
-        oauthAuthUrl: 'https://integra.magazineluiza.com.br/oauth/authorize',
       },
       {
         slug: 'tiktok_shop',
@@ -117,7 +141,6 @@ export class MarketplaceIntegrationManagerService {
         isConnected: false,
         requestLimit: '10.000 req/dia',
         status: 'DISCONNECTED',
-        oauthAuthUrl: 'https://services.tiktokshops.com/open/authorize',
       },
       {
         slug: 'aliexpress',
@@ -129,7 +152,6 @@ export class MarketplaceIntegrationManagerService {
         isConnected: false,
         requestLimit: '15.000 req/dia',
         status: 'DISCONNECTED',
-        oauthAuthUrl: 'https://oauth.aliexpress.com/authorize',
       },
       {
         slug: 'shein',
@@ -141,7 +163,6 @@ export class MarketplaceIntegrationManagerService {
         isConnected: false,
         requestLimit: '5.000 req/dia',
         status: 'DISCONNECTED',
-        oauthAuthUrl: 'https://open.shein.com/oauth/authorize',
       },
       {
         slug: 'via',
@@ -158,45 +179,44 @@ export class MarketplaceIntegrationManagerService {
         slug: 'temu',
         name: 'Temu Brasil',
         category: 'marketplace',
-        color: '#FB7701',
-        logoSvgBg: 'bg-orange-600/10 text-orange-400 border-orange-600/20',
-        supportsOAuth: true,
+        color: '#FB641B',
+        logoSvgBg: 'bg-amber-600/10 text-amber-400 border-amber-600/20',
+        supportsOAuth: false,
         isConnected: false,
-        requestLimit: '10.000 req/dia',
+        requestLimit: '5.000 req/dia',
         status: 'DISCONNECTED',
-        oauthAuthUrl: 'https://open.temu.com/oauth/authorize',
       },
       {
         slug: 'americanas',
         name: 'Americanas',
         category: 'marketplace',
         color: '#E60014',
-        logoSvgBg: 'bg-red-600/10 text-red-500 border-red-600/20',
-        supportsOAuth: false,
-        isConnected: false,
-        requestLimit: '5.000 req/dia',
-        status: 'DISCONNECTED',
-      },
-      {
-        slug: 'madeiramadeira',
-        name: 'MadeiraMadeira',
-        category: 'marketplace',
-        color: '#FF6B00',
-        logoSvgBg: 'bg-amber-600/10 text-amber-500 border-amber-600/20',
+        logoSvgBg: 'bg-red-600/10 text-red-400 border-red-600/20',
         supportsOAuth: false,
         isConnected: false,
         requestLimit: '3.000 req/dia',
         status: 'DISCONNECTED',
       },
       {
+        slug: 'madeiramadeira',
+        name: 'MadeiraMadeira',
+        category: 'marketplace',
+        color: '#FF6600',
+        logoSvgBg: 'bg-orange-600/10 text-orange-400 border-orange-600/20',
+        supportsOAuth: false,
+        isConnected: false,
+        requestLimit: '2.000 req/dia',
+        status: 'DISCONNECTED',
+      },
+      {
         slug: 'kabum',
         name: 'KaBuM!',
         category: 'marketplace',
-        color: '#FF5500',
+        color: '#FF6500',
         logoSvgBg: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
         supportsOAuth: false,
         isConnected: false,
-        requestLimit: '5.000 req/dia',
+        requestLimit: '3.000 req/dia',
         status: 'DISCONNECTED',
       },
       {
@@ -219,13 +239,10 @@ export class MarketplaceIntegrationManagerService {
         color: '#25D366',
         logoSvgBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
         supportsOAuth: true,
-        isConnected: true,
-        connectedStoreName: 'Canal Oficial Mundo LK',
-        lastAuthAt: 'Há 1 hora',
-        lastSyncAt: 'Agora mesmo',
+        isConnected: waConnected,
+        connectedStoreName: waConnected ? 'Canal Oficial WhatsApp' : undefined,
         requestLimit: '1.000 msgs/dia',
-        status: 'CONNECTED',
-        oauthAuthUrl: 'https://facebook.com/v18.0/dialog/oauth',
+        status: waConnected ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'telegram',
@@ -234,12 +251,10 @@ export class MarketplaceIntegrationManagerService {
         color: '#24A1DE',
         logoSvgBg: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
         supportsOAuth: false,
-        isConnected: true,
-        connectedStoreName: '@MundoLK_OfertasBot',
-        lastAuthAt: '24/07/2026',
-        lastSyncAt: 'Há 1 minuto',
+        isConnected: tgConnected,
+        connectedStoreName: tgConnected ? 'Bot Telegram Oficial' : undefined,
         requestLimit: 'Ilimitado',
-        status: 'CONNECTED',
+        status: tgConnected ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'instagram',
@@ -248,12 +263,10 @@ export class MarketplaceIntegrationManagerService {
         color: '#E4405F',
         logoSvgBg: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
         supportsOAuth: true,
-        isConnected: true,
-        connectedStoreName: '@mundolk.oficial',
-        lastAuthAt: '22/07/2026',
-        lastSyncAt: 'Há 10 minutos',
+        isConnected: igConnected,
+        connectedStoreName: igConnected ? 'Instagram Conectado' : undefined,
         requestLimit: '200 posts/dia',
-        status: 'CONNECTED',
+        status: igConnected ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'facebook',
@@ -262,12 +275,10 @@ export class MarketplaceIntegrationManagerService {
         color: '#1877F2',
         logoSvgBg: 'bg-blue-600/10 text-blue-400 border-blue-600/20',
         supportsOAuth: true,
-        isConnected: true,
-        connectedStoreName: 'Página Mundo LK Ofertas',
-        lastAuthAt: '22/07/2026',
-        lastSyncAt: 'Há 15 minutos',
+        isConnected: fbConnected,
+        connectedStoreName: fbConnected ? 'Página Facebook Conectada' : undefined,
         requestLimit: '500 posts/dia',
-        status: 'CONNECTED',
+        status: fbConnected ? 'CONNECTED' : 'DISCONNECTED',
       },
       {
         slug: 'threads',
