@@ -68,6 +68,7 @@ export default function AffiliateOperationsHubPage() {
   } | null>(null);
   const [shareModalData, setShareModalData] = useState<SocialShareData | null>(null);
   const [showCredentialModal, setShowCredentialModal] = useState(false);
+  const [selectedCredentialSlug, setSelectedCredentialSlug] = useState<string | undefined>(undefined);
 
   // Carregar conexões reais do tenant e histórico de produtos do Firestore
   const loadIntegrations = async () => {
@@ -248,7 +249,10 @@ export default function AffiliateOperationsHubPage() {
       <IntegrationStatus
         integrations={integrations}
         onTestConnection={handleTestConnection}
-        onOpenCredentials={() => setShowCredentialModal(true)}
+        onOpenCredentials={(slug) => {
+          setSelectedCredentialSlug(slug);
+          setShowCredentialModal(true);
+        }}
         testingSlug={testingSlug}
         testResults={testResults}
       />
@@ -380,8 +384,10 @@ export default function AffiliateOperationsHubPage() {
 
       {showCredentialModal && (
         <CredentialManagerModal
+          initialSlug={selectedCredentialSlug}
           onClose={() => {
             setShowCredentialModal(false);
+            setSelectedCredentialSlug(undefined);
             loadIntegrations();
           }}
         />

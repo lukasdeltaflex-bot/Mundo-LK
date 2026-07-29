@@ -17,20 +17,21 @@ import {
 } from '@/core/domain/entities/marketplace-connection.entity';
 
 interface CredentialManagerModalProps {
+  initialSlug?: string;
   onClose: () => void;
 }
 
-export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ onClose }) => {
+export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ initialSlug, onClose }) => {
   const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<IntegrationCategory | 'Todas'>('Todas');
-  const [selectedSlug, setSelectedSlug] = useState<MarketplaceConnectionSlug>('mercadolivre');
+  const [selectedSlug, setSelectedSlug] = useState<MarketplaceConnectionSlug>((initialSlug as MarketplaceConnectionSlug) || 'mercadolivre');
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<IntegrationTestResult | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Catálogo Completo & Categorizado com Schemas Dinâmicos
+  // Catálogo Completo & Categorizado com Schemas Dinâmicos para TODAS as 25+ Integrações
   const catalog: IntegrationDefinition[] = [
     // ── MARKETPLACES ──
     {
@@ -49,7 +50,7 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
       slug: 'shopee',
       name: 'Shopee Brasil',
       category: 'Marketplaces',
-      description: 'Partner ID, Partner Key e Shop ID no portal de devs Shopee Open API v2',
+      description: 'Partner ID, Partner Key e Shop ID no portal Shopee Open API v2',
       capabilities: ['publish', 'importProducts', 'syncStock', 'syncOrders'],
       fields: [
         { key: 'partnerId', label: 'Partner ID', type: 'text', placeholder: 'Ex: 18317770060', required: true },
@@ -67,6 +68,50 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
         { key: 'clientId', label: 'LWA Client ID', type: 'text', placeholder: 'amzn1.application-oa2-client...', required: true },
         { key: 'clientSecret', label: 'LWA Client Secret', type: 'password', placeholder: '••••••••••••••••', required: true },
         { key: 'refreshToken', label: 'Refresh Token SP-API', type: 'password', placeholder: 'Atzr|IwEB...', required: true },
+      ],
+    },
+    {
+      slug: 'magalu',
+      name: 'Magalu (Magazine Luiza)',
+      category: 'Marketplaces',
+      description: 'Token de Integração Magalu Marketplace Developer Portal',
+      capabilities: ['publish', 'importProducts', 'syncStock'],
+      fields: [
+        { key: 'apiKey', label: 'Token API Magalu', type: 'password', placeholder: 'mgl_sec_...', required: true },
+      ],
+    },
+    {
+      slug: 'shein',
+      name: 'Shein Marketplace',
+      category: 'Marketplaces',
+      description: 'App Key e App Secret no Shein Open Platform',
+      capabilities: ['publish', 'importProducts'],
+      fields: [
+        { key: 'clientId', label: 'App Key Shein', type: 'text', placeholder: 'shein_app_...', required: true },
+        { key: 'clientSecret', label: 'App Secret', type: 'password', placeholder: '••••••••••••••••', required: true },
+      ],
+    },
+    {
+      slug: 'tiktok_shop',
+      name: 'TikTok Shop',
+      category: 'Marketplaces',
+      description: 'App Key, App Secret e Access Token TikTok Seller Center',
+      capabilities: ['publish', 'importProducts', 'analytics'],
+      fields: [
+        { key: 'clientId', label: 'App Key', type: 'text', placeholder: 'tt_app_...', required: true },
+        { key: 'clientSecret', label: 'App Secret', type: 'password', placeholder: '••••••••••••••••', required: true },
+        { key: 'accessToken', label: 'Seller Access Token', type: 'password', placeholder: 'ttr_...', required: true },
+      ],
+    },
+    {
+      slug: 'aliexpress',
+      name: 'AliExpress Affiliate API',
+      category: 'Marketplaces',
+      description: 'App Key e Tracking ID no AliExpress Portals',
+      capabilities: ['importProducts', 'analytics'],
+      fields: [
+        { key: 'clientId', label: 'App Key', type: 'text', placeholder: '33819201', required: true },
+        { key: 'secretKey', label: 'Secret Key', type: 'password', placeholder: '••••••••••••••••', required: true },
       ],
     },
 
@@ -101,12 +146,32 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
         { key: 'apiKey', label: 'Anthropic API Key', type: 'password', placeholder: 'sk-ant-api...', required: true },
       ],
     },
-
-    // ── MENSAGERIA & SOCIAL ──
     {
-      slug: 'whatsapp',
-      name: 'WhatsApp Cloud API',
-      category: 'Mensageria',
+      slug: 'deepseek',
+      name: 'DeepSeek V3 / R1',
+      category: 'IA Core',
+      description: 'API Key na plataforma DeepSeek (DEEPSEEK_API_KEY)',
+      capabilities: ['chatAI', 'analytics'],
+      fields: [
+        { key: 'apiKey', label: 'DeepSeek API Key', type: 'password', placeholder: 'sk-...', required: true },
+      ],
+    },
+    {
+      slug: 'grok',
+      name: 'Grok xAI',
+      category: 'IA Core',
+      description: 'API Key no console xAI Grok (GROK_API_KEY)',
+      capabilities: ['chatAI'],
+      fields: [
+        { key: 'apiKey', label: 'Grok API Key', type: 'password', placeholder: 'xai-...', required: true },
+      ],
+    },
+
+    // ── REDES SOCIAIS & MENSAGERIA ──
+    {
+      slug: 'whatsapp_business',
+      name: 'WhatsApp Business API',
+      category: 'Redes Sociais',
       description: 'Phone Number ID e Meta System User Access Token',
       capabilities: ['publish', 'syncOrders'],
       fields: [
@@ -124,6 +189,52 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
         { key: 'apiKey', label: 'Bot Token (@BotFather)', type: 'password', placeholder: '123456789:ABCdefGhIJK...', required: true },
       ],
     },
+    {
+      slug: 'instagram',
+      name: 'Instagram Graph API',
+      category: 'Redes Sociais',
+      description: 'Instagram Business Account ID e User Access Token Meta',
+      capabilities: ['publish', 'analytics'],
+      fields: [
+        { key: 'clientId', label: 'Instagram Account ID', type: 'text', placeholder: 'Ex: 1784140192840', required: true },
+        { key: 'accessToken', label: 'User Access Token', type: 'password', placeholder: 'EAA...', required: true },
+      ],
+    },
+    {
+      slug: 'facebook',
+      name: 'Facebook Pages API',
+      category: 'Redes Sociais',
+      description: 'Page ID e Page Access Token Meta Developers',
+      capabilities: ['publish', 'analytics'],
+      fields: [
+        { key: 'clientId', label: 'Facebook Page ID', type: 'text', placeholder: 'Ex: 10928401928', required: true },
+        { key: 'accessToken', label: 'Page Access Token', type: 'password', placeholder: 'EAA...', required: true },
+      ],
+    },
+
+    // ── GOOGLE & ADS ──
+    {
+      slug: 'google_ads',
+      name: 'Google Ads API',
+      category: 'Google & Ads',
+      description: 'Developer Token, Customer ID e OAuth Client ID',
+      capabilities: ['analytics'],
+      fields: [
+        { key: 'developerToken', label: 'Developer Token', type: 'password', placeholder: 'Ex: AbC123XyZ...', required: true },
+        { key: 'clientId', label: 'Customer ID (sem traços)', type: 'text', placeholder: 'Ex: 1234567890', required: true },
+      ],
+    },
+    {
+      slug: 'meta_ads',
+      name: 'Meta Ads Manager API',
+      category: 'Google & Ads',
+      description: 'Ad Account ID e System User Token',
+      capabilities: ['analytics'],
+      fields: [
+        { key: 'clientId', label: 'Ad Account ID', type: 'text', placeholder: 'act_102938475', required: true },
+        { key: 'accessToken', label: 'System Access Token', type: 'password', placeholder: 'EAA...', required: true },
+      ],
+    },
 
     // ── ERPs & E-COMMERCE ──
     {
@@ -137,6 +248,16 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
       ],
     },
     {
+      slug: 'tiny',
+      name: 'Tiny ERP',
+      category: 'ERPs & E-commerce',
+      description: 'Token API do Tiny ERP (Vendas e Estoque)',
+      capabilities: ['importProducts', 'syncStock', 'syncOrders'],
+      fields: [
+        { key: 'apiKey', label: 'Token API Tiny', type: 'password', placeholder: '••••••••••••••••', required: true },
+      ],
+    },
+    {
       slug: 'shopify',
       name: 'Shopify Admin API',
       category: 'ERPs & E-commerce',
@@ -147,14 +268,52 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
         { key: 'accessToken', label: 'Admin API Access Token', type: 'password', placeholder: 'shpat_...', required: true },
       ],
     },
+    {
+      slug: 'nuvemshop',
+      name: 'Nuvemshop API',
+      category: 'ERPs & E-commerce',
+      description: 'User ID e Access Token Nuvemshop API',
+      capabilities: ['publish', 'importProducts', 'syncStock'],
+      fields: [
+        { key: 'clientId', label: 'User Store ID', type: 'text', placeholder: 'Ex: 192840', required: true },
+        { key: 'accessToken', label: 'Access Token', type: 'password', placeholder: '••••••••••••••••', required: true },
+      ],
+    },
+
+    // ── PAGAMENTOS ──
+    {
+      slug: 'stripe',
+      name: 'Stripe API',
+      category: 'Pagamentos',
+      description: 'Publishable Key e Secret Key Stripe Dashboard',
+      capabilities: ['syncOrders', 'analytics'],
+      fields: [
+        { key: 'clientId', label: 'Publishable Key', type: 'text', placeholder: 'pk_live_...', required: true },
+        { key: 'secretKey', label: 'Secret Key', type: 'password', placeholder: 'sk_live_...', required: true },
+      ],
+    },
+    {
+      slug: 'mercadopago',
+      name: 'Mercado Pago API',
+      category: 'Pagamentos',
+      description: 'Public Key e Access Token Mercado Pago Developers',
+      capabilities: ['syncOrders', 'analytics'],
+      fields: [
+        { key: 'clientId', label: 'Public Key', type: 'text', placeholder: 'APP_USR-pub-...', required: true },
+        { key: 'accessToken', label: 'Access Token Provedor', type: 'password', placeholder: 'APP_USR-sec-...', required: true },
+      ],
+    },
   ];
 
   const categories: Array<IntegrationCategory | 'Todas'> = [
     'Todas',
     'Marketplaces',
     'IA Core',
+    'Redes Sociais',
     'Mensageria',
+    'Google & Ads',
     'ERPs & E-commerce',
+    'Pagamentos',
   ];
 
   const filteredCatalog = selectedCategory === 'Todas'

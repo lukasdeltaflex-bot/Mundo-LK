@@ -13,7 +13,7 @@ import { Button } from '@/presentation/components/ui/Button';
 interface IntegrationStatusProps {
   integrations: MarketplaceIntegrationState[];
   onTestConnection: (slug: string) => void;
-  onOpenCredentials: () => void;
+  onOpenCredentials: (slug?: string) => void;
   testingSlug?: string | null;
   testResults?: Record<string, DiagnosticTestResult>;
 }
@@ -58,7 +58,7 @@ export const IntegrationStatus: React.FC<IntegrationStatusProps> = ({
           type="button"
           variant="outline"
           size="sm"
-          onClick={onOpenCredentials}
+          onClick={() => onOpenCredentials()}
           leftIcon={<Key className="h-3.5 w-3.5 text-blue-400" />}
           className="text-xs shrink-0 border-blue-500/20 text-blue-300 hover:bg-blue-500/10"
         >
@@ -133,7 +133,7 @@ export const IntegrationStatus: React.FC<IntegrationStatusProps> = ({
                 {!item.isConnected && (
                   <button
                     type="button"
-                    onClick={onOpenCredentials}
+                    onClick={() => onOpenCredentials(item.slug)}
                     className="text-[10px] font-semibold text-blue-400 hover:underline"
                   >
                     Configurar
