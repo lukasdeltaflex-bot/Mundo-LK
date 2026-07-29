@@ -642,17 +642,28 @@ export default function ProdutosPage() {
           </div>
           <h3 className="text-lg font-bold text-white mb-1">Nenhuma oferta encontrada.</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto mb-6">
-            {searchQuery || selectedMarketplace !== 'TODOS' || selectedDispatchFilter !== 'TODOS'
+            {searchQuery || selectedMarketplace !== 'TODOS' || selectedDispatchFilter !== 'TODOS' || selectedCategory !== 'TODAS' || onlyPromotions
               ? 'Nenhum resultado corresponde aos seus filtros de busca ou histórico de envios.'
               : 'Cole a URL de um produto no Dashboard para cadastrá-lo no seu catálogo de campanhas.'}
           </p>
           <div className="flex items-center justify-center gap-3">
-            {searchQuery || selectedMarketplace !== 'TODOS' || selectedDispatchFilter !== 'TODOS' ? (
+            {searchQuery || selectedMarketplace !== 'TODOS' || selectedDispatchFilter !== 'TODOS' || selectedCategory !== 'TODAS' || onlyPromotions ? (
               <Button
                 variant="outline"
                 size="sm"
                 className="text-xs"
-                onClick={() => { setSearchQuery(''); setSelectedMarketplace('TODOS'); setSelectedDispatchFilter('TODOS'); setOnlyPromotions(false); }}
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedMarketplace('TODOS');
+                  setSelectedDispatchFilter('TODOS');
+                  setSelectedCategory('TODAS');
+                  setOnlyPromotions(false);
+                  setCurrentPage(1);
+                  if (typeof window !== 'undefined') {
+                    localStorage.removeItem(LS_MARKETPLACE);
+                    localStorage.removeItem(LS_SORT);
+                  }
+                }}
               >
                 Limpar Filtros
               </Button>
