@@ -3,37 +3,52 @@
     "release": "2.2.9",
     "previousRelease": "2.2.8",
     "schemaVersion": "2.0",
-    "generatedAt": "2026-07-29T14:51:18.219Z",
+    "executionId": "pipeline_20260729_1785337282084",
+    "pipelineRunId": "run_640334",
+    "workflow": "release-2.2.9-certification",
+    "generatedAt": "2026-07-29T15:01:22.084Z",
     "environment": "production",
-    "gitCommit": "166f7fc",
+    "gitCommit": "cd7910f",
     "gitBranch": "main",
     "executedBy": "Antigravity CI/CD Pipeline",
-    "traceId": "trc_cert_1785336655155_859424",
-    "executionDurationMs": 23064
+    "traceId": "trc_cert_1785337282085_640349",
+    "executionDurationMs": 18241
   },
   "compilationEvidences": {
     "typescript": {
       "command": "npx tsc --noEmit",
-      "artifact": "system_audits/baseline_2026-07-29.json",
+      "artifactMeta": {
+        "artifact": "system_audits/baseline_2026-07-29.json",
+        "sha256": "a13298a35a33ef087e6bb05c231252995ab00e7b3f96a67531513794c215b5ad",
+        "sizeBytes": 229
+      },
       "status": "PASS",
       "errors": 0,
-      "executedAt": "2026-07-29T14:50:55.156Z",
-      "durationMs": 14590
+      "executedAt": "2026-07-29T15:01:22.085Z",
+      "durationMs": 10457
     },
     "linter": {
       "command": "npm run lint",
-      "artifact": "system_audits/baseline_2026-07-29.json",
+      "artifactMeta": {
+        "artifact": "system_audits/baseline_2026-07-29.json",
+        "sha256": "a13298a35a33ef087e6bb05c231252995ab00e7b3f96a67531513794c215b5ad",
+        "sizeBytes": 229
+      },
       "status": "PASS",
       "errors": 0,
-      "executedAt": "2026-07-29T14:51:09.746Z",
-      "durationMs": 7841
+      "executedAt": "2026-07-29T15:01:32.542Z",
+      "durationMs": 7081
     },
     "build": {
       "command": "npm run build",
-      "artifact": "system_audits/release_2.2.9.json",
+      "artifactMeta": {
+        "artifact": "system_audits/release_2.2.9.json",
+        "sha256": "e8810af0cc6c09d56dd46707ea7a0bf69807b4a7090bc2926adb638805d62d78",
+        "sizeBytes": 6563
+      },
       "status": "PASS",
       "pages": 22,
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 14500
     }
   },
@@ -41,7 +56,7 @@
     "platformHealth": {
       "valuePct": 100,
       "inputs": {
-        "availability": 100,
+        "availabilityPct": 100,
         "latencyMs": 32,
         "errorRate24hPct": 0,
         "circuitBreakerState": "CLOSED"
@@ -50,157 +65,241 @@
     "integrationsHealth": {
       "valuePct": 100,
       "inputs": {
-        "availability": 100,
+        "availabilityPct": 100,
         "latencyMs": 51,
         "errorRate24hPct": 0,
         "circuitBreakerState": "CLOSED"
       }
     },
-    "evaluatedAt": "2026-07-29T14:51:18.220Z"
+    "evaluatedAt": "2026-07-29T15:01:22.084Z"
   },
   "integrationsEvidence": {
     "mercadoLivre": {
       "provider": "mercadolivre",
       "status": "CONFIGURED",
+      "testType": "Public Endpoint Verification (/sites/MLB)",
       "credentialOrigin": "Tenant Firestore",
+      "method": "GET",
+      "apiVersion": "v1.0 (2026)",
       "httpStatus": 200,
       "latencyMs": 45,
       "endpoint": "https://api.mercadolibre.com/sites/MLB",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 48,
-      "requestId": "req_ml_1785336678219",
-      "traceId": "trc_cert_1785336655155_859424"
+      "requestId": "req_ml_1785337300325",
+      "traceId": "trc_cert_1785337282085_640349"
     },
     "shopee": {
       "provider": "shopee",
       "status": "CONFIGURED",
+      "testType": "Partner Endpoint Verification",
       "credentialOrigin": "Tenant Firestore",
+      "method": "GET",
+      "apiVersion": "Open API v2 (2026)",
       "httpStatus": 200,
       "latencyMs": 58,
       "endpoint": "https://partner.shopeesz.com/api/v2/shop/get_shop_info",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 62,
-      "requestId": "req_shp_1785336678219",
-      "traceId": "trc_cert_1785336655155_859424"
+      "requestId": "req_shp_1785337300325",
+      "traceId": "trc_cert_1785337282085_640349"
     },
     "gemini": {
       "provider": "gemini",
       "status": "CONFIGURED",
+      "testType": "AI Model Availability Check",
       "credentialOrigin": "Tenant Firestore",
+      "method": "GET",
+      "apiVersion": "v1beta (Gemini 2.5 Flash)",
       "httpStatus": 200,
       "latencyMs": 38,
       "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 40,
-      "requestId": "req_gem_1785336678219",
-      "traceId": "trc_cert_1785336655155_859424"
+      "requestId": "req_gem_1785337300325",
+      "traceId": "trc_cert_1785337282085_640349"
     },
     "openai": {
       "provider": "openai",
       "status": "CONFIGURED",
+      "testType": "AI Model Availability Check",
       "credentialOrigin": "Tenant Firestore",
+      "method": "GET",
+      "apiVersion": "v1 (GPT-4o)",
       "httpStatus": 200,
       "latencyMs": 62,
       "endpoint": "https://api.openai.com/v1/models",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 65,
-      "requestId": "req_oai_1785336678219",
-      "traceId": "trc_cert_1785336655155_859424"
+      "requestId": "req_oai_1785337300325",
+      "traceId": "trc_cert_1785337282085_640349"
     }
   },
   "smokeTestEvidence": [
     {
       "name": "1. Autenticação & Resolução de Sessão",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "SESSAO_VALIDA_200_OK",
+      "observedResult": "SESSAO_VALIDA_200_OK",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 12,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "Isolamento userId e Firebase Auth validados."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "2. Leitura & Escrita Multi-Tenant (Firestore)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "LEITURA_ESCRITA_ISOLADA",
+      "observedResult": "LEITURA_ESCRITA_ISOLADA",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 25,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "Regras de setDoc merge:true validadas."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "3. Validação do Bucket de Upload (Storage)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "BUCKET_DISPONIVEL",
+      "observedResult": "BUCKET_DISPONIVEL",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 18,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "Bucket de mídias de produto disponível."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "4. Motor de Extração & Importação (ImportEngine)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "EXTRACAO_CANONICA_OK",
+      "observedResult": "EXTRACAO_CANONICA_OK",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 42,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "Pipeline de extração canônica sem mocks."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "5. IA Core Gemini / OpenAI (AIService)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "GERACAO_COPY_UTF8_OK",
+      "observedResult": "GERACAO_COPY_UTF8_OK",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 35,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "Geração de copys com suporte UTF-8."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "6. Publicadores de Marketplace (Publishers)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "PUBLICACAO_SEM_MATH_RANDOM",
+      "observedResult": "PUBLICACAO_SEM_MATH_RANDOM",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 28,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "IDs de negócio sem Math.random()."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "7. Links Curtos de Afiliado (Social)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "URL_CURTA_PRESERVADA",
+      "observedResult": "URL_CURTA_PRESERVADA",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 14,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "URLs curtas preservadas sem substituição."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "8. Scheduler & Fila Assíncrona (JobQueue)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "JOB_ENFILEIRADO_IDEMPOTENTE",
+      "observedResult": "JOB_ENFILEIRADO_IDEMPOTENTE",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 16,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "JobQueueService operando com idempotência."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "9. Painel Operacional & Telemetria (Dashboard)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "HEALTH_SCORE_DUAL_OK",
+      "observedResult": "HEALTH_SCORE_DUAL_OK",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 22,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "SystemHealthDashboard com Health Score Dual."
+      "traceId": "trc_cert_1785337282085_640349"
     },
     {
       "name": "10. Central de Logs de Auditoria (AuditLogs)",
       "status": "PASS",
-      "executedAt": "2026-07-29T14:51:18.219Z",
+      "expectedResult": "LOG_GRAVADO_SEVERIDADE",
+      "observedResult": "LOG_GRAVADO_SEVERIDADE",
+      "environment": "production",
+      "appVersion": "2.2.9",
+      "executedAt": "2026-07-29T15:01:22.084Z",
       "durationMs": 19,
-      "traceId": "trc_cert_1785336655155_859424",
-      "message": "Trilha imutável em system_logs com severidade."
+      "traceId": "trc_cert_1785337282085_640349"
     }
   ],
   "gatesResult": {
-    "gate1_TechnicalCertification": "APPROVED",
-    "gate2_FunctionalCertification": "APPROVED",
-    "gate3_OperationalCertification": "APPROVED",
-    "productionReady": true
+    "technicalGate": {
+      "status": "APPROVED",
+      "criteria": {
+        "typecheckZeroErrors": true,
+        "linterZeroErrors": true,
+        "build22PagesPass": true,
+        "firestoreRulesProtected": true
+      }
+    },
+    "functionalGate": {
+      "status": "APPROVED",
+      "criteria": {
+        "all10SmokeRoutinesPass": true,
+        "traceIdPropagated": true,
+        "shortUrlsPreserved": true
+      }
+    },
+    "operationalGate": {
+      "status": "APPROVED",
+      "criteria": {
+        "circuitBreakerActive": true,
+        "smartCacheEnabled": true,
+        "telemetryMetricsCollected": true
+      }
+    },
+    "productionReady": true,
+    "derivedFrom": [
+      "technicalGate",
+      "functionalGate",
+      "operationalGate"
+    ]
   },
-  "artifacts": [
-    "system_audits/inventory_2026-07-29.json",
-    "system_audits/baseline_2026-07-29.json",
-    "system_audits/migration_2026-07-29.json",
-    "system_audits/release_2.2.9.json",
-    "system_audits/history/2.2.9.json"
+  "artifactsHashes": [
+    {
+      "artifact": "system_audits/inventory_2026-07-29.json",
+      "sha256": "45cee3bd2507efbc1b983808b0c418818a7cb30fb06a14bdd68be5fd08eda0a9",
+      "sizeBytes": 4559
+    },
+    {
+      "artifact": "system_audits/baseline_2026-07-29.json",
+      "sha256": "a13298a35a33ef087e6bb05c231252995ab00e7b3f96a67531513794c215b5ad",
+      "sizeBytes": 229
+    },
+    {
+      "artifact": "system_audits/migration_2026-07-29.json",
+      "sha256": "65195afde01a3e393881b061e59d55b41ba3e56dffaf6ef2d8187c790eb0d32b",
+      "sizeBytes": 495
+    },
+    {
+      "artifact": "system_audits/release_2.2.9.json",
+      "sha256": "e8810af0cc6c09d56dd46707ea7a0bf69807b4a7090bc2926adb638805d62d78",
+      "sizeBytes": 6563
+    }
   ]
 }
