@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/presentation/components/ui/Button';
 import { useAuth } from '@/presentation/context/AuthContext';
+import { auth } from '@/infrastructure/firebase/config/firebase.config';
 import { MarketplaceConnectionService } from '@/core/application/services/integrations/MarketplaceConnectionService';
 import { IntegrationTestResult } from '@/core/domain/ports/IntegrationTestResult';
 import {
@@ -189,7 +190,11 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
   };
 
   const handleSaveCredentials = async () => {
-    if (!user) return;
+    const activeUid = auth.currentUser?.uid || user?.uid;
+    if (!activeUid) {
+      setFeedback({ type: 'error', message: 'Erro ao salvar: Usuário não autenticado no Firebase Auth.' });
+      return;
+    }
     setIsSaving(true);
     setFeedback(null);
     try {
@@ -201,7 +206,8 @@ export const CredentialManagerModal: React.FC<CredentialManagerModalProps> = ({ 
       });
 
       await MarketplaceConnectionService.getInstance().saveUserCredentials({
-        userId: user.uid,
+        userId: activeUid,
+        tenantId: activeUid,
         marketplaceSlug: selectedSlug,
         credentials: creds,
       });

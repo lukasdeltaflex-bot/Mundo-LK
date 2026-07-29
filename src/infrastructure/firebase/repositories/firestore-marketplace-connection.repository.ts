@@ -7,7 +7,7 @@ import {
   where,
   getDocs,
 } from 'firebase/firestore';
-import { db } from '../config/firebase.config';
+import { db, auth } from '../config/firebase.config';
 import {
   IntegrationConnection,
   IntegrationConnectionProps,
@@ -40,9 +40,10 @@ export class FirestoreMarketplaceConnectionRepository {
     marketplaceSlug: MarketplaceConnectionSlug
   ): Promise<IntegrationConnection | null> {
     try {
+      const activeUid = auth.currentUser?.uid || userId;
       const q = query(
         collection(db, this.collectionName),
-        where('userId', '==', userId),
+        where('userId', '==', activeUid),
         where('marketplaceSlug', '==', marketplaceSlug)
       );
       const snap = await getDocs(q);
@@ -58,7 +59,8 @@ export class FirestoreMarketplaceConnectionRepository {
 
   public async findAllByUserId(userId: string): Promise<IntegrationConnection[]> {
     try {
-      const q = query(collection(db, this.collectionName), where('userId', '==', userId));
+      const activeUid = auth.currentUser?.uid || userId;
+      const q = query(collection(db, this.collectionName), where('userId', '==', activeUid));
       const snap = await getDocs(q);
       return snap.docs.map((d) => new IntegrationConnection(d.data() as IntegrationConnectionProps));
     } catch (err) {
@@ -68,13 +70,14 @@ export class FirestoreMarketplaceConnectionRepository {
   }
 
   public async save(conn: IntegrationConnection): Promise<void> {
-    const docId = `conn_${conn.userId}_${conn.marketplaceSlug}`;
+    const activeUid = auth.currentUser?.uid || conn.userId;
+    const docId = `conn_${activeUid}_${conn.marketplaceSlug}`;
     const ref = doc(db, this.collectionName, docId);
 
     const rawData = {
       id: docId,
-      userId: conn.userId,
-      tenantId: conn.tenantId,
+      userId: activeUid,
+      tenantId: activeUid,
       marketplaceSlug: conn.marketplaceSlug,
       name: conn.name,
       category: conn.category,
@@ -86,12 +89,20 @@ export class FirestoreMarketplaceConnectionRepository {
       lastTestedAt: conn.lastTestedAt ?? null,
       lastSyncAt: conn.lastSyncAt ?? null,
       lastError: conn.lastError ?? null,
-      createdAt: conn.createdAt,
+      createdAt: conn.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     // Aplica sanitização estrita para eliminar qualquer 'undefined'
     const cleanData = this.sanitizeData(rawData);
+
+    console.log('[FirestoreMarketplaceConnectionRepository] Diagnostics Audit:', {
+      authUid: auth.currentUser?.uid,
+      targetDocId: docId,
+      payloadUserId: cleanData.userId,
+      payloadTenantId: cleanData.tenantId,
+      marketplaceSlug: cleanData.marketplaceSlug,
+    });
 
     await setDoc(ref, cleanData, { merge: true });
   }
