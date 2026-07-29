@@ -73,7 +73,7 @@ export class AIService {
     const hasOpenAIKey = Boolean(process.env.OPENAI_API_KEY);
     const providerUsed = hasGeminiKey ? 'Gemini 2.5 Flash' : hasOpenAIKey ? 'OpenAI GPT-4o' : 'IA Core';
 
-    const affiliateUrl = product.canonicalUrl || product.originalUrl;
+    const affiliateUrl = product.originalUrl || product.canonicalUrl;
     const formattedPrice = product.currentPrice ? product.currentPrice : 0;
 
     const whatsAppText = await AIService.generateOfferCopy({

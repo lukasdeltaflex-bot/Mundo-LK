@@ -77,12 +77,24 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
     loadChannels();
   }, [user]);
 
-  // Formatted fallback offer copy
-  const formattedDefaultText = `🔥 Oferta imperdível encontrada!\n\nProduto: ${data.title}\nPreço: ${data.price}${data.previousPrice ? ` (De: ${data.previousPrice})` : ''}\n\nConfira agora: ${data.affiliateUrl}`;
+  const prepareShareText = (text?: string): string => {
+    const raw = text || `🔥 Oferta imperdível encontrada!\n\nProduto: ${data.title}\nPreço: ${data.price}${data.previousPrice ? ` (De: ${data.previousPrice})` : ''}\n\nConfira agora: ${data.affiliateUrl}`;
+    
+    // 1. Limpeza estrita de caracteres de substituição corrompidos (\uFFFD)
+    let cleaned = raw.replace(/\uFFFD/g, '').trim();
 
-  const whatsAppCopy = data.whatsAppText || formattedDefaultText;
-  const telegramCopy = data.telegramText || formattedDefaultText;
-  const instagramCopy = data.instagramText || formattedDefaultText;
+    // 2. Garante a substituição de URLs longas expandidas pelo link curto oficial de afiliado
+    if (data.affiliateUrl) {
+      cleaned = cleaned.replace(/https:\/\/(www\.)?shopee\.com\.br\/[^\s\n]+/g, data.affiliateUrl);
+      cleaned = cleaned.replace(/https:\/\/(www\.)?mercadolivre\.com\.br\/[^\s\n]+/g, data.affiliateUrl);
+    }
+
+    return cleaned;
+  };
+
+  const whatsAppCopy = prepareShareText(data.whatsAppText);
+  const telegramCopy = prepareShareText(data.telegramText);
+  const instagramCopy = prepareShareText(data.instagramText);
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.affiliateUrl)}`;
 
@@ -104,7 +116,7 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
         console.log('Compartilhamento nativo cancelado ou não suportado:', err);
       }
     } else {
-      handleCopy(formattedDefaultText, 'geral');
+      handleCopy(whatsAppCopy, 'geral');
     }
   };
 
