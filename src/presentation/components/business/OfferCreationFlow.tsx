@@ -279,6 +279,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
         userId:      user.uid,
         editedTitle: editTitle !== preview.product.title ? editTitle : undefined,
         editedCta:   editCta   !== preview.offer.cta    ? editCta   : undefined,
+        editedCopy:  editWhatsapp,
       });
 
       if (!result.success) {
@@ -297,7 +298,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setError(`Erro ao salvar a oferta: ${msg}`);
       setStep('preview');
     }
-  }, [preview, user, editTitle, editCta, queryClient, onSaved]);
+  }, [preview, user, editTitle, editCta, editWhatsapp, queryClient, onSaved]);
 
   const handleReset = () => {
     setStep('input');

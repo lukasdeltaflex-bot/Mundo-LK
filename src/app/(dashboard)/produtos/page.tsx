@@ -14,7 +14,9 @@ import {
 } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { Product, DispatchRecord, DispatchStatus } from '@/core/domain/entities/product.entity';
+import { Offer } from '@/core/domain/entities/offer.entity';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
 import { SocialShareModal, SocialShareData } from '@/presentation/components/business/SocialShareModal';
@@ -150,6 +152,7 @@ export default function ProdutosPage() {
   const { user } = useAuth();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [offersMap, setOffersMap] = useState<Record<string, Offer>>({});
   const [loading, setLoading] = useState(true);
 
   // Search & Filtering State
@@ -199,6 +202,16 @@ export default function ProdutosPage() {
     const affiliateUrl = getUrlString(p.affiliateUrl, p.originalUrl || '');
     const imageUrl = p.images && p.images.length > 0 ? p.images[0] : undefined;
 
+    const savedOffer = offersMap[p.id];
+    const copies = savedOffer?.copies?.copies;
+
+    const savedWhatsApp = copies?.whatsAppText || copies?.longText;
+    const savedTelegram = copies?.telegramText || savedWhatsApp;
+    const savedInstagram = copies?.instagramText || savedWhatsApp;
+    const savedFacebook = copies?.facebookText || savedWhatsApp;
+
+    const fallbackCopy = `🔥 *${p.title}*\n\n💰 Por apenas *${formattedPrice}*${formattedOldPrice ? ` (De ${formattedOldPrice})` : ''}\n\n👉 Confira no link oficial:\n${affiliateUrl}`;
+
     setShareModalData({
       title: p.title,
       price: formattedPrice,
@@ -206,10 +219,10 @@ export default function ProdutosPage() {
       discountPercent,
       imageUrl,
       affiliateUrl,
-      whatsAppText: `🔥 *${p.title}*\n\n💰 Por apenas *${formattedPrice}*${formattedOldPrice ? ` (De ${formattedOldPrice})` : ''}\n\n👉 Confira no link oficial:\n${affiliateUrl}`,
-      telegramText: `📢 *${p.title}*\n\nPreço Promocional: *${formattedPrice}*\n👉 Acesse: ${affiliateUrl}`,
-      instagramText: `✨ *${p.title}*\n\nPreço especial: ${formattedPrice}!\nLink no perfil ou acesse: ${affiliateUrl}`,
-      facebookText: `🔥 *${p.title}*\n\nPor apenas ${formattedPrice}!\nCompre com segurança: ${affiliateUrl}`,
+      whatsAppText: savedWhatsApp || fallbackCopy,
+      telegramText: savedTelegram || savedWhatsApp || fallbackCopy,
+      instagramText: savedInstagram || savedWhatsApp || fallbackCopy,
+      facebookText: savedFacebook || savedWhatsApp || fallbackCopy,
     });
   };
 
@@ -256,12 +269,24 @@ export default function ProdutosPage() {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const repo = new FirestoreProductRepository();
+      const productRepo = new FirestoreProductRepository();
+      const offerRepo = new FirestoreOfferRepository();
       const uid = user?.uid || 'guest';
-      const list = await repo.findAll(uid);
+
+      const [list, offerList] = await Promise.all([
+        productRepo.findAll(uid),
+        offerRepo.findByUserId(uid),
+      ]);
+
       setProducts(list);
+
+      const map: Record<string, Offer> = {};
+      offerList.forEach((off) => {
+        if (off.productId) map[off.productId] = off;
+      });
+      setOffersMap(map);
     } catch (err) {
-      console.warn('Erro ao carregar produtos:', err);
+      console.warn('Erro ao carregar produtos e ofertas:', err);
     } finally {
       setLoading(false);
     }

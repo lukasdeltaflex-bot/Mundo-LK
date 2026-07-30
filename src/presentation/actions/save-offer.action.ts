@@ -85,13 +85,14 @@ export async function saveApprovedOfferAction(
 
     // ── Build Offer entity ──────────────────────────────────────────────────
     const offerId = `off_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const finalWhatsApp = editedCopy || preview.offer.whatsAppText;
 
     const copies = ChannelContent.create({
-      whatsAppText:  preview.offer.whatsAppText,
-      telegramText:  preview.offer.telegramText,
-      instagramText: preview.offer.instagramText,
-      facebookText:  preview.offer.facebookText,
-      channelText:   preview.offer.channelText,
+      whatsAppText:  finalWhatsApp,
+      telegramText:  preview.offer.telegramText || finalWhatsApp,
+      instagramText: preview.offer.instagramText || finalWhatsApp,
+      facebookText:  preview.offer.facebookText || finalWhatsApp,
+      channelText:   preview.offer.channelText || finalWhatsApp,
     });
 
     const offer = new Offer({

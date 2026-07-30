@@ -251,130 +251,98 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
             </div>
           )}
 
-          {/* Channels Grid */}
-          <div className="space-y-3">
+          {/* Channels Icon Toolbar (Compact Horizontal) */}
+          <div className="space-y-2 border-t border-b border-slate-800 py-3">
             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              Compartilhar nos Canais Conectados:
+              Compartilhar em 1-Clique:
             </span>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* WhatsApp */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {/* 🟢 WhatsApp */}
               <a
                 href={`https://wa.me/?text=${encodeURIComponent(whatsAppCopy)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition group"
+                title="WhatsApp"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:scale-105 active:scale-95 transition shrink-0"
               >
-                <div className="flex items-center gap-2.5">
-                  <MessageCircle className="h-5 w-5 text-emerald-400" />
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-white block">WhatsApp Business</span>
-                    <span className="text-[10px] text-emerald-300/80">Enviar para Grupos / Lista</span>
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-emerald-400 opacity-70 group-hover:opacity-100" />
+                <MessageCircle className="h-5 w-5" />
               </a>
 
-              {/* Telegram */}
+              {/* 🔵 Telegram */}
               <a
                 href={`https://t.me/share/url?url=${encodeURIComponent(data.affiliateUrl)}&text=${encodeURIComponent(telegramCopy)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between p-3 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition group"
+                title="Telegram"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/20 hover:scale-105 active:scale-95 transition shrink-0"
               >
-                <div className="flex items-center gap-2.5">
-                  <Send className="h-5 w-5 text-sky-400" />
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-white block">Telegram Channel</span>
-                    <span className="text-[10px] text-sky-300/80">Publicar no Canal Oficial</span>
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-sky-400 opacity-70 group-hover:opacity-100" />
+                <Send className="h-5 w-5" />
               </a>
 
-              {/* Facebook */}
-              <a
-                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.affiliateUrl)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-3 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <FacebookIcon className="h-5 w-5 text-blue-400" />
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-white block">Facebook Feed / Grupos</span>
-                    <span className="text-[10px] text-blue-300/80">Publicar na Página</span>
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-blue-400 opacity-70 group-hover:opacity-100" />
-              </a>
-
-              {/* Instagram */}
+              {/* 🟣 Instagram */}
               <button
                 type="button"
                 onClick={() => handleCopy(instagramCopy, 'instagram')}
-                className="flex items-center justify-between p-3 rounded-xl border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/20 transition group"
+                title="Instagram (Copiar Legenda)"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-pink-500/10 border border-pink-500/30 text-pink-400 hover:bg-pink-500/20 hover:scale-105 active:scale-95 transition shrink-0"
               >
-                <div className="flex items-center gap-2.5">
-                  <InstagramIcon className="h-5 w-5 text-pink-400" />
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-white block">Instagram Stories</span>
-                    <span className="text-[10px] text-pink-300/80">Copiar legenda e link</span>
-                  </div>
-                </div>
-                <Copy className="h-4 w-4 text-pink-400 opacity-70 group-hover:opacity-100" />
+                <InstagramIcon className="h-5 w-5" />
               </button>
 
-              {/* Pinterest */}
-              <a
-                href={`https://pinterest.com/pin/create/button/?url=${encodeURIComponent(data.affiliateUrl)}&media=${encodeURIComponent(data.imageUrl || '')}&description=${encodeURIComponent(data.title)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <PinterestIcon className="h-5 w-5 text-rose-400" />
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-white block">Pinterest Pin</span>
-                    <span className="text-[10px] text-rose-300/80">Criar Pin de Produto</span>
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-rose-400 opacity-70 group-hover:opacity-100" />
-              </a>
-
-              {/* LinkedIn */}
-              <a
-                href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(data.affiliateUrl)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-3 rounded-xl border border-blue-600/30 bg-blue-600/10 text-blue-300 hover:bg-blue-600/20 transition group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <LinkedInIcon className="h-5 w-5 text-blue-400" />
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-white block">LinkedIn</span>
-                    <span className="text-[10px] text-blue-300/80">Publicar no perfil profissional</span>
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-blue-400 opacity-70 group-hover:opacity-100" />
-              </a>
-
-              {/* X / Twitter */}
+              {/* ⚫ X / Twitter */}
               <a
                 href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(whatsAppCopy)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 transition group"
+                title="X / Twitter"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 hover:scale-105 active:scale-95 transition shrink-0"
               >
-                <div className="flex items-center gap-2.5">
-                  <TwitterXIcon className="h-5 w-5 text-slate-300" />
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-white block">X / Twitter</span>
-                    <span className="text-[10px] text-slate-400">Postar Tweet promocional</span>
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-slate-400 opacity-70 group-hover:opacity-100" />
+                <TwitterXIcon className="h-5 w-5" />
               </a>
+
+              {/* 🔵 Facebook */}
+              <a
+                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.affiliateUrl)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Facebook"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 hover:scale-105 active:scale-95 transition shrink-0"
+              >
+                <FacebookIcon className="h-5 w-5" />
+              </a>
+
+              {/* 📌 Pinterest */}
+              <a
+                href={`https://pinterest.com/pin/create/button/?url=${encodeURIComponent(data.affiliateUrl)}&media=${encodeURIComponent(data.imageUrl || '')}&description=${encodeURIComponent(data.title)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Pinterest"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:scale-105 active:scale-95 transition shrink-0"
+              >
+                <PinterestIcon className="h-5 w-5" />
+              </a>
+
+              {/* 🟠 Reddit */}
+              <a
+                href={`https://reddit.com/submit?url=${encodeURIComponent(data.affiliateUrl)}&title=${encodeURIComponent(data.title)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Reddit"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20 hover:scale-105 active:scale-95 transition shrink-0"
+              >
+                <Share2 className="h-5 w-5" />
+              </a>
+
+              {/* 📋 Copiar Texto Formatado */}
+              <button
+                type="button"
+                onClick={() => handleCopy(whatsAppCopy, 'geral')}
+                title="Copiar Texto Completo"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 hover:scale-105 active:scale-95 transition shrink-0"
+              >
+                {copiedChannel === 'geral' ? <Check className="h-5 w-5 text-emerald-400" /> : <Copy className="h-5 w-5" />}
+              </button>
             </div>
           </div>
 
