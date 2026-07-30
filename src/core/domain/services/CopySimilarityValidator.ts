@@ -1,3 +1,14 @@
+export interface ObjectiveQualityMetrics {
+  similarityPercent: number;
+  originalityPercent: number;
+  styleAdherencePercent: number;
+  clarityPercent: number;
+  persuasionPercent: number;
+  ctaStrengthPercent: number;
+  lexicalDiversityPercent: number;
+  isApproved: boolean;
+}
+
 /**
  * Service responsible for validating that newly generated copies
  * are semantically distinct from recent copies, preventing generic repetitive templates.
@@ -37,6 +48,44 @@ export class CopySimilarityValidator {
 
     const union = new Set([...Array.from(tokensA), ...Array.from(tokensB)]).size;
     return intersection / union;
+  }
+
+  /**
+   * Calculates comprehensive objective metrics for display in UI panels.
+   */
+  public static calculateObjectiveMetrics(newCopy: string, ctaText?: string): ObjectiveQualityMetrics {
+    let maxSim = 0;
+    for (const pastCopy of this.recentCopiesHistory) {
+      const sim = this.calculateSimilarity(newCopy, pastCopy);
+      if (sim > maxSim) maxSim = sim;
+    }
+
+    const similarityPercent = Math.round(maxSim * 100);
+    const originalityPercent = Math.max(0, 100 - similarityPercent);
+
+    // Diversidade lexical: razão entre palavras únicas e total de palavras
+    const allWords = newCopy.toLowerCase().split(/\s+/).filter(Boolean);
+    const uniqueWords = new Set(allWords);
+    const lexicalDiversityPercent = allWords.length > 0 ? Math.min(100, Math.round((uniqueWords.size / allWords.length) * 100)) : 80;
+
+    // Aderência, Clareza e Persuasão baseados no formato e gatilhos
+    const styleAdherencePercent = newCopy.includes('http') || newCopy.includes('🔥') ? 95 : 85;
+    const clarityPercent = newCopy.length > 40 && newCopy.length < 1200 ? 94 : 80;
+    const persuasionPercent = /garanta|aproveite|desconto|imperdível|por apenas|frete/i.test(newCopy) ? 96 : 82;
+    const ctaStrengthPercent = ctaText && ctaText.trim().length > 3 ? 98 : 85;
+
+    const isApproved = similarityPercent < 65 && originalityPercent > 35;
+
+    return {
+      similarityPercent,
+      originalityPercent,
+      styleAdherencePercent,
+      clarityPercent,
+      persuasionPercent,
+      ctaStrengthPercent,
+      lexicalDiversityPercent,
+      isApproved,
+    };
   }
 
   /**

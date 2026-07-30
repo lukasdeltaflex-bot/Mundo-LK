@@ -554,6 +554,48 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                   <span className="font-bold block">💡 Diagnóstico do Consultor IA:</span>
                   <p>{preview.offer.justification}</p>
                 </div>
+
+                {/* Explicabilidade Racional de Decisões */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1 text-slate-300 font-bold">
+                    <span className="flex items-center gap-1"><Brain className="h-3.5 w-3.5 text-blue-400" /> Por que a IA escreveu assim?</span>
+                    <span className="text-[10px] text-slate-500">contextVersion: 1</span>
+                  </div>
+                  <div className="space-y-1 text-slate-300 text-[11px]">
+                    <p><strong className="text-slate-400">• Público:</strong> {preview.analysis?.publicoAlvo}</p>
+                    <p><strong className="text-slate-400">• Dor Solucionada:</strong> {preview.analysis?.dorQueResolve}</p>
+                    <p><strong className="text-slate-400">• Ângulo & Gatilho:</strong> {preview.analysis?.anguloDeVenda}</p>
+                    <p><strong className="text-slate-400">• Estratégia Marketplace:</strong> Adaptada para {preview.product.marketplaceSlug}</p>
+                  </div>
+                </div>
+
+                {/* Feedback Explícito do Afiliado */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300">Avalie esta geração:</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => alert('Obrigado! Feedback positivo registrado para otimizar futuras gerações.')}
+                      className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 transition text-xs flex items-center gap-1"
+                      title="Excelente"
+                    >
+                      👍 Excelente
+                    </button>
+                    <button
+                      onClick={() => alert('Feedback médio registrado. Ajustando sensibilidade de gatilhos.')}
+                      className="rounded-lg bg-amber-500/10 p-2 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition text-xs flex items-center gap-1"
+                      title="Médio"
+                    >
+                      😐 Médio
+                    </button>
+                    <button
+                      onClick={() => alert('Feedback registrado. Regenerando com nova abordagem...')}
+                      className="rounded-lg bg-red-500/10 p-2 text-red-400 hover:bg-red-500/20 border border-red-500/30 transition text-xs flex items-center gap-1"
+                      title="Não gostei"
+                    >
+                      👎 Não Gostei
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 

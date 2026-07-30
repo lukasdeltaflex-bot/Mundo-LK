@@ -5,13 +5,15 @@ import { ProviderManager } from '@/infrastructure/marketplaces/providers/Provide
 import { CacheService } from '@/infrastructure/cache/CacheService';
 import { ConfidenceService } from '@/infrastructure/marketplaces/services/ConfidenceService';
 import { expandShortenedUrl } from '@/infrastructure/marketplaces/scraper/product-page-scraper';
-import { GeminiAIAdapter, type OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
+import { GeminiAIAdapter, type OfferStyle, type CommercialGoal, type AIGenerationMode, type GeminiOfferAnalysis } from '@/infrastructure/ai/providers/gemini.adapter';
 import { AIContextBuilder } from '@/infrastructure/ai/services/AIContextBuilder';
 import { OfferBuilder } from '@/infrastructure/ai/services/OfferBuilder';
 import { AnalyticsLogger } from '@/infrastructure/analytics/AnalyticsLogger';
 import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 import { Product } from '@/core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-objects';
+import { AILearningEngineService } from '@/core/domain/services/AILearningEngineService';
+import { AIOrchestrator } from '@/core/domain/services/AIOrchestrator';
 
 export interface OfferPreview {
   product: {
@@ -198,13 +200,27 @@ export async function extractProductDetailsAction(input: {
 
 // ─── Action 2: Generate AI Offer Content from Confirmed Data ──────────────────
 
+import { CopySimilarityValidator, type ObjectiveQualityMetrics } from '@/core/domain/services/CopySimilarityValidator';
+import { AIAuditLoggerService } from '@/core/domain/services/AIAuditLoggerService';
+import { AICacheManagerService } from '@/core/domain/services/AICacheManagerService';
+import { WinningStrategyService } from '@/core/domain/services/WinningStrategyService';
+
 export async function analyzeProductUrlAction(input: {
   url: string;
   affiliateTag?: string;
   userId?: string;
   style?: OfferStyle;
+  commercialGoal?: CommercialGoal;
+  generationMode?: AIGenerationMode;
   confirmedData?: ProductExtractionResult;
-}): Promise<{ success: true; data: OfferPreview } | { success: false; error: string }> {
+}): Promise<{
+  success: true;
+  data: OfferPreview & {
+    debugPromptInfo?: string;
+    objectiveMetrics?: ObjectiveQualityMetrics;
+    autoRating?: number;
+  };
+} | { success: false; error: string }> {
   const startTime = Date.now();
   try {
     const rawUrl = sanitizeUrl(input.url);
@@ -257,26 +273,33 @@ export async function analyzeProductUrlAction(input: {
     });
 
     const style = input.style ?? 'padrao';
-    console.log(`[Gemini] 🤖 Invocando IA Gemini para: ${tempProduct.title} (Estilo: ${style})`);
+    const goal = input.commercialGoal ?? 'maxima_conversao';
+    const mode = input.generationMode ?? 'profissional';
 
-    const geminiAdapter = new GeminiAIAdapter();
-    const aiResult = await geminiAdapter.generateOfferContent(tempProduct, style);
+    // 🚀 Delegar todo o pipeline ao Maestro AIOrchestrator
+    const orchestratorResult = await AIOrchestrator.generateOffer({
+      product: tempProduct,
+      userId: input.userId || 'guest',
+      style,
+      commercialGoal: goal,
+      generationMode: mode,
+    });
 
-    // Calculate Commercial Quality Score
+    const rawAnalysis = orchestratorResult.analysis || ({} as any);
+    const whatsAppText = String(rawAnalysis.whatsAppText || '');
+    const telegramText = String(rawAnalysis.telegramText || whatsAppText);
+    const instagramText = String(rawAnalysis.instagramText || whatsAppText);
+    const facebookText = String(rawAnalysis.facebookText || whatsAppText);
+    const channelText = String(rawAnalysis.telegramText || whatsAppText);
+    const storyText = String(rawAnalysis.statusWhatsAppText || rawAnalysis.cta || '');
+
+    const objectiveMetrics = orchestratorResult.objectiveMetrics;
+    const durationMs = orchestratorResult.durationMs;
+
     const qualityScore = offerBuilder.calculateQualityScore(productData);
-
-    const copiesData = aiResult.copies?.copies ?? {};
-    const whatsAppText  = String(copiesData.whatsAppText || '');
-    const telegramText  = String(copiesData.telegramText || '');
-    const instagramText = String(copiesData.instagramText || '');
-    const facebookText  = String(copiesData.facebookText || '');
-    const channelText   = String(copiesData.channelText || '');
-    const storyText     = String(copiesData.storyText || '');
-
     const scoreVal = qualityScore.overallScore;
     const scoreLabelStr = scoreVal >= 80 ? 'EXCELLENT' : scoreVal >= 50 ? 'GOOD' : 'REGULAR';
 
-    const rawAnalysis = (aiResult as any).analysis || {};
     const publicoAlvo        = String(rawAnalysis.publicoAlvo || 'Consumidores em geral');
     const dorQueResolve      = String(rawAnalysis.dorQueResolve || 'Necessidade de compra inteligente');
     const beneficioPrincipal = String(rawAnalysis.beneficioPrincipal || 'Qualidade e economia');
@@ -285,7 +308,7 @@ export async function analyzeProductUrlAction(input: {
     const emocaoDeCompra     = String(rawAnalysis.emocaoDeCompra || 'Satisfação');
     const categoria          = String(productData.category || 'Geral');
 
-    console.log(`[Gemini] ✅ Oferta gerada em ${Date.now() - startTime}ms. Quality Score: ${scoreVal}%`);
+    console.log(`[Gemini] ✅ Oferta gerada em ${durationMs}ms. (CacheHit: ${orchestratorResult.cacheHit}, Originalidade: ${objectiveMetrics?.originalityPercent}%)`);
 
     return {
       success: true,
@@ -317,9 +340,9 @@ export async function analyzeProductUrlAction(input: {
           score: scoreVal,
           scoreLabel: scoreLabelStr,
           justification: qualityScore.justification,
-          cta: String(aiResult.cta || 'Aproveite a oferta!'),
-          hashtags: Array.isArray(aiResult.hashtags) ? aiResult.hashtags.map(String) : ['#oferta'],
-          emojis: Array.isArray(aiResult.emojis) ? aiResult.emojis.map(String) : ['🔥'],
+          cta: String(rawAnalysis.cta || 'Aproveite a oferta!'),
+          hashtags: Array.isArray(rawAnalysis.hashtags) ? rawAnalysis.hashtags.map(String) : ['#oferta'],
+          emojis: Array.isArray(rawAnalysis.emojis) ? rawAnalysis.emojis.map(String) : ['🔥'],
           whatsAppText,
           telegramText,
           instagramText,
@@ -328,6 +351,8 @@ export async function analyzeProductUrlAction(input: {
           storyText,
           style,
         },
+        debugPromptInfo: rawAnalysis.sanitizedPromptDebug,
+        objectiveMetrics,
       },
     };
   } catch (err) {

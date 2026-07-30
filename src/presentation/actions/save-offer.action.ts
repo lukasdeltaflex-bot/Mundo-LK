@@ -7,12 +7,15 @@ import { ChannelContent } from '@/core/domain/value-objects/channel-content.vo';
 import type { OfferPreview } from './analyze-url.action';
 import type { ScoreType } from '@/core/domain/value-objects/score-level.vo';
 
+import { UserAIPreferencesService } from '@/core/domain/services/UserAIPreferencesService';
+
 export interface SaveOfferInput {
   preview: OfferPreview;
   userId: string;
   /** Optional user-edited overrides */
   editedTitle?: string;
   editedCta?: string;
+  editedCopy?: string;
 }
 
 /**
@@ -23,9 +26,14 @@ export async function saveApprovedOfferAction(
   input: SaveOfferInput
 ): Promise<{ success: true; productId: string; offerId: string } | { success: false; error: string }> {
   try {
-    const { preview, userId, editedTitle, editedCta } = input;
+    const { preview, userId, editedTitle, editedCta, editedCopy } = input;
     const productRepo = new FirestoreProductRepository();
     const offerRepo   = new FirestoreOfferRepository();
+
+    // Se houve edição manual da copy, registra o aprendizado adaptativo do usuário
+    if (editedCopy && editedCopy !== preview.offer.whatsAppText) {
+      await UserAIPreferencesService.recordUserEdit(userId, preview.offer.whatsAppText, editedCopy);
+    }
 
     console.log('[SAVE] Tentando salvar oferta para usuário:', userId);
 

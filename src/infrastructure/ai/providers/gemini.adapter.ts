@@ -24,6 +24,19 @@ export type OfferStyle =
   | 'relampago'
   | 'luxo';
 
+export type CommercialGoal =
+  | 'maximo_cliques'
+  | 'maxima_conversao'
+  | 'ticket_alto'
+  | 'venda_rapida'
+  | 'viralizar'
+  | 'recuperar_oferta'
+  | 'produto_premium'
+  | 'produto_popular'
+  | 'produto_nichado';
+
+export type AIGenerationMode = 'rapido' | 'profissional' | 'estrategica';
+
 export interface GeminiOfferAnalysis {
   publicoAlvo: string;
   dorQueResolve: string;
@@ -62,29 +75,68 @@ export interface GeminiOfferAnalysis {
   melhorHorario?: string;
   melhorDia?: string;
 
-  // Explainable AI (Decision Rationales)
-  porQueTitulo?: string;
-  porQueGatilho?: string;
-  porQueHorario?: string;
-
   // Commercial Intelligence & Star Breakdown
   recomendacaoIA?: string;
   pontosFortes?: string[];
   pontosFracos?: string[];
-  scorePreco?: number; // 1-5
-  scoreDesconto?: number; // 1-5
-  scoreFrete?: number; // 1-5
-  scoreCupom?: number; // 1-5
-  scoreAvaliacoes?: number; // 1-5
-  scoreConcorrencia?: number; // 1-5
+
+  // Explainable AI & Decision Rationales
+  explicabilidadeDecisoes?: {
+    publicoAlvoIdentificado?: string;
+    dorPrincipalSolucionada?: string;
+    gatilhoMentalEscolhido?: string;
+    estiloCtaAplicado?: string;
+    estrategiaMarketplace?: string;
+    objetivoComercialAtingido?: string;
+    historicoReferenciaTransparente?: string;
+  };
+
+  porQueTitulo?: string;
+  porQueGatilho?: string;
+  porQueHorario?: string;
+  scorePreco?: number;
+  scoreDesconto?: number;
+  scoreFrete?: number;
+  scoreCupom?: number;
+  scoreAvaliacoes?: number;
+  scoreConcorrencia?: number;
+
+  // Hybrid Quality Auto-Evaluation & Debug Info
+  autoAvaliacaoNota?: number;
+  autoAvaliacaoJustificativa?: string;
+  sanitizedPromptDebug?: string;
 
   scoreValue: number;
   scoreJustification: string;
 }
 
-// ─── Prompt Builder ───────────────────────────────────────────────────────────
+// ─── Prompt & Temperature Helpers ──────────────────────────────────────────────
 
-function buildMarketingPrompt(product: Product, style: OfferStyle): string {
+export function getStyleTemperature(style: OfferStyle): number {
+  switch (style) {
+    case 'minimalista': return 0.3;
+    case 'tecnologia':
+    case 'custo_beneficio': return 0.4;
+    case 'padrao': return 0.7;
+    case 'luxo':
+    case 'premium': return 0.8;
+    case 'urgencia':
+    case 'relampago': return 0.9;
+    case 'emocional':
+    case 'familia': return 1.0;
+    case 'explosiva': return 1.2;
+    default: return 0.7;
+  }
+}
+
+function buildMarketingPrompt(
+  product: Product,
+  style: OfferStyle,
+  goal: CommercialGoal = 'maxima_conversao',
+  mode: AIGenerationMode = 'profissional',
+  pastWinningContext?: string,
+  hierarchicalMemoryBlock?: string
+): string {
   const stylePtBR: Record<OfferStyle, string> = {
     padrao:          'equilibrado e persuasivo, com apelo emocional e racional combinados',
     explosiva:       'explosivo e bombástico — foco em achado imperdível que vai esgotar rápido',
@@ -103,6 +155,18 @@ function buildMarketingPrompt(product: Product, style: OfferStyle): string {
     luxo:            'exclusividade total, sofisticação de alto padrão e distinção',
   };
 
+  const goalPtBR: Record<CommercialGoal, string> = {
+    maximo_cliques:   'GERAR O MÁXIMO DE CLIQUES (Gatilhos de Curiosidade e Abertura Imediata)',
+    maxima_conversao: 'MAXIMIZAR CONVERSÃO EM VENDAS (Prova Social, Apelo Racional e Confiança)',
+    ticket_alto:      'VENDER PRODUTO DE TICKET ALTO (Elevação de Valor Percebido e Desejo)',
+    venda_rapida:     'ACELERAR VENDAS RÁPIDAS (Urgência Extrema e Ação Imediata)',
+    viralizar:        'VIRALIZAR A OFERTA (Alto Engajamento, Emoção e Compartilhamento em Grupos)',
+    recuperar_oferta: 'RECUPERAR OFERTA ANTIGA (Novo Ângulo Inédito e Quebra de Objeções)',
+    produto_premium:  'DESTACAR PRODUTO PREMIUM (Exclusividade, Status e Distinção)',
+    produto_popular:  'DESTACAR PRODUTO POPULAR (Custo-Benefício Imediato e Preço Baixo)',
+    produto_nichado:  'CONVERTER EM PÚBLICO NICHADO (Comunicação Direta para Compradores Específicos)',
+  };
+
   const formatPrice = (p: any) => {
     if (typeof p === 'number') return `R$ ${p.toFixed(2)}`;
     if (p && typeof p.formatBRL === 'function') return p.formatBRL();
@@ -117,77 +181,84 @@ function buildMarketingPrompt(product: Product, style: OfferStyle): string {
 
   const rawAffiliateUrl = product.affiliateUrl?.url || '';
 
-  return `Você é o maior especialista do Brasil em Marketing de Afiliados e Copywriting Comercial de Alta Conversão.
+  const expertPanelDirective = mode === 'estrategica' ? `
+━━━ 🎯 MODO IA ESTRATÉGICA (PAINEL DE 7 ESPECIALISTAS EM 1 ÚNICA REQUISIÇÃO) ━━━
+Sintetize a análise sob 7 perspectivas profissionais simultâneas (Copywriting, Conversão, Marketplace, Marketing Digital, Psicologia do Consumidor, SEO e Redes Sociais).
+` : '';
 
-SEU OBJETIVO É GERAR VENDAS REAIS COM INTELIGÊNCIA SEMÂNTICA ESPECÍFICA PARA ESTE PRODUTO.
+  return `Você é um ESPECIALISTA BRASILEIRO EM MARKETING DE AFILIADOS, MARKETPLACES E VENDAS DIGITAIS.
+Seu objetivo NÃO é apenas escrever bonito; seu objetivo é AUMENTAR CLIQUES, CONVERSÕES E COMISSÕES DO AFILIADO.
 
-━━━ PROTOCOLO OBRIGATÓRIO DE ANÁLISE ANTES DE ESCREVER ━━━
+${hierarchicalMemoryBlock || ''}
 
-1. ENTENDER O PRODUTO REAL:
-   - Nome: "${product.title}"
-   - Descrição: "${product.description || 'Produto oficial de alta utilidade'}"
-   - Marca: "${product.brand || 'Geral'}"
-   - Categoria: "${product.categoryId || 'Geral'}"
-   - Preço: ${price} (Contexto: ${discount})
-   - Marketplace: ${product.marketplaceSlug}
+OBJETIVO COMERCIAL EXPLICITO DA OFERTA: ${goalPtBR[goal]}
+ESTILO DE COPY SOLICITADO: ${stylePtBR[style]}
+MODO DE GERAÇÃO: ${mode.toUpperCase()}
+${expertPanelDirective}
 
-2. ADAPTAR O VOCABULÁRIO E ARGUMENTOS EXCLUSIVAMENTE AO PRODUTO:
-   - Se for Bolsa/Moda: Fale de elegância, estilo, acabamento, versatilidade de looks, ocasiões e presença.
-   - Se for Garrafa/Copo Térmico: Fale de conservação de temperatura (gelado/quente por horas), academia, trabalho, hidratação e praticidade.
-   - Se for Skate/Esporte: Fale de estabilidade, rolamentos, manobras, resistência, velocidade e liberdade.
-   - Se for Eletrônico/Gadget: Fale de inovação, velocidade, bateria, produtividade e alta performance.
-   - NUNCA use frases genéricas como "Aproveite essa oferta incrível!" que servem para qualquer produto.
+${pastWinningContext ? `${pastWinningContext}\n` : ''}
 
-3. MUDANÇA RADICAL DE PERSONALIDADE PELO ESTILO SELECIONADO ("${style}"):
-   - Aplique o tom exato: "${stylePtBR[style]}".
-   - O vocabulário e a energia de uma copy em estilo 'luxo' ou 'premium' DEVE ser totalmente diferente de 'urgencia' ou 'explosiva'.
+━━━ PROTOCOLO RÍGIDO ANTI-ALUCINAÇÃO ━━━
+- NUNCA invente materiais, especificações técnicas, prazos de garantia, certificações, brindes, promoções ou medidas que não estejam informados nos DADOS DO PRODUTO.
+- Se uma informação não for fornecida, limite-se estritamente aos dados reais confirmados.
 
-4. PRESERVAÇÃO RÍGIDA DO LINK CURTO:
-   - Use EXATAMENTE a URL de afiliado fornecida: ${rawAffiliateUrl}
-   - NUNCA altere, expanda, modifique ou substitua este link.
+DADOS CONFIRMADOS DO PRODUTO:
+- Nome Oficial: "${product.title}"
+- Descrição: "${product.description || 'Produto oficial de alta utilidade'}"
+- Marca: "${product.brand || 'Geral'}"
+- Categoria: "${product.categoryId || 'Geral'}"
+- Preço Atual: ${price} (Contexto: ${discount})
+- Marketplace: ${product.marketplaceSlug}
+- Link Afiliado Oficial: ${rawAffiliateUrl}
 
 ━━━ RESPOSTA OBRIGATÓRIA EM JSON PURO ━━━
 
-Responda EXCLUSIVAMENTE com um JSON válido contendo a análise e as copys (incluindo variações A/B/C):
-
 {
-  "publicoAlvo": "perfil exato do comprador deste produto",
-  "dorQueResolve": "dor específica solucionada por este produto",
-  "beneficioPrincipal": "principal transformação específica do produto",
-  "argumentoComercial": "argumento de venda irresistível adaptado à categoria",
+  "publicoAlvo": "perfil exato do comprador ideal",
+  "dorQueResolve": "dor específica que este produto resolve",
+  "beneficioPrincipal": "principal transformação gerada pelo produto",
+  "argumentoComercial": "argumento irrecusável adaptado ao objetivo comercial",
   "anguloDeVenda": "ângulo estratégico utilizado",
   "emocaoDeCompra": "emoção primária ativada",
   "categoria": "${product.categoryId || 'Geral'}",
-  "subcategoria": "subcategoria exata",
+  "subcategoria": "subcategoria analítica",
 
   "whatsAppText": "Copy completa formatada para WhatsApp no estilo ${style} com o link: ${rawAffiliateUrl}",
   "telegramText": "Copy formatada para Telegram com negrito e o link: ${rawAffiliateUrl}",
-  "instagramText": "Legenda engajadora para Instagram específica para o produto",
+  "instagramText": "Legenda engajadora para Instagram com hashtags",
   "facebookText": "Post persuasivo para grupos de Facebook com o link: ${rawAffiliateUrl}",
   "statusWhatsAppText": "Texto ultra-curto com emojis para Status/Stories",
 
-  "copyA": "Variação A (Venda Emocional): Foco na conexão e transformação pessoal do comprador deste produto",
-  "copyB": "Variação B (Oferta Relâmpago): Foco em urgência extrema e escassez de estoque",
-  "copyC": "Variação C (Exclusividade Premium): Foco no valor percebido, acabamento e sofisticação",
+  "copyA": "Variação A (Venda Emocional & Conexão)",
+  "copyB": "Variação B (Oferta Relâmpago & Urgência)",
+  "copyC": "Variação C (Exclusividade Premium & Valor)",
 
   "cta": "Garanta o seu com desconto exclusivo agora!",
   "hashtags": ["#oferta", "#promoção", "#achadinhos", "#desconto"],
   "emojis": ["🔥", "😱", "💰", "🚚", "🛒"],
   "gatilhosMentais": ["Urgência", "Prova Social", "Escassez", "Valor Percebido"],
 
-  "sugestaoImagem": "Sugestão de foto para destacar os pontos fortes do produto",
-  "sugestaoVideo": "Sugestão de vídeo rápido mostrando o produto em uso",
-  "melhorHorario": "11:30 - Horário do Almoço",
-  "melhorDia": "Quarta-feira",
+  "explicabilidadeDecisoes": {
+    "publicoAlvoIdentificado": "Compradores com foco em praticidade e custo-benefício",
+    "dorPrincipalSolucionada": "Obter máxima utilidade sem comprometer o orçamento",
+    "gatilhoMentalEscolhido": "Prova Social & Escassez de Estoque",
+    "estiloCtaAplicado": "Chamada direta com senso de oportunidade",
+    "estrategiaMarketplace": "Aproveitamento dos pontos fortes do marketplace ${product.marketplaceSlug}",
+    "objetivoComercialAtingido": "Maximizar a taxa de cliques no link de afiliado",
+    "historicoReferenciaTransparente": "Encontrei uma estratégia semelhante com alta conversão nesta categoria e apliquei a mesma estrutura."
+  },
 
-  "scoreValue": 95,
-  "scoreJustification": "Excelente pontuação devido ao forte apelo comercial e benefício perceptível."
+  "autoAvaliacaoNota": 9.5,
+  "autoAvaliacaoJustificativa": "Excelente adequação ao objetivo comercial, forte apelo de conversão e zero clichês.",
+
+  "scoreValue": 96,
+  "scoreJustification": "Pontuação altíssima devido ao alinhamento exato entre o produto, estilo e objetivo de vendas."
 }`;
 }
 
 // ─── Fallback Analysis Generator ──────────────────────────────────────────────
 
-function createFallbackOfferAnalysis(product: Product): GeminiOfferAnalysis {
+function createFallbackOfferAnalysis(product: Product, style: OfferStyle = 'padrao'): GeminiOfferAnalysis {
   const pAny = product.currentPrice as any;
   const price = typeof pAny === 'number'
     ? `R$ ${pAny.toFixed(2)}`
@@ -223,7 +294,7 @@ function createFallbackOfferAnalysis(product: Product): GeminiOfferAnalysis {
     mainBenefit = 'Estrutura reforçada, excelente aderência e rolamentos de alta precisão';
     dynamicAngle = 'Velocidade & Liberdade';
     keyArgument = 'Desenvolvido para máxima durabilidade, segurança e performance nas pistas';
-  } else if (titleLower.includes('tv') || titleLower.includes('fone') || titleLower.includes('smartphone') || titleLower.includes('notebook') || titleLower.includes('carregador')) {
+  } else if (titleLower.includes('tv') || titleLower.includes('fone') || titleLower.includes('smartphone') || titleLower.includes('notebook') || titleLower.includes('carregador') || titleLower.includes('amazfit')) {
     productCategorySemantic = 'Tecnologia & Eletrônicos';
     painPoint = 'Garantir alta velocidade, imagem cristalina e tecnologia moderna sem pagar caro';
     mainBenefit = 'Alta performance, conectividade rápida e recursos de última geração';
@@ -231,23 +302,26 @@ function createFallbackOfferAnalysis(product: Product): GeminiOfferAnalysis {
     keyArgument = 'Tecnologia avançada com resposta rápida e máxima imersão';
   }
 
-  const defaultCopy = `🔥 *${dynamicAngle.toUpperCase()}!*
+  // Estrutura e corpo dinâmicos por estilo
+  const styleBodies: Record<OfferStyle, string> = {
+    padrao:          `🔥 *${dynamicAngle.toUpperCase()}!*\n\n✨ *${product.title}*\n💰 *De: ${product.previousPrice?.formatBRL() || price} por ${price}*\n\n🚚 Frete Rápido & Compra Segura\n✅ *${mainBenefit}*\n⭐ ${keyArgument}\n\n🛒 *Garanta o seu no link oficial:*\n${url}`,
+    explosiva:       `💥 *ACHADINHO BOMBÁSTICO DE ALTO IMPACTO!*\n\n😱 *${product.title}*\n💰 *Apenas ${price}!*\n⚡ Preço baixo assim não vai durar!\n\n🛒 *Corra para garantir o seu antes que esgoste:*\n${url}`,
+    premium:         `👑 *SOFISTICAÇÃO & ALTO PADRÃO EXCLUSIVO*\n\n💎 *${product.title}*\n✨ *${mainBenefit}*\n💰 Valor Especial: ${price}\n\n🛒 *Adquira o seu no link oficial de garantia:*\n${url}`,
+    urgencia:        `⚠️ *ESTOQUE LIMITADO — CRONÔMETRO ATIVADO!*\n\n⏳ *${product.title}*\n💰 *Apenas: ${price}*\n🚨 Pouquíssimas unidades restantes no fornecedor!\n\n🛒 *Clique rápido para não ficar sem:*\n${url}`,
+    minimalista:     `⚡ *${product.title}* por ${price}.\n👉 ${url}`,
+    emocional:       `💖 *TRANSFORME SEU DIA A DIA COM MÁXIMO CONFORTO*\n\n🌸 *${product.title}*\n✨ ${mainBenefit}\n💰 Invista em você por apenas: ${price}\n\n🛒 *Garanta agora com carinho:*\n${url}`,
+    promocao:        `🏷️ *DESCONTO REAL & ECONOMIA IMBATÍVEL!*\n\n🤑 *${product.title}*\n💰 *De: ${product.previousPrice?.formatBRL() || price} por Apenas ${price}*\n\n🛒 *Aproveite o menor preço do ano:*\n${url}`,
+    custo_beneficio: `🎯 *COMPRA INTELIGENTE DE EXCELENTE VALOR*\n\n📊 *${product.title}*\n✅ ${keyArgument}\n💰 Investimento: ${price}\n\n🛒 *Confira todos os detalhes no link oficial:*\n${url}`,
+    familia:         `🏡 *PRATICIDADE & CONFORTO PARA O SEU LAR*\n\n👨‍👩‍👧 *${product.title}*\n✨ ${mainBenefit}\n💰 Preço especial para a família: ${price}\n\n🛒 *Garanta para a sua casa no link:*\n${url}`,
+    tecnologia:      `⚡ *INOVAÇÃO TÉCNICA & ALTA PERFORMANCE*\n\n🤖 *${product.title}*\n💻 ${mainBenefit}\n💰 Por apenas: ${price}\n\n🛒 *Acesse a tecnologia no link oficial:*\n${url}`,
+    casa:            `🛋️ *ORGANIZAÇÃO & CONFORTO DO LAR*\n\n🏠 *${product.title}*\n✨ ${keyArgument}\n💰 Apenas: ${price}\n\n🛒 *Deixe seu lar perfeito no link:*\n${url}`,
+    esporte:         `🏆 *SUPERAÇÃO, FOCO & ALTA PERFORMANCE*\n\n🥇 *${product.title}*\n⚡ ${mainBenefit}\n💰 Apenas: ${price}\n\n🛒 *Supere seus limites no link:*\n${url}`,
+    presentes:       `🎁 *O PRESENTE PERFEITO QUE VOCÊ PROCURAVA*\n\n🎉 *${product.title}*\n❤️ ${keyArgument}\n💰 Valor: ${price}\n\n🛒 *Surpreenda quem você ama no link:*\n${url}`,
+    relampago:       `🚨 *OFERTA RELÂMPAGO ACABA EM POUCOS MINUTOS!*\n\n⏰ *${product.title}*\n💰 *De: ${product.previousPrice?.formatBRL() || price} por ${price}*\n\n🛒 *Garanta no cronômetro agora:*\n${url}`,
+    luxo:            `💎 *EXCLUSIVIDADE TOTAL & REFINAMENTO DE ALTO PADRÃO*\n\n👑 *${product.title}*\n✨ ${mainBenefit}\n💰 Valor Exclusivo: ${price}\n\n🛒 *Acesse o atendimento exclusivo no link:*\n${url}`,
+  };
 
-✨ *${product.title}*
-
-💰 *De: ${product.previousPrice?.formatBRL() || price}*
-🔥 *Por apenas: ${price}*
-
-🚚 Frete Rápido & Compra Segura
-💳 Parcelamento Facilitado
-
-✅ *${mainBenefit}*
-⭐ ${keyArgument}
-
-🛒 *Garanta o seu antes que o estoque acabe:*
-${url}
-
-🚨 *Compartilhe com quem procura o melhor achadinho!*`;
+  const defaultCopy = styleBodies[style] || styleBodies.padrao;
 
   return {
     publicoAlvo: `Compradores interessados em ${productCategorySemantic}`,
@@ -307,18 +381,26 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
 
   public async generateOfferContent(
     product: Product,
-    style: OfferStyle = 'padrao'
+    style: OfferStyle = 'padrao',
+    goal: CommercialGoal = 'maxima_conversao',
+    mode: AIGenerationMode = 'profissional',
+    pastWinningContext?: string,
+    hierarchicalMemoryBlock?: string
   ): Promise<AIOfferGenerationResult & { analysis?: GeminiOfferAnalysis }> {
-    const prompt = buildMarketingPrompt(product, style);
+    const temp = getStyleTemperature(style);
+    const prompt = buildMarketingPrompt(product, style, goal, mode, pastWinningContext, hierarchicalMemoryBlock);
     let analysis: GeminiOfferAnalysis;
 
     try {
-      const rawText = await callGeminiAPI(prompt);
+      const rawText = await callGeminiAPI(prompt, temp);
       analysis = parseGeminiJSON(rawText, product);
     } catch (err) {
       console.warn('[GeminiAIAdapter] ⚠️ Falha na chamada da API Gemini. Utilizando fallback seguro com dados do produto:', err);
-      analysis = createFallbackOfferAnalysis(product);
+      analysis = createFallbackOfferAnalysis(product, style);
     }
+
+    // Injeta dados limpos para auditoria admin Modo Debug
+    analysis.sanitizedPromptDebug = prompt;
 
     const whatsAppCopy = analysis.whatsAppText || '';
 
@@ -371,7 +453,7 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
 
 // ─── Direct HTTP Fetch ────────────────────────────────────────────────────────
 
-async function callGeminiAPI(prompt: string): Promise<string> {
+async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
   if (!apiKey) {
@@ -386,7 +468,7 @@ async function callGeminiAPI(prompt: string): Promise<string> {
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.4,
+        temperature: Math.min(1.2, Math.max(0.1, temperature)),
         responseMimeType: 'application/json',
         maxOutputTokens: 8192,
       },
