@@ -188,18 +188,54 @@ export class SystemDiagnosticService {
 
     // ─── 4. VERIFICAÇÃO DA IA (GOOGLE GEMINI 2.5 FLASH) ────────────────────────
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    const aiStatus: DiagnosticStatus = geminiKey ? 'OK' : 'WARNING';
+    let aiStatus: DiagnosticStatus = 'UNCONFIGURED';
+    let aiLatencyMs = 0;
+    let aiDesc = '';
+
+    if (geminiKey) {
+      const aiStart = Date.now();
+      try {
+        const pingEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+        const res = await fetch(pingEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'Ping test' }] }],
+          }),
+        });
+        aiLatencyMs = Date.now() - aiStart;
+
+        if (res.ok) {
+          aiStatus = 'OK';
+          aiDesc = `Gemini API | Status: 🟢 Conectada | Modelo: gemini-2.5-flash | Autenticação: OK | Tempo de resposta: ${aiLatencyMs} ms`;
+        } else if (res.status === 429) {
+          aiStatus = 'WARNING';
+          aiDesc = `Gemini API | Status: 🟡 Limite de Requisições Atingido (HTTP 429) | Modelo: gemini-2.5-flash | Autenticação: OK | Tempo de resposta: ${aiLatencyMs} ms`;
+        } else {
+          aiStatus = 'WARNING';
+          aiDesc = `Gemini API | Status: 🟡 Degradada | Modelo: gemini-2.5-flash | Autenticação: HTTP ${res.status}`;
+        }
+      } catch (e: any) {
+        aiLatencyMs = Date.now() - aiStart;
+        aiStatus = 'ERROR';
+        aiDesc = `Gemini API | Status: 🔴 Erro de Conexão | Modelo: gemini-2.5-flash | Erro: ${e.message}`;
+      }
+    } else {
+      aiDesc = 'Chave GEMINI_API_KEY não encontrada no servidor (process.env).';
+    }
+
+    const aiErrMsg = aiStatus === 'OK' ? undefined : (aiDesc.includes('429') ? 'Limite de requisições por minuto atingido (HTTP 429)' : 'Falha na conexão com Gemini API');
+    const aiSolMsg = aiStatus === 'OK' ? undefined : (aiDesc.includes('429') ? 'Aguarde alguns instantes para nova chamada ou revise a cota do Google AI Studio.' : 'Verifique se GEMINI_API_KEY no arquivo .env.local é válida.');
+
     items.push({
       id: 'ai_gemini',
       module: 'GEMINI_AI',
       title: 'Comunicação com IA Real (Gemini 2.5 Flash)',
-      description: aiStatus === 'OK'
-        ? 'Modelo gemini-2.5-flash conectado e operacional via REST API oficial.'
-        : 'Chave GEMINI_API_KEY não encontrada em ambiente. Usando modo de simulação offline.',
+      description: aiDesc,
       status: aiStatus,
-      latencyMs: 450,
-      errorMessage: aiStatus === 'OK' ? undefined : 'GEMINI_API_KEY ausente.',
-      solutionSuggestion: aiStatus === 'OK' ? undefined : 'Adicione GEMINI_API_KEY no arquivo .env.local',
+      latencyMs: aiLatencyMs,
+      errorMessage: aiErrMsg,
+      solutionSuggestion: aiSolMsg,
       isAutoFixable: false,
     });
 
