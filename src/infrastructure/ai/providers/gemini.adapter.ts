@@ -45,6 +45,11 @@ export interface GeminiOfferAnalysis {
   youtubeShortsText?: string;
   statusWhatsAppText?: string;
 
+  // 3 Creative Variations (A/B/C)
+  copyA?: string; // Venda Emocional & Conexão
+  copyB?: string; // Oferta Relâmpago & Urgência
+  copyC?: string; // Exclusividade Premium & Valor
+
   cta: string;
   hashtags: string[];
   emojis: string[];
@@ -109,110 +114,81 @@ function buildMarketingPrompt(product: Product, style: OfferStyle): string {
     ? `de ${formatPrice(product.previousPrice)} por ${price}`
     : `preço atual: ${price}`;
 
+  const rawAffiliateUrl = product.affiliateUrl?.url || '';
+
   const marketplaceContext = {
-    shopee:       'Use o estilo dos maiores canais da Shopee no Brasil (mencione cupons de frete grátis, moedas e selo de achadinho).',
-    mercadolivre: 'Use o estilo Mercado Livre (mencione entrega rápida FULL, parcelamento e garantia de compra protegida).',
-    amazon:       'Use o estilo Amazon Brasil (mencione entrega Prime grátis, compra segura e qualidade garantida).',
-    magalu:       'Use o estilo Magalu (mencione Retirada Rápida em Loja e cashback no MagaluPay).',
-    geral:        'Use o estilo de grandes canais de ofertas do Telegram/WhatsApp do Brasil.',
+    shopee:       'Canais da Shopee no Brasil (destaque cupons de frete grátis, moedas e selo de achadinho).',
+    mercadolivre: 'Mercado Livre (destaque entrega rápida FULL, parcelamento e compra garantida).',
+    amazon:       'Amazon Brasil (destaque entrega Prime grátis e garantia).',
+    magalu:       'Magalu (destaque retirada rápida e cashback).',
+    geral:        'Canais de Ofertas de Alta Conversão no Brasil.',
   }[product.marketplaceSlug] || 'Canais de Ofertas do Brasil';
 
-  return `Você é uma IA Copywriter & Consultora Comercial de Classe Mundial especializada em Marketing de Afiliados no Brasil (${marketplaceContext}).
+  return `Você é o maior especialista do Brasil em Marketing de Afiliados e Copywriting Comercial de Alta Conversão (${marketplaceContext}).
 
-Sua tarefa é analisar o produto real fornecido e gerar um pacote completo de inteligência comercial e copys persuasivas.
+SEU OBJETIVO É GERAR VENDAS REAIS.
+- NUNCA escreva respostas genéricas, clichês padronizados ou estruturas idênticas a criações anteriores.
+- NUNCA reutilize templates fixos ou textos estáticos.
+- Analise profundamente o produto abaixo para entender sua proposição única de valor, a dor que resolve, o público comprador e as maiores objeções.
 
-REGRAS RÍGIDAS DE ANTI-ALUCINAÇÃO:
-- NUNCA invente, adivinhe ou crie produtos, marcas, categorias, avaliações ou preços que não estejam explicitamente listados na seção "DADOS CONFIRMADOS DO PRODUTO".
-- Trabalhe EXCLUSIVAMENTE com os dados fornecidos abaixo. Se uma informação (como frete ou avaliações) não estiver na lista, não a mencione ou invente na copy.
+REGRA INEGOCIÁVEL DE URL:
+- Use EXATAMENTE a URL de afiliado fornecida abaixo (${rawAffiliateUrl}).
+- NUNCA altere, expanda, modifique ou substitua a URL informada. Mantenha o link curto exatamente como está.
 
 DADOS CONFIRMADOS DO PRODUTO:
 - Nome Oficial: ${product.title}
 - Descrição: ${product.description || 'Produto oficial de alta utilidade'}
-- Marca: ${product.brand || 'Não especificada'}
+- Marca: ${product.brand || 'Geral'}
 - Categoria: ${product.categoryId || 'Geral'}
 - Preço Atual: ${price}
 - Contexto de Desconto: ${discount}
 - Marketplace: ${product.marketplaceSlug}
-- Link Afiliado: ${product.affiliateUrl?.url || ''}
+- Link Afiliado Oficial: ${rawAffiliateUrl}
 
-ESTILO DE COPY SOLICITADO: ${stylePtBR[style]}
-
-━━━ FORMATO OFICIAL DAS COPYS (CANAIS BRASILEIROS DE OFERTAS) ━━━
-
-Para WhatsApp e Telegram, siga OBRIGATORIAMENTE esta estrutura de layout:
-
-🔥 [TÍTULO IMPACTANTE COM EMOJI]
-
-🧊 ${product.title}
-
-💰 De: ${product.previousPrice?.formatBRL() || price}
-🔥 Por apenas: ${price}
-
-🚚 Frete Grátis (se disponível) / 💳 Parcelamento facilitado
-
-✅ [Benefício Principal Racional]
-⭐ Excelente recomendação e aprovação dos compradores
-
-🛒 Garanta a sua antes que acabe:
-${product.affiliateUrl?.url || ''}
-
-🚨 Compartilhe com quem ama promoções!
+ESTILO PRINCIPAL SOLICITADO: ${stylePtBR[style]}
 
 ━━━ RESPOSTA OBRIGATÓRIA EM JSON PURO ━━━
 
-IMPORTANTE:
-- Responda SOMENTE com um objeto JSON válido (sem comentários).
-- NÃO escreva NENHUM texto antes ou depois do JSON (nada de "Aqui está:", "Segue o JSON:", etc).
-- NÃO utilize blocos de código markdown (como \`\`\`json ou \`\`\`).
-- A resposta DEVE começar com { e terminar com }.
+Responda EXCLUSIVAMENTE com um JSON válido contendo:
+1. Análise profunda de marketing (Público, Dor, Benefício, Ângulo de Venda).
+2. As copys oficiais formatadas para cada canal.
+3. Três variações criativas alternativas de copy (copyA, copyB, copyC) para testes A/B:
+   - copyA: Venda Emocional & Conexão Profunda.
+   - copyB: Oferta Relâmpago & Urgência Extrema.
+   - copyC: Exclusividade Premium & Valor Percebido.
 
 {
-  "publicoAlvo": "descrição concisa do comprador ideal",
-  "dorQueResolve": "problema real que o produto resolve no dia a dia",
-  "beneficioPrincipal": "maior benefício e transformação",
-  "argumentoComercial": "argumento de venda mais forte",
-  "anguloDeVenda": "nome do ângulo (ex: Oportunidade Única, Economia Racional)",
-  "emocaoDeCompra": "emoção chave gerada",
+  "publicoAlvo": "descrição analítica do comprador ideal",
+  "dorQueResolve": "problema real e cotidiano que este produto soluciona",
+  "beneficioPrincipal": "principal transformação gerada pelo produto",
+  "argumentoComercial": "argumento de venda irresistível",
+  "anguloDeVenda": "ângulo estratégico utilizado",
+  "emocaoDeCompra": "emoção disparadora da decisão",
   "categoria": "${product.categoryId || 'Geral'}",
-  "subcategoria": "subcategoria exata",
+  "subcategoria": "subcategoria analítica",
 
-  "whatsAppText": "Copy completa formatada para WhatsApp no layout oficial",
-  "telegramText": "Copy completa formatada para Telegram com <b>negrito</b> e <a>links</a>",
-  "instagramText": "Legenda engajadora para post no feed do Instagram com hashtags ao final",
-  "facebookText": "Post persuasivo para grupos e página do Facebook com link ao final",
-  "threadsText": "Texto direto e provocativo para Threads",
-  "pinterestText": "Descrição otimizada para Pin do Pinterest com keywords",
-  "tikTokText": "Roteiro/Legenda dinâmico para TikTok",
-  "youtubeShortsText": "Roteiro/Legenda curto para YouTube Shorts",
-  "statusWhatsAppText": "Texto ultra-curto com emojis direto para Status/Stories",
+  "whatsAppText": "Copy completa formatada para WhatsApp incluindo o link exato: ${rawAffiliateUrl}",
+  "telegramText": "Copy formatada para Telegram com negrito e o link exato: ${rawAffiliateUrl}",
+  "instagramText": "Legenda engajadora para Instagram com hashtags",
+  "facebookText": "Post persuasivo para grupos de Facebook com o link exato: ${rawAffiliateUrl}",
+  "statusWhatsAppText": "Texto ultra-curto com emojis para Status/Stories",
 
-  "cta": "Chamada para Ação persuasiva de no máximo 8 palavras",
+  "copyA": "Variação A (Venda Emocional): Foco na conexão e transformação pessoal",
+  "copyB": "Variação B (Oferta Relâmpago): Foco em urgência extrema e escassez de estoque",
+  "copyC": "Variação C (Exclusividade Premium): Foco no valor percebido e sofisticação",
+
+  "cta": "Garanta o seu com desconto exclusivo agora!",
   "hashtags": ["#oferta", "#promoção", "#achadinhos", "#desconto", "#compraonline"],
   "emojis": ["🔥", "😱", "💰", "🚚", "🛒"],
-  "gatilhosMentais": ["Urgência", "Prova Social", "Escassez", "Custo-Benefício"],
+  "gatilhosMentais": ["Urgência", "Prova Social", "Escassez", "Valor Percebido"],
 
-  "sugestaoImagem": "Sugestão visual de ângulo e ambiente para foto do produto",
-  "sugestaoVideo": "Sugestão visual de demonstração do produto em vídeo",
+  "sugestaoImagem": "Sugestão de foto para destacar os pontos fortes",
+  "sugestaoVideo": "Sugestão de vídeo rápido mostrando o produto em uso",
   "melhorHorario": "11:30 - Horário do Almoço",
   "melhorDia": "Quarta-feira",
 
-  "porQueTitulo": "Motivo da escolha do título focado no benefício",
-  "porQueGatilho": "Motivo da escolha do gatilho mental principal",
-  "porQueHorario": "Motivo do horário de pico de conversão",
-
-  "recomendacaoIA": "Publique imediatamente! Excelente relação preço/benefício com alta procura.",
-  "pontosFortes": ["Preço atrativo", "Marca reconhecida", "Excelente apelo de compra"],
-  "pontosFracos": ["Estoque limitado"],
-
-  "scorePreco": 5,
-  "scoreDesconto": 4,
-  "scoreFrete": 5,
-  "scoreCupom": 4,
-  "scoreAvaliacoes": 4,
-  "scoreConcorrencia": 3,
-
-  "scoreValue": 92,
-  "scoreJustification": "Excelente pontuação devido ao forte apelo comercial e benefício perceptível."
+  "scoreValue": 94,
+  "scoreJustification": "Pontuação baseada na excelente relação entre apelo comercial, preço e dor resolvida."
 }`;
 }
 

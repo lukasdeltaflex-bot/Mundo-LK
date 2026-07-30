@@ -22,8 +22,7 @@ service cloud.firestore {
     
     function areCriticalFieldsUnchanged() {
       return (!('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId) &&
-             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == resource.data.tenantId) &&
-             (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+             (!('tenantId' in request.resource.data) || request.resource.data.tenantId == resource.data.tenantId);
     }
 
     function isAdmin() {
