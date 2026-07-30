@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase.config';
+import { db, auth } from '../config/firebase.config';
 import { IOfferRepository } from '../../../core/domain/ports/repositories/IOfferRepository';
 import { Offer } from '../../../core/domain/entities/offer.entity';
 import { OfferMapper, FirestoreOfferDoc } from '../mappers/offer.mapper';
@@ -74,9 +74,15 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
   public async save(offer: Offer): Promise<void> {
     const raw = OfferMapper.toPersistence(offer);
+    const activeUid = auth.currentUser?.uid || offer.userId;
+    const cleanRaw = {
+      ...raw,
+      userId: activeUid,
+      tenantId: activeUid,
+    };
     try {
       const ref = doc(db, this.collectionName, offer.id);
-      await setDoc(ref, raw, { merge: true });
+      await setDoc(ref, cleanRaw, { merge: true });
     } catch (error) {
       console.error('[FirestoreOfferRepository] Erro ao salvar no Firestore:', error);
       throw error;

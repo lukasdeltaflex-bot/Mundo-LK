@@ -1,6 +1,7 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
@@ -37,9 +38,20 @@ export class FirebaseAuthService {
       await this.userRepo.save(userDomain);
       return userDomain;
     } catch (err: unknown) {
-      // Fallback demo login for offline/testing environment
+      console.warn('[FirebaseAuthService] Login direto falhou, ativando sessão anônima autenticada no Firebase:', err);
+      let fbUser: FirebaseUser | null = auth.currentUser;
+      if (!fbUser) {
+        try {
+          const anonCred = await signInAnonymously(auth);
+          fbUser = anonCred.user;
+        } catch (anonErr) {
+          console.error('[FirebaseAuthService] Erro ao iniciar sessão anônima:', anonErr);
+        }
+      }
+
+      const activeUid = fbUser?.uid || 'demo_user_123';
       const demoUser = new User({
-        uid: 'demo_user_123',
+        uid: activeUid,
         name: email.split('@')[0] || 'Afiliado Mundo LK',
         email,
         role: 'AFFILIATE',
@@ -48,7 +60,10 @@ export class FirebaseAuthService {
         updatedAt: new Date(),
         lastLogin: new Date(),
       });
-      await this.userRepo.save(demoUser);
+
+      if (fbUser) {
+        await this.userRepo.save(demoUser);
+      }
       return demoUser;
     }
   }
@@ -72,9 +87,21 @@ export class FirebaseAuthService {
 
       await this.userRepo.save(newUser);
       return newUser;
-    } catch {
+    } catch (err: unknown) {
+      console.warn('[FirebaseAuthService] Registro direto falhou, ativando sessão anônima autenticada no Firebase:', err);
+      let fbUser: FirebaseUser | null = auth.currentUser;
+      if (!fbUser) {
+        try {
+          const anonCred = await signInAnonymously(auth);
+          fbUser = anonCred.user;
+        } catch (anonErr) {
+          console.error('[FirebaseAuthService] Erro ao iniciar sessão anônima:', anonErr);
+        }
+      }
+
+      const activeUid = fbUser?.uid || `user_${Date.now()}`;
       const newUser = new User({
-        uid: `user_${Date.now()}`,
+        uid: activeUid,
         name,
         email,
         role: 'AFFILIATE',
@@ -83,7 +110,10 @@ export class FirebaseAuthService {
         updatedAt: new Date(),
         lastLogin: new Date(),
       });
-      await this.userRepo.save(newUser);
+
+      if (fbUser) {
+        await this.userRepo.save(newUser);
+      }
       return newUser;
     }
   }

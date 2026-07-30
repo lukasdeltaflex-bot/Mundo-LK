@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase.config';
+import { db, auth } from '../config/firebase.config';
 import { IProductRepository } from '../../../core/domain/ports/repositories/IProductRepository';
 import { Product } from '../../../core/domain/entities/product.entity';
 import { ProductMapper, FirestoreProductDoc } from '../mappers/product.mapper';
@@ -126,12 +126,18 @@ export class FirestoreProductRepository implements IProductRepository {
     const trashRef = doc(db, 'trash_products', id);
     await deleteDoc(trashRef);
   }
-
   public async save(product: Product): Promise<void> {
     const raw = ProductMapper.toPersistence(product);
+    const activeUid = auth.currentUser?.uid || product.userId;
+    const cleanRaw = {
+      ...raw,
+      userId: activeUid,
+      tenantId: activeUid,
+      status: 'ACTIVE' as const,
+    };
     try {
       const ref = doc(db, this.collectionName, product.id);
-      await setDoc(ref, { ...raw, status: 'ACTIVE' }, { merge: true });
+      await setDoc(ref, cleanRaw, { merge: true });
     } catch (error) {
       console.error('[FirestoreProductRepository] Erro ao salvar no Firestore:', error);
       throw error;
