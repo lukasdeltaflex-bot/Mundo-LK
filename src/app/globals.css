@@ -283,3 +283,27 @@ html.light .bg-slate-800\/50 {
 
 /* ─── Primary Color utility ──────────────────────────────────────────────── */
 /* Components use: style={{ backgroundColor: 'var(--primary-color)' }}       */
+
+/* ─── Mobile PWA & Safe Area Insets ─────────────────────────────────────── */
+@supports (padding: max(0px)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Ensure images, cards and inputs never overflow viewport on mobile */
+img, video, canvas, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+

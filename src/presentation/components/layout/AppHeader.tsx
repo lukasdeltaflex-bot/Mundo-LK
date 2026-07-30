@@ -5,13 +5,12 @@ import Link from 'next/link';
 import {
   Bell, Search, User as UserIcon, LogOut, Settings, Sparkles,
   CheckCheck, Info, CheckCircle2, AlertTriangle, XCircle, ShoppingBag, Cpu,
-  Loader2,
+  Loader2, Menu as MenuIcon, X,
 } from 'lucide-react';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { useNotifications, type NotificationType } from '@/presentation/context/NotificationContext';
+import { useSidebar } from '@/presentation/context/SidebarContext';
 import { Badge } from '../ui/Badge';
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(d: Date): string {
   const now = new Date();
@@ -36,19 +35,18 @@ function typeIcon(tipo: NotificationType) {
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead, isLoading } = useNotifications();
+  const { toggleMobile } = useSidebar();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close panels when clicking outside
   useEffect(() => {
     function handleOutsideClick(e: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
@@ -72,33 +70,50 @@ export const AppHeader: React.FC = () => {
   };
 
   return (
-    <header className="h-16 border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 flex items-center justify-between">
+    <header className="h-16 border-b border-slate-800 bg-slate-900/60 backdrop-blur px-3 sm:px-6 flex items-center justify-between gap-2 z-20">
+      {/* Mobile Hamburger & Brand */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={toggleMobile}
+          className="lg:hidden flex h-9 w-9 items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-300 hover:text-white"
+          aria-label="Abrir Menu"
+        >
+          <MenuIcon className="h-5 w-5" />
+        </button>
 
-      {/* Search */}
-      <div className="flex items-center gap-3 w-72">
+        <Link href="/dashboard" className="lg:hidden flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-md">
+            <Sparkles className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-sm font-extrabold text-white hidden sm:inline">Mundo LK</span>
+        </Link>
+      </div>
+
+      {/* Search Input (Desktop & Mobile Expandable) */}
+      <div className="flex-1 max-w-xs sm:max-w-md mx-2">
         <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
           <input
             type="text"
             placeholder="Buscar ofertas, produtos..."
-            className="w-full pl-9 pr-4 py-1.5 bg-slate-950/80 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
+            className="w-full pl-8 pr-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
           />
         </div>
       </div>
 
-      {/* Right actions */}
-      <div className="flex items-center gap-4">
-        <Badge variant="info" className="hidden sm:flex gap-1 py-1 text-[11px]">
+      {/* Right Actions */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Badge variant="info" className="hidden md:flex gap-1 py-1 text-[11px]">
           <Sparkles className="h-3 w-3 text-blue-400" />
           <span>Mundo LK v4.0 Pro</span>
         </Badge>
 
-        {/* ── Bell / Notification Panel ─────────────────────────────── */}
+        {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button
             id="notif-bell-btn"
             onClick={handleNotifOpen}
-            className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
             aria-label="Notificações"
           >
             <Bell className="h-4 w-4" />
@@ -109,124 +124,110 @@ export const AppHeader: React.FC = () => {
             )}
           </button>
 
+          {/* Notifications Dropdown */}
           {notifOpen && (
-            <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-              {/* Panel Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/50">
                 <div className="flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-blue-400" />
                   <span className="text-xs font-bold text-white">Notificações</span>
                   {unreadCount > 0 && (
-                    <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                      {unreadCount}
+                    <span className="rounded-full bg-blue-600/20 px-2 py-0.5 text-[10px] font-bold text-blue-400 border border-blue-500/30">
+                      {unreadCount} novas
                     </span>
                   )}
                 </div>
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-blue-400 transition font-medium"
+                    className="flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition"
                   >
-                    <CheckCheck className="h-3.5 w-3.5" />
-                    Marcar todas
+                    <CheckCheck className="h-3 w-3" />
+                    <span>Marcar lidas</span>
                   </button>
                 )}
               </div>
 
-              {/* List */}
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/60">
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/50">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-8 gap-2 text-slate-500 text-xs">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Carregando...
+                  <div className="p-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                    <span>Carregando notificações...</span>
                   </div>
                 ) : notifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-500">
-                    <Bell className="h-8 w-8 text-slate-700" />
-                    <span className="text-xs">Nenhuma notificação ainda</span>
+                  <div className="p-8 text-center text-xs text-slate-500">
+                    Nenhuma notificação por enquanto.
                   </div>
                 ) : (
-                  notifications.map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => handleNotifClick(n.id, n.lida)}
-                      className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-slate-800/50 transition ${
-                        !n.lida ? 'bg-blue-600/5' : ''
+                  notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      onClick={() => handleNotifClick(notif.id, notif.lida)}
+                      className={`p-3 text-xs transition cursor-pointer hover:bg-slate-800/40 flex items-start gap-2.5 ${
+                        !notif.lida ? 'bg-blue-600/5' : ''
                       }`}
                     >
-                      {/* Icon */}
-                      <div className="mt-0.5">{typeIcon(n.tipo)}</div>
-
-                      {/* Content */}
+                      {typeIcon(notif.tipo)}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-semibold truncate ${n.lida ? 'text-slate-300' : 'text-white'}`}>
-                          {n.titulo}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{n.mensagem}</p>
-                        <p className="text-[10px] text-slate-600 mt-1">{formatDate(n.dataCriacao)}</p>
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                          <span className={`font-bold truncate ${!notif.lida ? 'text-white' : 'text-slate-300'}`}>
+                            {notif.titulo}
+                          </span>
+                          <span className="text-[10px] text-slate-500 shrink-0">
+                            {formatDate(notif.dataCriacao ? new Date(notif.dataCriacao) : new Date())}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{notif.mensagem}</p>
                       </div>
-
-                      {/* Unread dot */}
-                      {!n.lida && (
-                        <span className="mt-1 h-2 w-2 rounded-full bg-blue-500 shrink-0" />
-                      )}
-                    </button>
+                    </div>
                   ))
                 )}
               </div>
-
-              {/* Footer */}
-              {notifications.length > 0 && (
-                <div className="px-4 py-2.5 border-t border-slate-800 bg-slate-900/80">
-                  <p className="text-[10px] text-slate-500 text-center">
-                    {notifications.length} notificação{notifications.length !== 1 ? 'ões' : ''} · atualiza em tempo real
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>
 
-        {/* ── User Dropdown ─────────────────────────────────────────── */}
+        {/* User Profile Menu */}
         <div className="relative" ref={dropdownRef}>
           <button
-            onClick={() => { setDropdownOpen(!dropdownOpen); setNotifOpen(false); }}
-            className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-slate-800 transition"
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-800 transition"
           >
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-xs font-bold text-white shadow-inner">
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div className="hidden md:flex flex-col text-left">
-              <span className="text-xs font-semibold text-white">{user?.name || 'Afiliado'}</span>
-              <span className="text-[10px] text-slate-400 truncate max-w-[120px]">{user?.email || ''}</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold text-xs">
+              {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
             </div>
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-800 bg-slate-900 shadow-xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="px-3 py-2 border-b border-slate-800">
-                <p className="text-xs font-semibold text-white">{user?.name}</p>
+            <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-800 bg-slate-900 p-2 shadow-2xl z-50 space-y-1">
+              <div className="px-3 py-2 border-b border-slate-800 mb-1">
+                <p className="text-xs font-bold text-white truncate">{user?.name || 'Afiliado Mundo LK'}</p>
                 <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
               </div>
+
               <Link
                 href="/perfil"
                 onClick={() => setDropdownOpen(false)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition font-medium"
               >
-                <UserIcon className="h-3.5 w-3.5" />
+                <UserIcon className="h-3.5 w-3.5 text-slate-400" />
                 <span>Meu Perfil</span>
               </Link>
+
               <Link
                 href="/configuracoes"
                 onClick={() => setDropdownOpen(false)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition font-medium"
               >
-                <Settings className="h-3.5 w-3.5" />
+                <Settings className="h-3.5 w-3.5 text-slate-400" />
                 <span>Configurações</span>
               </Link>
+
               <button
-                onClick={() => { setDropdownOpen(false); logout(); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                onClick={() => {
+                  setDropdownOpen(false);
+                  logout();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/10 transition font-medium border-t border-slate-800 pt-2"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Sair da Conta</span>
