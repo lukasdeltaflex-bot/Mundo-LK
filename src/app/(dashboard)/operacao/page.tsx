@@ -7,7 +7,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { Product } from '@/core/domain/entities/product.entity';
+import { Offer } from '@/core/domain/entities/offer.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 import {
   MarketplaceIntegrationManagerService,
@@ -52,6 +54,7 @@ export default function AffiliateOperationsHubPage() {
 
   // Estados dos Produtos / Histórico
   const [products, setProducts] = useState<Product[]>([]);
+  const [offersMap, setOffersMap] = useState<Record<string, Offer>>({});
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
@@ -91,9 +94,18 @@ export default function AffiliateOperationsHubPage() {
   const loadProducts = async () => {
     if (!user?.uid) return;
     try {
-      const repo = new FirestoreProductRepository();
-      const list = await repo.findAll(user.uid);
+      const productRepo = new FirestoreProductRepository();
+      const offerRepo = new FirestoreOfferRepository();
+      const [list, offerList] = await Promise.all([
+        productRepo.findAll(user.uid),
+        offerRepo.findByUserId(user.uid),
+      ]);
       setProducts(list);
+      const map: Record<string, Offer> = {};
+      offerList.forEach((off) => {
+        if (off.productId) map[off.productId] = off;
+      });
+      setOffersMap(map);
     } catch (err) {
       console.warn('[Hub] Erro ao carregar histórico:', err);
     }
@@ -299,12 +311,24 @@ export default function AffiliateOperationsHubPage() {
       <OfferHistoryTable
         products={products}
         onShareProduct={(p) => {
+          const savedOffer = offersMap[p.id];
+          const copies = savedOffer?.copies?.copies;
+          const affiliateUrl = p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl;
+
+          const savedWhatsApp = copies?.whatsAppText || copies?.longText;
+          const savedTelegram = copies?.telegramText || savedWhatsApp;
+          const savedInstagram = copies?.instagramText || savedWhatsApp;
+
+          const fallback = `🔥 *${p.title}*\n\n💰 Por apenas ${p.currentPrice ? p.currentPrice.formatBRL() : 'R$ 0,00'}\n\n👉 Link Oficial: ${affiliateUrl}`;
+
           setShareModalData({
             title: p.title,
             price: p.currentPrice ? p.currentPrice.formatBRL() : 'R$ 0,00',
             imageUrl: p.images[0],
-            affiliateUrl: p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl,
-            whatsAppText: `🔥 *${p.title}*\nLink: ${p.originalUrl}`,
+            affiliateUrl,
+            whatsAppText: savedWhatsApp || fallback,
+            telegramText: savedTelegram || savedWhatsApp || fallback,
+            instagramText: savedInstagram || savedWhatsApp || fallback,
           });
         }}
         onEditProduct={(p) => {

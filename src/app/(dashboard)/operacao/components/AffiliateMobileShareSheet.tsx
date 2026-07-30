@@ -27,8 +27,9 @@ export const AffiliateMobileShareSheet: React.FC<AffiliateMobileShareSheetProps>
 
   const distributionService = AffiliateDistributionService.getInstance();
 
+  const savedText = (offer as any).copies?.whatsAppText || (offer as any).whatsAppText;
   const [copyText, setCopyText] = useState(
-    `🔥 *ACHADO IMPERDÍVEL!*\n\n📦 *${offer.productData.title}*\n\n💰 Por apenas: *R$ ${offer.pricing.currentPrice.toFixed(2)}*\n\n👉 Garanta o seu no link oficial:\n${offer.affiliateLink.affiliateUrl}`
+    savedText || `🔥 *ACHADO IMPERDÍVEL!*\n\n📦 *${offer.productData.title}*\n\n💰 Por apenas: *R$ ${offer.pricing.currentPrice.toFixed(2)}*\n\n👉 Garanta o seu no link oficial:\n${offer.affiliateLink.affiliateUrl}`
   );
   const [favoriteStatus, setFavoriteStatus] = useState<ExtendedFavoriteStatus>('NENHUM');
   const [focusMode, setFocusMode] = useState(false);
