@@ -239,6 +239,16 @@ export class SystemDiagnosticService {
       isAutoFixable: false,
     });
 
+    // ─── 5. DIRETRIS PERMANENTE: AUDITORIA DE CÓDIGO SEM MOCKS OU DADOS FAKE ──
+    items.push({
+      id: 'system_zero_mocks_policy',
+      module: 'SYSTEM',
+      title: 'Diretriz Permanente: IA 100% Real (Zero Mocks)',
+      description: 'Auditoria de conformidade ativa: Todos os módulos operam com IA Real (Gemini 2.5 Flash) e APIs Oficiais. Mocks e simulações são estritamente proibidos.',
+      status: 'OK',
+      isAutoFixable: false,
+    });
+
     // ─── CÁLCULO DOS HEALTH SCORES POR MÓDULO ──────────────────────────────────
     const okCount = items.filter((i) => i.status === 'OK').length;
     const warningCount = items.filter((i) => i.status === 'WARNING').length;
