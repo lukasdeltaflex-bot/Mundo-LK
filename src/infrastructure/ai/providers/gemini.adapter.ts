@@ -3,6 +3,7 @@ import { Product } from '../../../core/domain/entities/product.entity';
 import { ChannelContent } from '../../../core/domain/value-objects/channel-content.vo';
 import { AICost } from '../../../core/domain/value-objects/ai-cost.vo';
 import { Score } from '../../../core/domain/entities/score.entity';
+import { CopySimilarityValidator } from '@/core/domain/services/CopySimilarityValidator';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,20 +87,20 @@ export interface GeminiOfferAnalysis {
 function buildMarketingPrompt(product: Product, style: OfferStyle): string {
   const stylePtBR: Record<OfferStyle, string> = {
     padrao:          'equilibrado e persuasivo, com apelo emocional e racional combinados',
-    explosiva:       'explosivo, empolgante, foco em achado imperdível e super promoção',
-    premium:         'sofisticado, premium, voltado para status, desejo e máxima qualidade',
-    urgencia:        'urgência extrema, escassez de estoque e cronômetro ativado',
-    minimalista:     'conciso, direto ao ponto, sem floreios — máximo impacto em poucas palavras',
-    emocional:       'apelo emocional profundo, cotidiano, transformação e aconchego',
-    promocao:        'foco total na porcentagem de desconto, economia real e preço baixo',
-    custo_beneficio: 'demonstração racional de excelente custo-benefício e utilidade',
-    familia:         'focado no bem-estar da família, facilidade da casa e praticidade',
-    tecnologia:      'destaque em inovação, alta performance e especificações modernas',
-    casa:            'conforto do lar, organização e utilidade diária na cozinha e casa',
-    esporte:         'performance, treino, saúde, foco e superação',
-    presentes:       'ideia de presente inesquecível, momentos especiais e carinho',
-    relampago:       'oferta relâmpago que vai acabar nos próximos minutos',
-    luxo:            'exclusividade total, sofisticação e alto padrão',
+    explosiva:       'explosivo e bombástico — foco em achado imperdível que vai esgotar rápido',
+    premium:         'sofisticado e desejável — foco em status, qualidade superior e acabamento impecável',
+    urgencia:        'urgência extrema e escassez — foco em pouquíssimas unidades restantes e prazo acabando',
+    minimalista:     'ultra-conciso e direto ao ponto — máximo impacto em pouquíssimas palavras sem floreios',
+    emocional:       'apelo emocional profundo — foco na transformação pessoal, bem-estar e momento de vida',
+    promocao:        'foco total no percentual de desconto, economia real e preço imbatível',
+    custo_beneficio: 'demonstração racional de compra inteligente, durabilidade e utilidade',
+    familia:         'focado no bem-estar da família, praticidade do lar e facilidade da casa',
+    tecnologia:      'destaque em alta performance, inovação técnica, velocidade e recursos modernos',
+    casa:            'conforto do lar, praticidade na cozinha, organização e utilidade diária',
+    esporte:         'performance física, treino, superação, foco e saúde',
+    presentes:       'ideia de presente inesquecível, momentos especiais e demonstração de carinho',
+    relampago:       'oferta relâmpago que acaba nos próximos minutos',
+    luxo:            'exclusividade total, sofisticação de alto padrão e distinção',
   };
 
   const formatPrice = (p: any) => {
@@ -116,79 +117,71 @@ function buildMarketingPrompt(product: Product, style: OfferStyle): string {
 
   const rawAffiliateUrl = product.affiliateUrl?.url || '';
 
-  const marketplaceContext = {
-    shopee:       'Canais da Shopee no Brasil (destaque cupons de frete grátis, moedas e selo de achadinho).',
-    mercadolivre: 'Mercado Livre (destaque entrega rápida FULL, parcelamento e compra garantida).',
-    amazon:       'Amazon Brasil (destaque entrega Prime grátis e garantia).',
-    magalu:       'Magalu (destaque retirada rápida e cashback).',
-    geral:        'Canais de Ofertas de Alta Conversão no Brasil.',
-  }[product.marketplaceSlug] || 'Canais de Ofertas do Brasil';
+  return `Você é o maior especialista do Brasil em Marketing de Afiliados e Copywriting Comercial de Alta Conversão.
 
-  return `Você é o maior especialista do Brasil em Marketing de Afiliados e Copywriting Comercial de Alta Conversão (${marketplaceContext}).
+SEU OBJETIVO É GERAR VENDAS REAIS COM INTELIGÊNCIA SEMÂNTICA ESPECÍFICA PARA ESTE PRODUTO.
 
-SEU OBJETIVO É GERAR VENDAS REAIS.
-- NUNCA escreva respostas genéricas, clichês padronizados ou estruturas idênticas a criações anteriores.
-- NUNCA reutilize templates fixos ou textos estáticos.
-- Analise profundamente o produto abaixo para entender sua proposição única de valor, a dor que resolve, o público comprador e as maiores objeções.
+━━━ PROTOCOLO OBRIGATÓRIO DE ANÁLISE ANTES DE ESCREVER ━━━
 
-REGRA INEGOCIÁVEL DE URL:
-- Use EXATAMENTE a URL de afiliado fornecida abaixo (${rawAffiliateUrl}).
-- NUNCA altere, expanda, modifique ou substitua a URL informada. Mantenha o link curto exatamente como está.
+1. ENTENDER O PRODUTO REAL:
+   - Nome: "${product.title}"
+   - Descrição: "${product.description || 'Produto oficial de alta utilidade'}"
+   - Marca: "${product.brand || 'Geral'}"
+   - Categoria: "${product.categoryId || 'Geral'}"
+   - Preço: ${price} (Contexto: ${discount})
+   - Marketplace: ${product.marketplaceSlug}
 
-DADOS CONFIRMADOS DO PRODUTO:
-- Nome Oficial: ${product.title}
-- Descrição: ${product.description || 'Produto oficial de alta utilidade'}
-- Marca: ${product.brand || 'Geral'}
-- Categoria: ${product.categoryId || 'Geral'}
-- Preço Atual: ${price}
-- Contexto de Desconto: ${discount}
-- Marketplace: ${product.marketplaceSlug}
-- Link Afiliado Oficial: ${rawAffiliateUrl}
+2. ADAPTAR O VOCABULÁRIO E ARGUMENTOS EXCLUSIVAMENTE AO PRODUTO:
+   - Se for Bolsa/Moda: Fale de elegância, estilo, acabamento, versatilidade de looks, ocasiões e presença.
+   - Se for Garrafa/Copo Térmico: Fale de conservação de temperatura (gelado/quente por horas), academia, trabalho, hidratação e praticidade.
+   - Se for Skate/Esporte: Fale de estabilidade, rolamentos, manobras, resistência, velocidade e liberdade.
+   - Se for Eletrônico/Gadget: Fale de inovação, velocidade, bateria, produtividade e alta performance.
+   - NUNCA use frases genéricas como "Aproveite essa oferta incrível!" que servem para qualquer produto.
 
-ESTILO PRINCIPAL SOLICITADO: ${stylePtBR[style]}
+3. MUDANÇA RADICAL DE PERSONALIDADE PELO ESTILO SELECIONADO ("${style}"):
+   - Aplique o tom exato: "${stylePtBR[style]}".
+   - O vocabulário e a energia de uma copy em estilo 'luxo' ou 'premium' DEVE ser totalmente diferente de 'urgencia' ou 'explosiva'.
+
+4. PRESERVAÇÃO RÍGIDA DO LINK CURTO:
+   - Use EXATAMENTE a URL de afiliado fornecida: ${rawAffiliateUrl}
+   - NUNCA altere, expanda, modifique ou substitua este link.
 
 ━━━ RESPOSTA OBRIGATÓRIA EM JSON PURO ━━━
 
-Responda EXCLUSIVAMENTE com um JSON válido contendo:
-1. Análise profunda de marketing (Público, Dor, Benefício, Ângulo de Venda).
-2. As copys oficiais formatadas para cada canal.
-3. Três variações criativas alternativas de copy (copyA, copyB, copyC) para testes A/B:
-   - copyA: Venda Emocional & Conexão Profunda.
-   - copyB: Oferta Relâmpago & Urgência Extrema.
-   - copyC: Exclusividade Premium & Valor Percebido.
+Responda EXCLUSIVAMENTE com um JSON válido contendo a análise e as copys (incluindo variações A/B/C):
 
 {
-  "publicoAlvo": "descrição analítica do comprador ideal",
-  "dorQueResolve": "problema real e cotidiano que este produto soluciona",
-  "beneficioPrincipal": "principal transformação gerada pelo produto",
-  "argumentoComercial": "argumento de venda irresistível",
+  "publicoAlvo": "perfil exato do comprador deste produto",
+  "dorQueResolve": "dor específica solucionada por este produto",
+  "beneficioPrincipal": "principal transformação específica do produto",
+  "argumentoComercial": "argumento de venda irresistível adaptado à categoria",
   "anguloDeVenda": "ângulo estratégico utilizado",
-  "emocaoDeCompra": "emoção disparadora da decisão",
+  "emocaoDeCompra": "emoção primária ativada",
   "categoria": "${product.categoryId || 'Geral'}",
-  "subcategoria": "subcategoria analítica",
+  "subcategoria": "subcategoria exata",
 
-  "whatsAppText": "Copy completa formatada para WhatsApp incluindo o link exato: ${rawAffiliateUrl}",
-  "telegramText": "Copy formatada para Telegram com negrito e o link exato: ${rawAffiliateUrl}",
-  "instagramText": "Legenda engajadora para Instagram com hashtags",
-  "facebookText": "Post persuasivo para grupos de Facebook com o link exato: ${rawAffiliateUrl}",
+  "whatsAppText": "Copy completa formatada para WhatsApp no estilo ${style} com o link: ${rawAffiliateUrl}",
+  "telegramText": "Copy formatada para Telegram com negrito e o link: ${rawAffiliateUrl}",
+  "instagramText": "Legenda engajadora para Instagram específica para o produto",
+  "facebookText": "Post persuasivo para grupos de Facebook com o link: ${rawAffiliateUrl}",
   "statusWhatsAppText": "Texto ultra-curto com emojis para Status/Stories",
 
-  "copyA": "Variação A (Venda Emocional): Foco na conexão e transformação pessoal",
+  "copyA": "Variação A (Venda Emocional): Foco na conexão e transformação pessoal do comprador deste produto",
   "copyB": "Variação B (Oferta Relâmpago): Foco em urgência extrema e escassez de estoque",
-  "copyC": "Variação C (Exclusividade Premium): Foco no valor percebido e sofisticação",
+  "copyC": "Variação C (Exclusividade Premium): Foco no valor percebido, acabamento e sofisticação",
 
   "cta": "Garanta o seu com desconto exclusivo agora!",
-  "hashtags": ["#oferta", "#promoção", "#achadinhos", "#desconto", "#compraonline"],
+  "hashtags": ["#oferta", "#promoção", "#achadinhos", "#desconto"],
   "emojis": ["🔥", "😱", "💰", "🚚", "🛒"],
   "gatilhosMentais": ["Urgência", "Prova Social", "Escassez", "Valor Percebido"],
 
-  "sugestaoImagem": "Sugestão de foto para destacar os pontos fortes",
+  "sugestaoImagem": "Sugestão de foto para destacar os pontos fortes do produto",
   "sugestaoVideo": "Sugestão de vídeo rápido mostrando o produto em uso",
   "melhorHorario": "11:30 - Horário do Almoço",
   "melhorDia": "Quarta-feira",
 
-  "scoreValue": 94,
-  "scoreJustification": "Pontuação baseada na excelente relação entre apelo comercial, preço e dor resolvida."
+  "scoreValue": 95,
+  "scoreJustification": "Excelente pontuação devido ao forte apelo comercial e benefício perceptível."
 }`;
 }
 
@@ -203,35 +196,72 @@ function createFallbackOfferAnalysis(product: Product): GeminiOfferAnalysis {
       : (pAny && typeof pAny.amount === 'number' ? `R$ ${pAny.amount.toFixed(2)}` : 'Preço sob consulta'));
   const url = product.affiliateUrl?.url || product.originalUrl || '';
 
-  const defaultCopy = `🔥 OPORTUNIDADE IMPERDÍVEL!
+  const titleLower = product.title.toLowerCase();
 
-🧊 ${product.title}
+  // Análise semântica dinâmica por tipo de produto
+  let productCategorySemantic = 'Geral';
+  let painPoint = 'Encontrar produtos autênticos com o melhor preço';
+  let mainBenefit = 'Alta utilidade, excelente acabamento e garantia de qualidade';
+  let dynamicAngle = 'Excelente Custo-Benefício';
+  let keyArgument = 'Design moderno e alta aprovação dos compradores';
 
-💰 Por apenas: ${price}
+  if (titleLower.includes('bolsa') || titleLower.includes('mochila') || titleLower.includes('vestido') || titleLower.includes('calçado') || titleLower.includes('sapato')) {
+    productCategorySemantic = 'Moda & Acessórios';
+    painPoint = 'Combinar elegância, durabilidade e versatilidade nos looks diários';
+    mainBenefit = 'Design sofisticado, espaço ideal e acabamento de alto padrão';
+    dynamicAngle = 'Estilo & Sofisticação';
+    keyArgument = 'Perfeito para elevar o seu visual com máximo conforto e elegância';
+  } else if (titleLower.includes('garrafa') || titleLower.includes('copo') || titleLower.includes('térmic') || titleLower.includes('stanley')) {
+    productCategorySemantic = 'Hidratação & Praticidade';
+    painPoint = 'Manter bebidas na temperatura ideal durante horas de trabalho ou treino';
+    mainBenefit = 'Isolamento térmico de alta performance, mantendo gelado ou quente por horas';
+    dynamicAngle = 'Praticidade & Performance Térmica';
+    keyArgument = 'Ideal para acompanhar sua rotina no trabalho, academia ou viagens';
+  } else if (titleLower.includes('skate') || titleLower.includes('patins') || titleLower.includes('bike') || titleLower.includes('capacete') || titleLower.includes('suplemento')) {
+    productCategorySemantic = 'Esporte & Lazer';
+    painPoint = 'Equipamento resistente para garantir estabilidade, segurança e manobras precisas';
+    mainBenefit = 'Estrutura reforçada, excelente aderência e rolamentos de alta precisão';
+    dynamicAngle = 'Velocidade & Liberdade';
+    keyArgument = 'Desenvolvido para máxima durabilidade, segurança e performance nas pistas';
+  } else if (titleLower.includes('tv') || titleLower.includes('fone') || titleLower.includes('smartphone') || titleLower.includes('notebook') || titleLower.includes('carregador')) {
+    productCategorySemantic = 'Tecnologia & Eletrônicos';
+    painPoint = 'Garantir alta velocidade, imagem cristalina e tecnologia moderna sem pagar caro';
+    mainBenefit = 'Alta performance, conectividade rápida e recursos de última geração';
+    dynamicAngle = 'Inovação & Alta Performance';
+    keyArgument = 'Tecnologia avançada com resposta rápida e máxima imersão';
+  }
 
-💳 Parcelamento facilitado
+  const defaultCopy = `🔥 *${dynamicAngle.toUpperCase()}!*
 
-✅ Excelente recomendação e aprovação dos compradores
-⭐ Oportunidade selecionada no marketplace ${product.marketplaceSlug}
+✨ *${product.title}*
 
-🛒 Garanta a sua antes que acabe:
+💰 *De: ${product.previousPrice?.formatBRL() || price}*
+🔥 *Por apenas: ${price}*
+
+🚚 Frete Rápido & Compra Segura
+💳 Parcelamento Facilitado
+
+✅ *${mainBenefit}*
+⭐ ${keyArgument}
+
+🛒 *Garanta o seu antes que o estoque acabe:*
 ${url}
 
-🚨 Compartilhe com quem ama promoções!`;
+🚨 *Compartilhe com quem procura o melhor achadinho!*`;
 
   return {
-    publicoAlvo: 'Consumidores buscando as melhores ofertas e descontos',
-    dorQueResolve: 'Encontrar produtos de qualidade pelo melhor preço',
-    beneficioPrincipal: product.title,
-    argumentoComercial: `Excelente oportunidade por ${price}`,
-    anguloDeVenda: 'Custo-Benefício',
-    emocaoDeCompra: 'Satisfação e Economia',
-    categoria: product.categoryId || 'Geral',
-    subcategoria: '',
+    publicoAlvo: `Compradores interessados em ${productCategorySemantic}`,
+    dorQueResolve: painPoint,
+    beneficioPrincipal: mainBenefit,
+    argumentoComercial: keyArgument,
+    anguloDeVenda: dynamicAngle,
+    emocaoDeCompra: 'Satisfação & Confiança',
+    categoria: product.categoryId || productCategorySemantic,
+    subcategoria: productCategorySemantic,
 
     whatsAppText: defaultCopy,
     telegramText: defaultCopy,
-    instagramText: defaultCopy,
+    instagramText: `✨ ${product.title}\n\n${mainBenefit}.\n\n🔥 Garanta o seu por apenas ${price} no link da bio!`,
     facebookText: defaultCopy,
     threadsText: defaultCopy,
     pinterestText: defaultCopy,
@@ -291,6 +321,10 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
     }
 
     const whatsAppCopy = analysis.whatsAppText || '';
+
+    // Validação e registro no buffer de similaridade deslizante (últimas 20 copys)
+    CopySimilarityValidator.isTooSimilarToHistory(whatsAppCopy);
+    CopySimilarityValidator.registerCopy(whatsAppCopy);
 
     const channelContent = ChannelContent.create({
       whatsAppText:  whatsAppCopy,
