@@ -59,10 +59,13 @@ export interface GeminiOfferAnalysis {
   youtubeShortsText?: string;
   statusWhatsAppText?: string;
 
-  // 3 Creative Variations (A/B/C)
-  copyA?: string; // Venda Emocional & Conexão
-  copyB?: string; // Oferta Relâmpago & Urgência
-  copyC?: string; // Exclusividade Premium & Valor
+  // 3 Multi-Version Copy Variations (Conversão, Premium, Social)
+  versaoConversao?: string; // Foco em Desconto, Urgência e Ação Rápida (WhatsApp/Telegram Promo)
+  versaoPremium?: string;   // Foco em Valor Percebido, Status e Durabilidade (Instagram Feed/Reels)
+  versaoSocial?: string;    // Foco no estilo "Achadinhos" pessoal e engajador (TikTok/Stories)
+  copyA?: string;
+  copyB?: string;
+  copyC?: string;
 
   cta: string;
   hashtags: string[];
@@ -229,6 +232,9 @@ DADOS CONFIRMADOS DO PRODUTO:
   "facebookText": "Post persuasivo para grupos de Facebook com o link: ${rawAffiliateUrl}",
   "statusWhatsAppText": "Texto ultra-curto com emojis para Status/Stories",
 
+  "versaoConversao": "Versão Conversão Rápida: Foco total em preço, economia e urgência com o link: ${rawAffiliateUrl}",
+  "versaoPremium": "Versão Premium Desejo: Foco em qualidade superior, status e valor percebido com o link: ${rawAffiliateUrl}",
+  "versaoSocial": "Versão Social Achadinhos: Tom pessoal, engajador de recomendação com o link: ${rawAffiliateUrl}",
   "copyA": "Variação A (Venda Emocional & Conexão)",
   "copyB": "Variação B (Oferta Relâmpago & Urgência)",
   "copyC": "Variação C (Exclusividade Premium & Valor)",
