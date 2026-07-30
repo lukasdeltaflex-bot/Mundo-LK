@@ -97,10 +97,17 @@ function buildMarketingPrompt(product: Product, style: OfferStyle): string {
     luxo:            'exclusividade total, sofisticação e alto padrão',
   };
 
-  const price    = product.currentPrice ? product.currentPrice.formatBRL() : 'Preço sob consulta';
-  const discount = product.discountPercentage && product.discountPercentage.hasDiscount()
-    ? `${product.discountPercentage.formatString()} OFF (de ${product.previousPrice?.formatBRL() ?? '?'} por ${price})`
-    : `preço atual: ${price} (oportunidade de compra no valor atual)`;
+  const formatPrice = (p: any) => {
+    if (typeof p === 'number') return `R$ ${p.toFixed(2)}`;
+    if (p && typeof p.formatBRL === 'function') return p.formatBRL();
+    if (p && typeof p.value === 'number') return `R$ ${p.value.toFixed(2)}`;
+    return 'Preço sob consulta';
+  };
+
+  const price    = formatPrice(product.currentPrice);
+  const discount = product.previousPrice
+    ? `de ${formatPrice(product.previousPrice)} por ${price}`
+    : `preço atual: ${price}`;
 
   const marketplaceContext = {
     shopee:       'Use o estilo dos maiores canais da Shopee no Brasil (mencione cupons de frete grátis, moedas e selo de achadinho).',
@@ -212,7 +219,12 @@ IMPORTANTE:
 // ─── Fallback Analysis Generator ──────────────────────────────────────────────
 
 function createFallbackOfferAnalysis(product: Product): GeminiOfferAnalysis {
-  const price = product.currentPrice ? product.currentPrice.formatBRL() : 'Preço sob consulta';
+  const pAny = product.currentPrice as any;
+  const price = typeof pAny === 'number'
+    ? `R$ ${pAny.toFixed(2)}`
+    : (pAny && typeof pAny.formatBRL === 'function'
+      ? pAny.formatBRL()
+      : (pAny && typeof pAny.amount === 'number' ? `R$ ${pAny.amount.toFixed(2)}` : 'Preço sob consulta'));
   const url = product.affiliateUrl?.url || product.originalUrl || '';
 
   const defaultCopy = `🔥 OPORTUNIDADE IMPERDÍVEL!

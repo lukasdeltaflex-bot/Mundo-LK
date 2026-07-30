@@ -4,7 +4,11 @@ import { ScoreType } from '@/core/domain/value-objects/score-level.vo';
 import { OfferProps } from '@/core/domain/entities/offer.entity';
 import { AffiliateOffer, OfferContent } from '@/core/domain/entities/affiliate-offer.entity';
 import { AffiliateAIOrchestrator } from '@/core/domain/services/AffiliateAIOrchestrator';
-
+import { GeminiAIAdapter, OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
+import { Product } from '@/core/domain/entities/product.entity';
+import { Price } from '@/core/domain/value-objects/price.vo';
+import { AffiliateLink } from '@/core/domain/value-objects/affiliate-link.vo';
+import { DiscountPercentage } from '@/core/domain/value-objects/discount-percentage.vo';
 export interface AIEnrichmentResult {
   success: boolean;
   offerProps?: Partial<OfferProps>;
@@ -27,46 +31,62 @@ export class AIService {
   public static generateAffiliateOfferContent(offer: AffiliateOffer): OfferContent {
     return AffiliateAIOrchestrator.getInstance().generateMultiChannelContent(offer);
   }
+
   /**
-   * Gera cópia persuasiva sob medida para cada canal/estilo com foco em alta conversão.
+   * Gera cópia persuasiva dinâmica através da IA Real (Gemini 2.5 Flash / OpenAI)
    */
   public static async generateOfferCopy(params: AIOfferCopyParams): Promise<string> {
     const formattedPrice = `R$ ${params.price.toFixed(2)}`;
     const formattedOldPrice = params.previousPrice ? `R$ ${params.previousPrice.toFixed(2)}` : '';
-    const url = params.affiliateUrl.trim(); // URL mantida integralmente sem redirecionamentos
+    const url = params.affiliateUrl.trim();
 
-    switch (params.style) {
-      case 'whatsapp':
-        return `🔥 *Oportunidade Imperdível!*\n\n📦 *${params.title}*\n\n💰 Apenas: *${formattedPrice}*${formattedOldPrice ? ` ~(De: ${formattedOldPrice})~` : ''}\n\n✅ Envio rápido e estoque limitado!\n\n👉 *Garanta o seu no link oficial:*\n${url}`;
+    // Quando houver chave de API da IA disponível, executa a chamada dinamicamente ao modelo
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (apiKey) {
+      try {
+        const adapter = new GeminiAIAdapter();
+        const currPrice = Price.create(params.price);
+        const prevPrice = params.previousPrice ? Price.create(params.previousPrice) : null;
 
-      case 'instagram':
-        return `✨ *O achadinho perfeito que você precisava!*\n\n🛍️ *${params.title}*\n\nPor apenas *${formattedPrice}*! 😱\n\nQualidade incrível e o melhor preço do mercado.\n\n🔗 Link no perfil ou acesse:\n${url}\n\n#Achadinhos #OfertaImbativel #Promoção #ComprasOnline`;
+        const productEntity = new Product({
+          id: `prod_copy_${Date.now()}`,
+          userId: 'user_default',
+          title: params.title,
+          description: params.title,
+          brand: 'Marca Oficial',
+          categoryId: 'cat_geral',
+          marketplaceSlug: 'mercadolivre',
+          originalUrl: url,
+          affiliateUrl: AffiliateLink.create(url),
+          currentPrice: currPrice,
+          previousPrice: prevPrice,
+          discountPercentage: DiscountPercentage.calculate(currPrice, prevPrice),
+          images: ['https://http2.mlstatic.com/D_NQ_NP_2X_612255-F.webp'],
+          status: 'ACTIVE',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
 
-      case 'telegram':
-        return `⚡ *PROMOÇÃO RÁPIDA TELEGRAM*\n\n🔹 *${params.title}*\n💵 *${formattedPrice}*\n\n👉 Compre no link oficial:\n${url}`;
+        const styleMapped: OfferStyle = (params.style as OfferStyle) || 'explosiva';
+        const result = await adapter.generateOfferContent(productEntity, styleMapped);
 
-      case 'facebook':
-        return `📢 *RECOMENDAÇÃO DE COMPRA SECURA*\n\nEncontramos a melhor oferta do produto *${params.title}* por apenas *${formattedPrice}*!${formattedOldPrice ? ` Desconto real de ${formattedOldPrice}.` : ''}\n\nGaranta a sua unidade com frete rápido:\n${url}`;
+        const channelText =
+          params.style === 'instagram'
+            ? result.copies.copies.instagramText
+            : params.style === 'telegram'
+            ? result.copies.copies.telegramText
+            : result.copies.copies.whatsAppText;
 
-      case 'premium':
-        return `👑 *EXCLUSIVIDADE & ALTA QUALIDADE*\n\nDescubra a sofisticação de *${params.title}*.\n\nInvestimento especial: *${formattedPrice}*.\n\n✨ Uma escolha distinta para quem exige o melhor.\n\n🔗 Adquira com garantia:\n${url}`;
-
-      case 'urgency':
-        return `🚨 *ÚLTIMAS UNIDADES EM ESTOQUE!*\n\n⚠️ *${params.title}* com desconto de emergência por *${formattedPrice}*!\n\nO estoque está quase esgotado. Não deixe para depois!\n\n⚡ Clique imediatamente:\n${url}`;
-
-      case 'storytelling':
-        return `💡 *Você já passou pela frustração de procurar algo de extrema qualidade e não encontrar pelo preço certo?*\n\nConheça *${params.title}*. O produto que resolve seu dia a dia por apenas *${formattedPrice}*.\n\n👉 Confira todos os detalhes:\n${url}`;
-
-      case 'review':
-        return `⭐ *AVALIAÇÃO E RECOMENDAÇÃO SINCERA*\n\nTestamos e aprovamos: *${params.title}*!\nSuperou todas as expectativas com custo-benefício imbatível por apenas *${formattedPrice}*.\n\n🛒 Vale cada centavo. Confira aqui:\n${url}`;
-
-      case 'emotional':
-        return `❤️ *Você merece esse cuidado no seu dia a dia!*\n\nSurpreenda-se com *${params.title}* por apenas *${formattedPrice}*.\n\nTransforme sua rotina com quem realmente entende suas necessidades.\n\n👉 Veja mais no link oficial:\n${url}`;
-
-      case 'persuasive':
-      default:
-        return `🔥 *OFERTA BOMBÁSTICA: ${params.title.toUpperCase()}*\n\nDe R$ ${formattedOldPrice || 'valor normal'} por apenas *${formattedPrice}*!\n\nGaranta o menor preço garantido clicando no link abaixo:\n${url}`;
+        if (channelText && channelText.trim().length > 0) {
+          return channelText;
+        }
+      } catch (err) {
+        console.warn('[AIService] Falha ao gerar via API Gemini, executando formatação assistida:', err);
+      }
     }
+
+    // Formatação assistida dinâmica baseada nos dados confirmados do produto
+    return `🔥 *Oportunidade Imperdível!*\n\n📦 *${params.title}*\n\n💰 Apenas: *${formattedPrice}*${formattedOldPrice ? ` ~(De: ${formattedOldPrice})~` : ''}\n\n✅ Envio rápido e garantia de compra!\n\n👉 *Garanta o seu no link oficial:*\n${url}`;
   }
 
   /**
