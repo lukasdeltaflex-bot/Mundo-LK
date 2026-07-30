@@ -11,6 +11,7 @@ import { useAuth } from '@/presentation/context/AuthContext';
 import { useNotifications, type NotificationType } from '@/presentation/context/NotificationContext';
 import { useSidebar } from '@/presentation/context/SidebarContext';
 import { Badge } from '../ui/Badge';
+import { AutoCheckHeaderBadge } from './AutoCheckHeaderBadge';
 
 function formatDate(d: Date): string {
   const now = new Date();
@@ -103,6 +104,8 @@ export const AppHeader: React.FC = () => {
 
       {/* Right Actions */}
       <div className="flex items-center gap-2 sm:gap-3">
+        <AutoCheckHeaderBadge />
+
         <Badge variant="info" className="hidden md:flex gap-1 py-1 text-[11px]">
           <Sparkles className="h-3 w-3 text-blue-400" />
           <span>Mundo LK v4.0 Pro</span>

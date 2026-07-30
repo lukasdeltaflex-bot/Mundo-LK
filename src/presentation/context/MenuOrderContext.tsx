@@ -16,6 +16,7 @@ import {
   PlugZap,
   BarChart3,
   Flame,
+  Activity,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -31,6 +32,7 @@ export interface MenuItemDefinition {
 // Master list: single source of truth for all navigation items
 export const ALL_MENU_ITEMS: MenuItemDefinition[] = [
   { id: 'dashboard',   name: 'Dashboard',               href: '/dashboard',               icon: LayoutDashboard },
+  { id: 'diagnostico', name: 'Central de Diagnóstico',  href: '/diagnostico',             icon: Activity       },
   { id: 'integracoes', name: 'Central de Marketplaces', href: '/operacao',                icon: PlugZap        },
   { id: 'analytics',   name: 'Inteligência Comercial',  href: '/analytics',               icon: BarChart3      },
   { id: 'growth',      name: 'Inteligência de Crescimento', href: '/growth',            icon: Flame          },
