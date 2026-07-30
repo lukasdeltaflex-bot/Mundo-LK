@@ -41,8 +41,7 @@ export const ALL_MENU_ITEMS: MenuItemDefinition[] = [
   { id: 'produtos',    name: 'Produtos',                 href: '/produtos',                icon: ShoppingBag    },
   { id: 'colecoes',    name: 'Coleções',                 href: '/colecoes',                icon: FolderHeart    },
   { id: 'lixeira',     name: 'Lixeira Inteligente',     href: '/lixeira',                 icon: Trash2         },
-  { id: 'backup',      name: 'Backup Manager',           href: '/backup',                  icon: Database       },
-  { id: 'aparencia',   name: 'Aparência',                href: '/configuracoes/aparencia', icon: Palette        },
+  { id: 'configuracoes', name: 'Configurações',          href: '/configuracoes',           icon: Palette        },
 ];
 
 const DEFAULT_ORDER: string[] = ALL_MENU_ITEMS.map((item) => item.id);
