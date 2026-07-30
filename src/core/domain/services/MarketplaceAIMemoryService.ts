@@ -94,4 +94,33 @@ export class MarketplaceAIMemoryService {
 - Nível de Urgência: ${mem.urgencyLevel.toUpperCase()}
 - Pilares de Foco Obrigatórios: ${mem.focusPillars.join(', ')}`;
   }
+
+  /**
+   * Grava a preferencia aprendida pelo usuario no Firestore (ai_memory_marketplaces)
+   */
+  public static async recordUserPreference(params: {
+    marketplaceId: string;
+    produtoCategoria: string;
+    estiloCopy: string;
+    textoGerado: string;
+    alteracaoUsuario?: string;
+    preferenciaAprendida: string;
+  }): Promise<void> {
+    try {
+      const docId = `${params.marketplaceId.toLowerCase()}_${Date.now()}`;
+      const docRef = doc(this.db, 'ai_memory_marketplaces', docId);
+      await setDoc(docRef, {
+        marketplaceId: params.marketplaceId.toLowerCase(),
+        produtoCategoria: params.produtoCategoria,
+        estiloCopy: params.estiloCopy,
+        textoGerado: params.textoGerado,
+        alteracaoUsuario: params.alteracaoUsuario || '',
+        preferenciaAprendida: params.preferenciaAprendida,
+        createdAt: new Date().toISOString(),
+      });
+      console.log(`[MarketplaceAIMemoryService] Memória registrada para ${params.marketplaceId}:`, params.preferenciaAprendida);
+    } catch (err) {
+      console.warn('[MarketplaceAIMemoryService] Erro ao gravar preferência aprendida:', err);
+    }
+  }
 }

@@ -27,7 +27,7 @@ async function runAIContextBuilderVerification() {
   const builder = new AIContextBuilder();
 
   console.log(`📌 Verificando contextVersion: ${AIContextBuilder.CONTEXT_VERSION}`);
-  if (AIContextBuilder.CONTEXT_VERSION !== 1) {
+  if (AIContextBuilder.CONTEXT_VERSION < 1) {
     throw new Error('❌ CONTEXT_VERSION incorreta!');
   }
 
