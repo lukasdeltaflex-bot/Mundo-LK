@@ -5,6 +5,10 @@ import { CategoryAIMemory } from '../../../core/domain/services/CategoryAIMemory
 import { MarketplaceMentionMode, MarketplaceContext, OfferContext } from '../../../core/domain/entities/UniversalMarketplaceContext';
 import { MarketplaceConfigRegistry } from '../../../core/domain/services/MarketplaceConfigRegistry';
 import { MarketplaceDataValidator } from '../../../core/domain/services/MarketplaceDataValidator';
+import { MarketplaceProfileService } from '../../../core/domain/services/MarketplaceProfileService';
+import { MarketplaceMentionPolicy } from '../../../core/domain/services/MarketplaceMentionPolicy';
+import { CopyStrategyEngine, CopyCommercialStrategy } from '../../../core/domain/services/CopyStrategyEngine';
+import { MarketplaceIntelligenceScore } from '../../../core/domain/value-objects/MarketplaceIntelligenceScore';
 
 export interface AIProductContext {
   nome: string;
@@ -157,6 +161,69 @@ ${context.avaliacao ? `- Avaliação: ${context.avaliacao}` : ''}
       blocks.push(`⚠️ DIRETRIZ ANTI-OVERFITTING (Diversidade: ${diversityScore}%):
 Utilize o mesmo ângulo comercial recomendado, mas varie a estrutura de frases e a escolha dos sinônimos para evitar repetição excessiva.`);
     }
+
+    return blocks.join('\n\n');
+  }
+
+  /**
+   * Fase 2.5 — Constrói o payload unificado "Gemini Brain" com:
+   * product, marketplace (profile + scores + trust + mentionPolicy), affiliate e strategy.
+   * Esse é o "cérebro" estruturado enviado ao Gemini.
+   */
+  public async buildEnrichedBrainPayload(params: {
+    product: ProductExtractionResult;
+    style: string;
+    mentionMode?: MarketplaceMentionMode;
+  }): Promise<string> {
+    const { product, style, mentionMode = 'AUTO' } = params;
+
+    const registry = MarketplaceConfigRegistry.getInstance();
+    const marketplaceCtx: MarketplaceContext = registry.getContext(product.marketplace);
+    const offerCtx: OfferContext = MarketplaceDataValidator.validateAndBuildOfferContext(product);
+    const profile = MarketplaceProfileService.getProfile(product.marketplace);
+    const scores = MarketplaceIntelligenceScore.getByMarketplace(product.marketplace);
+    const mentionPolicy = MarketplaceMentionPolicy.evaluate({ marketplaceSlug: product.marketplace, style, mode: mentionMode });
+    const strategy: CopyCommercialStrategy = await CopyStrategyEngine.buildStrategy({ product, style, mentionMode });
+
+    const blocks: string[] = [];
+
+    blocks.push(`[META INFO: contextVersion=${AIContextBuilder.CONTEXT_VERSION} | engine=GeminiBrain-Phase2.5]`);
+
+    // ── BLOCO 1: PRODUTO ──
+    blocks.push(`━━━ 📦 PRODUTO ━━━
+• Nome: ${offerCtx.title}
+• Preço Atual: ${offerCtx.currentPrice}${offerCtx.previousPrice ? ` (anterior: ${offerCtx.previousPrice})` : ''}
+${offerCtx.discountPercentage ? `• Desconto Confirmado: ${offerCtx.discountPercentage}` : ''}
+• Marca: ${product.brand || 'Não especificada'}
+• Categoria: ${product.category || 'Geral'}`);
+
+    // ── BLOCO 2: MARKETPLACE (Perfil + Scores + Menção) ──
+    blocks.push(`━━━ 🏪 MARKETPLACE ━━━
+• Canal: ${marketplaceCtx.nome} (${marketplaceCtx.tipo})
+• Perfil Comercial: ${profile.perfil.toUpperCase()} | Personalidade: ${profile.personalidade.toUpperCase()}
+• Scores Comerciais:
+  - Trust Score: ${scores.trustScore}/100
+  - Price Sensitivity: ${scores.priceSensitivity}/100
+  - Urgency Score: ${scores.urgencyScore}/100
+  - Premium Score: ${scores.premiumScore}/100
+  - Delivery Score: ${scores.deliveryScore}/100
+  - Social Proof Score: ${scores.socialProofScore}/100
+  - Affiliate Conversion Score: ${scores.affiliateConversionScore}/100
+• Gatilhos Fortes: ${profile.gatilhosFortes.join(', ')}
+• Gatilhos Fracos (Evitar): ${profile.gatilhosFracos.join(', ') || 'Nenhum'}
+• Política de Menção: ${mentionPolicy.mode} → ${mentionPolicy.reason}`);
+
+    // ── BLOCO 3: AFILIADO (Trust + Confidence) ──
+    blocks.push(`━━━ 🤝 AFILIADO & CONFIANÇA ━━━
+• Purchase Confidence Score: ${strategy.purchaseConfidenceScore}/100
+• Frases de Confiança Autorizadas: ${strategy.purchaseConfidenceScore >= 70 ? 'SIM' : 'NÃO'}
+${strategy.diretrizesConfianca.join('\n')}`);
+
+    // ── BLOCO 4: ESTRATÉGIA DE VENDAS (CopyStrategyEngine) ──
+    blocks.push(CopyStrategyEngine.formatStrategyPromptBlock(strategy));
+
+    // ── BLOCO 5: ANTI-HALUCINAÇÃO ──
+    blocks.push(MarketplaceDataValidator.buildAntiHallucinationInstructions(offerCtx.dadosComerciaisValidados));
 
     return blocks.join('\n\n');
   }
