@@ -17,6 +17,7 @@ import {
   BarChart3,
   Flame,
   Activity,
+  Brain,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -31,17 +32,14 @@ export interface MenuItemDefinition {
 
 // Master list: single source of truth for all navigation items
 export const ALL_MENU_ITEMS: MenuItemDefinition[] = [
-  { id: 'dashboard',   name: 'Dashboard',               href: '/dashboard',               icon: LayoutDashboard },
-  { id: 'diagnostico', name: 'Central de Diagnóstico',  href: '/diagnostico',             icon: Activity       },
-  { id: 'integracoes', name: 'Central de Marketplaces', href: '/operacao',                icon: PlugZap        },
-  { id: 'analytics',   name: 'Inteligência Comercial',  href: '/analytics',               icon: BarChart3      },
-  { id: 'growth',      name: 'Inteligência de Crescimento', href: '/growth',            icon: Flame          },
-  { id: 'lote',        name: 'Importação em Lote',      href: '/lote',                    icon: Layers         },
-  { id: 'agendamento', name: 'Agendamento',              href: '/agendamento',             icon: Calendar       },
-  { id: 'produtos',    name: 'Produtos',                 href: '/produtos',                icon: ShoppingBag    },
-  { id: 'colecoes',    name: 'Coleções',                 href: '/colecoes',                icon: FolderHeart    },
-  { id: 'lixeira',     name: 'Lixeira Inteligente',     href: '/lixeira',                 icon: Trash2         },
-  { id: 'configuracoes', name: 'Configurações',          href: '/configuracoes',           icon: Palette        },
+  { id: 'dashboard',          name: 'Dashboard',               href: '/dashboard',               icon: LayoutDashboard },
+  { id: 'central-inteligente',name: 'Central Inteligente',    href: '/central-inteligente',     icon: Brain          },
+  { id: 'lote',               name: 'Importação em Lote',      href: '/lote',                    icon: Layers         },
+  { id: 'agendamento',        name: 'Agendamento',              href: '/agendamento',             icon: Calendar       },
+  { id: 'produtos',           name: 'Produtos',                 href: '/produtos',                icon: ShoppingBag    },
+  { id: 'colecoes',           name: 'Coleções',                 href: '/colecoes',                icon: FolderHeart    },
+  { id: 'lixeira',            name: 'Lixeira Inteligente',     href: '/lixeira',                 icon: Trash2         },
+  { id: 'configuracoes',      name: 'Configurações',          href: '/configuracoes',           icon: Palette        },
 ];
 
 const DEFAULT_ORDER: string[] = ALL_MENU_ITEMS.map((item) => item.id);
