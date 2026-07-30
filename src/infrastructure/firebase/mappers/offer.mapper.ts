@@ -18,38 +18,64 @@ export interface FirestoreOfferDoc {
 
 export class OfferMapper {
   public static toDomain(doc: FirestoreOfferDoc): Offer {
+    const rawCopies = doc.copies || {};
+    const rootDoc = doc as any;
+
+    const whatsAppText =
+      rawCopies.whatsAppText ||
+      rawCopies.whatsappText ||
+      rootDoc.whatsAppText ||
+      rootDoc.whatsappText ||
+      '';
+
+    const telegramText =
+      rawCopies.telegramText ||
+      rootDoc.telegramText ||
+      whatsAppText;
+
+    const instagramText =
+      rawCopies.instagramText ||
+      rootDoc.instagramText ||
+      whatsAppText;
+
+    const facebookText =
+      rawCopies.facebookText ||
+      rootDoc.facebookText ||
+      whatsAppText;
+
     const copies = ChannelContent.create({
-      shortText: doc.copies.shortText || '',
-      mediumText: doc.copies.mediumText || '',
-      longText: doc.copies.longText || '',
-      whatsAppText: doc.copies.whatsAppText || '',
-      telegramText: doc.copies.telegramText || '',
-      instagramText: doc.copies.instagramText || '',
-      facebookText: doc.copies.facebookText || '',
-      threadsText: doc.copies.threadsText || '',
-      pinterestText: doc.copies.pinterestText || '',
-      tikTokText: doc.copies.tikTokText || '',
-      storyText: doc.copies.storyText || '',
-      channelText: doc.copies.channelText || '',
+      shortText: rawCopies.shortText || rootDoc.shortText || '',
+      mediumText: rawCopies.mediumText || rootDoc.mediumText || '',
+      longText: rawCopies.longText || rootDoc.longText || '',
+      whatsAppText,
+      telegramText,
+      instagramText,
+      facebookText,
+      threadsText: rawCopies.threadsText || rootDoc.threadsText || '',
+      pinterestText: rawCopies.pinterestText || rootDoc.pinterestText || '',
+      tikTokText: rawCopies.tikTokText || rootDoc.tikTokText || '',
+      storyText: rawCopies.storyText || rootDoc.storyText || '',
+      channelText: rawCopies.channelText || rootDoc.channelText || whatsAppText,
     });
 
     return new Offer({
       id: doc.id,
       productId: doc.productId,
       userId: doc.userId,
-      scoreValue: doc.scoreValue,
-      scoreLabel: doc.scoreLabel,
-      scoreJustification: doc.scoreJustification,
+      scoreValue: doc.scoreValue || 90,
+      scoreLabel: doc.scoreLabel || 'GOOD',
+      scoreJustification: doc.scoreJustification || '',
       copies,
       hashtags: doc.hashtags || [],
       emojis: doc.emojis || [],
-      cta: doc.cta,
-      aiProviderUsed: doc.aiProviderUsed,
-      createdAt: new Date(doc.createdAt),
+      cta: doc.cta || rootDoc.cta || '',
+      aiProviderUsed: doc.aiProviderUsed || 'gemini-2.5-flash',
+      createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
     });
   }
 
   public static toPersistence(entity: Offer): FirestoreOfferDoc {
+    const copiesMap = { ...entity.copies.copies };
     return {
       id: entity.id,
       productId: entity.productId,
@@ -57,12 +83,17 @@ export class OfferMapper {
       scoreValue: entity.scoreValue,
       scoreLabel: entity.scoreLabel,
       scoreJustification: entity.scoreJustification,
-      copies: { ...entity.copies.copies },
+      copies: copiesMap,
+      whatsAppText: copiesMap.whatsAppText,
+      whatsappText: copiesMap.whatsAppText,
+      telegramText: copiesMap.telegramText,
+      instagramText: copiesMap.instagramText,
+      facebookText: copiesMap.facebookText,
       hashtags: entity.hashtags,
       emojis: entity.emojis,
       cta: entity.cta,
       aiProviderUsed: entity.aiProviderUsed,
       createdAt: entity.createdAt.toISOString(),
-    };
+    } as any;
   }
 }
