@@ -22,7 +22,7 @@ const db = getFirestore(app);
 const BUILD_INFO = {
   buildId: 'BUILD_2026_07_31_PROOF_V1',
   gitCommit: 'RELEASE_AUDIT_FINAL',
-  deployTimestamp: new Date().toISOString(),
+  deployTimestamp: '2026-07-31T12:00:00.000Z',
   environment: process.env.NODE_ENV || 'production',
 };
 
@@ -418,6 +418,31 @@ export default function DebugFirebaseAuthPage() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* PAINEL DE EXPORTAÇÃO DE ARTEFATOS FORENSES */}
+      <div style={{ marginTop: '20px', border: '1px solid #0284c7', borderRadius: '8px', padding: '16px', backgroundColor: '#0f172a' }}>
+        <h3 style={{ color: '#38bdf8', marginTop: 0, fontSize: '14px' }}>📦 Exportar Artefato Forense Imutável (`trace-*.json`)</h3>
+        <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '12px' }}>
+          Gera o arquivo JSON completo com checksum SHA-256 e todos os eventos correlacionados da sessão para o protocolo congelado.
+        </p>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={async () => {
+              const { forensicCollector } = await import('@/infrastructure/telemetry/forensic-collector');
+              const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) || /iPhone|iPad|iPod/i.test(navigator.userAgent);
+              const envName = isSafari ? 'Safari' : 'Chrome';
+              const artifact = await forensicCollector.generateArtifact(envName);
+              const defaultName = isSafari ? 'trace-safari-01.json' : 'trace-chrome-01.json';
+              const filename = prompt('Nome do arquivo de trace:', defaultName) || defaultName;
+              forensicCollector.downloadArtifactJson(filename, artifact);
+            }}
+            style={{ padding: '10px 18px', borderRadius: '4px', backgroundColor: '#0284c7', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+          >
+            ⬇️ Baixar Artefato `.json` (SHA-256 Checksum)
+          </button>
+        </div>
       </div>
     </div>
   );

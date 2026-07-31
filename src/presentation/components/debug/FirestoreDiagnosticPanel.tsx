@@ -273,10 +273,35 @@ export const FirestoreDiagnosticPanel: React.FC = () => {
             )}
           </div>
 
-          {/* AMBIENTE */}
-          <div className="text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-800 pt-2">
-            <span>{envInfo.isMobile ? '📱 Mobile' : '🖥️ Desktop'} | {envInfo.isSafari ? '🧭 Safari' : '🌐 Chrome/Outro'}</span>
-            <span>Logs enviados ao DevTools via `console.table()`</span>
+          {/* AMBIENTE & EXPORTAÇÃO FORENSE */}
+          <div className="text-[10px] text-slate-400 border-t border-slate-800 pt-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span>{envInfo.isMobile ? '📱 Mobile' : '🖥️ Desktop'} | {envInfo.isSafari ? '🧭 Safari' : '🌐 Chrome/Outro'}</span>
+              <span>Modo Forense Read-Only Ativo</span>
+            </div>
+            
+            <div className="bg-slate-950 p-2 rounded border border-cyan-800/60 space-y-1.5">
+              <div className="font-bold text-cyan-300 flex items-center justify-between">
+                <span>📦 Exportar Artefato Forense Imutável (.json)</span>
+                <span className="text-[9px] text-slate-400">SHA-256 Checksum</span>
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { forensicCollector } = await import('@/infrastructure/telemetry/forensic-collector');
+                    const envName = envInfo.isSafari ? 'Safari' : 'Chrome';
+                    const artifact = await forensicCollector.generateArtifact(envName);
+                    const defaultNum = envInfo.isSafari ? 'safari-01' : 'chrome-01';
+                    const name = prompt('Nome do arquivo de trace:', `trace-${defaultNum}.json`) || `trace-${defaultNum}.json`;
+                    forensicCollector.downloadArtifactJson(name, artifact);
+                  }}
+                  className="px-2 py-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded text-[10px] font-bold"
+                >
+                  ⬇️ Baixar Trace Artifact (.json)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

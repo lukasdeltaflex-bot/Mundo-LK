@@ -39,7 +39,33 @@ export class FirestoreOfferRepository implements IOfferRepository {
     try {
       const constraints = [where('userId', '==', userId), limit(50)];
       const q = query(collection(db, this.collectionName), ...constraints);
+
+      // Read-only Pre-getDocs Forensic Event
+      try {
+        const { forensicCollector } = await import('@/infrastructure/telemetry/forensic-collector');
+        forensicCollector.recordEvent('FIRESTORE', 'INICIANDO_findByUserId', {
+          targetUserId: userId,
+          authCurrentUserUid: auth.currentUser?.uid || null,
+          collection: this.collectionName,
+        });
+      } catch (e) {
+        // Safe catch
+      }
+
       const snap = await getDocs(q);
+
+      // Read-only Post-getDocs Forensic Event
+      try {
+        const { forensicCollector } = await import('@/infrastructure/telemetry/forensic-collector');
+        forensicCollector.recordEvent('FIRESTORE', 'SUCESSO_findByUserId', {
+          targetUserId: userId,
+          documentsReturned: snap.size,
+          docIds: snap.docs.map((d) => d.id),
+          authCurrentUserUid: auth.currentUser?.uid || null,
+        });
+      } catch (e) {
+        // Safe catch
+      }
 
       // ── ETAPA 2 & 6 & 7: AUDITORIA DE LEITURA ───────────────────────────
       console.group('[AUDIT] Firestore Offers');
@@ -64,6 +90,20 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
       return snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
     } catch (err: any) {
+      try {
+        const { forensicCollector } = await import('@/infrastructure/telemetry/forensic-collector');
+        forensicCollector.recordEvent('FIRESTORE', 'ERRO_findByUserId', {
+          targetUserId: userId,
+          code: err?.code || 'unknown',
+          message: err?.message || String(err),
+          name: err?.name || 'Error',
+          stack: err?.stack || null,
+          authCurrentUserUid: auth.currentUser?.uid || null,
+        });
+      } catch (e) {
+        // Safe catch
+      }
+
       console.error('[AUDIT] Firestore Error', {
         code: err?.code || 'unknown',
         message: err?.message || String(err),

@@ -192,6 +192,25 @@ export class FirebaseAuthService {
       const now = new Date().toISOString();
       let tokenSnippet = 'N/A';
 
+      // Read-only Forensic Collector Event
+      try {
+        const { forensicCollector } = await import('@/infrastructure/telemetry/forensic-collector');
+        forensicCollector.recordEvent(
+          'AUTH',
+          `onAuthStateChanged #${this.authStateCounter}`,
+          {
+            uid: fbUser?.uid || null,
+            email: fbUser?.email || null,
+            authCurrentUserUid: auth.currentUser?.uid || null,
+            isAnonymous: fbUser?.isAnonymous || false,
+            tokenSnippet,
+          },
+          { authEventId: this.authStateCounter }
+        );
+      } catch (e) {
+        // Read-only safe catch
+      }
+
       if (fbUser) {
         try {
           const token = await fbUser.getIdToken();
