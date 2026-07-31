@@ -191,15 +191,28 @@ export const FirestoreDiagnosticPanel: React.FC = () => {
           </div>
 
           {/* ETAPA 1 — CAPTURAR UID REAL (auth.currentUser.uid) */}
-          <div className="bg-slate-900/80 p-2.5 rounded-lg border border-cyan-500/30">
-            <h4 className="font-bold text-cyan-400 mb-1">📌 ETAPA 1 — Instante de Autenticação (`auth.currentUser`)</h4>
-            <div className="space-y-1 text-[11px]">
-              <div><span className="text-slate-500">AUTH READY (Native):</span> <span className="font-bold text-cyan-300 select-all">{nativeAuthInfo.uid}</span></div>
-              <div><span className="text-slate-500">REACT USER (Context):</span> <span className="font-bold text-purple-300 select-all">{user?.uid || 'null'}</span></div>
-              <div><span className="text-slate-500">Email:</span> <span className="text-slate-200">{nativeAuthInfo.email}</span></div>
-              <div><span className="text-slate-500">Provider:</span> <span className="text-amber-300">{nativeAuthInfo.providers}</span></div>
-              <div><span className="text-slate-500">isAnonymous:</span> <span className={nativeAuthInfo.isAnonymous ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{String(nativeAuthInfo.isAnonymous)}</span></div>
+          <div className="bg-slate-900/80 p-2.5 rounded-lg border border-cyan-500/30 space-y-1 text-[11px]">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-cyan-400">📌 ETAPA 1 — Instante de Autenticação (`auth.currentUser`)</h4>
+              <button
+                onClick={async () => {
+                  try {
+                    const token = await auth.currentUser?.getIdToken(true);
+                    alert(`✅ [TOKEN ID RECUPERADO COM SUCESSO]\n\nToken: ${token?.substring(0, 30)}...\n\nUID: ${auth.currentUser?.uid}`);
+                  } catch (err: any) {
+                    alert(`❌ [FALHA AO RECUPERAR TOKEN ID]\n\nErro: ${err.message}`);
+                  }
+                }}
+                className="bg-cyan-950/80 hover:bg-cyan-800 text-cyan-300 border border-cyan-500/40 text-[10px] px-2 py-0.5 rounded font-bold"
+              >
+                🔑 Testar getIdToken()
+              </button>
             </div>
+            <div><span className="text-slate-500">AUTH READY (Native):</span> <span className="font-bold text-cyan-300 select-all">{nativeAuthInfo.uid}</span></div>
+            <div><span className="text-slate-500">REACT USER (Context):</span> <span className="font-bold text-purple-300 select-all">{user?.uid || 'null'}</span></div>
+            <div><span className="text-slate-500">Email:</span> <span className="text-slate-200">{nativeAuthInfo.email}</span></div>
+            <div><span className="text-slate-500">Provider:</span> <span className="text-amber-300">{nativeAuthInfo.providers}</span></div>
+            <div><span className="text-slate-500">isAnonymous:</span> <span className={nativeAuthInfo.isAnonymous ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{String(nativeAuthInfo.isAnonymous)}</span></div>
           </div>
 
           {/* ETAPA 2 — LEITURA DIRETA SEM FILTRO */}

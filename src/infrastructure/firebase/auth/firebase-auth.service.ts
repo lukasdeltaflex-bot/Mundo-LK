@@ -156,9 +156,58 @@ export class FirebaseAuthService {
     }
   }
 
+  private authStateCounter = 0;
+  private idTokenCounter = 0;
+
   public subscribeToAuthChanges(callback: (user: User | null) => void): () => void {
-    return onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
+    console.log(`[AUTH TELEMETRY] Assinando listeners nativos do Firebase Auth (${new Date().toISOString()})`);
+
+    // Listener 1: onIdTokenChanged Telemetry
+    import('firebase/auth').then(({ onIdTokenChanged }) => {
+      onIdTokenChanged(auth, async (fbUser: FirebaseUser | null) => {
+        this.idTokenCounter++;
+        const now = new Date().toISOString();
+        let tokenSnippet = 'N/A';
+        if (fbUser) {
+          try {
+            const token = await fbUser.getIdToken();
+            tokenSnippet = token ? `${token.substring(0, 15)}...` : 'EMPTY';
+          } catch (tErr: any) {
+            tokenSnippet = `ERRO_TOKEN: ${tErr.message}`;
+          }
+        }
+        console.log(`[AUTH TELEMETRY] onIdTokenChanged #${this.idTokenCounter}`, {
+          timestamp: now,
+          uid: fbUser?.uid || 'null',
+          authCurrentUser: auth.currentUser?.uid || 'null',
+          isAnonymous: fbUser?.isAnonymous || false,
+          tokenSnippet,
+        });
+      });
+    });
+
+    // Listener 2: onAuthStateChanged Primary Callback
+    const unsubscribeState = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
+      this.authStateCounter++;
+      const now = new Date().toISOString();
+      let tokenSnippet = 'N/A';
+
       if (fbUser) {
+        try {
+          const token = await fbUser.getIdToken();
+          tokenSnippet = token ? `${token.substring(0, 15)}...` : 'EMPTY';
+        } catch (tErr: any) {
+          tokenSnippet = `ERRO_TOKEN: ${tErr.message}`;
+        }
+
+        console.log(`[AUTH TELEMETRY] onAuthStateChanged #${this.authStateCounter}`, {
+          timestamp: now,
+          uid: fbUser.uid,
+          authCurrentUser: auth.currentUser?.uid,
+          isAnonymous: fbUser.isAnonymous,
+          tokenSnippet,
+        });
+
         let userDomain = await this.userRepo.findByUid(fbUser.uid);
         if (!userDomain) {
           userDomain = new User({
@@ -175,8 +224,15 @@ export class FirebaseAuthService {
         }
         callback(userDomain);
       } else {
+        console.log(`[AUTH TELEMETRY] onAuthStateChanged #${this.authStateCounter} (NULL)`, {
+          timestamp: now,
+          uid: 'null',
+          authCurrentUser: auth.currentUser?.uid || 'null',
+        });
         callback(null);
       }
     });
+
+    return () => unsubscribeState();
   }
 }

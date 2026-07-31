@@ -15,20 +15,24 @@ const firebaseConfig = {
 };
 
 // Singleton Firebase Client Application
-console.log('[AUTH] initializeApp (mundo-lk-eb4da)');
+const initTime = new Date().toISOString();
+console.log(`[AUTH TELEMETRY] initializeApp (${initTime})`);
 export const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db: Firestore = getFirestore(app);
 export const auth: Auth = getAuth(app);
 export const storage: FirebaseStorage = getStorage(app);
 
-// ── ETAPA 2: Configuração explícita de browserLocalPersistence no cliente ──
+// ── TELEMETRIA DE PERSISTÊNCIA EM RUNTIME ──────────────────────────────────
 if (typeof window !== 'undefined') {
+  const startTime = new Date().toISOString();
+  console.log(`[AUTH TELEMETRY] setPersistence INICIADO: ${startTime}`);
   setPersistence(auth, browserLocalPersistence)
     .then(() => {
-      console.log('[AUTH] setPersistence: browserLocalPersistence ativado com sucesso.');
+      const endTime = new Date().toISOString();
+      console.log(`[AUTH TELEMETRY] setPersistence RESOLVIDO: ${endTime}`);
     })
     .catch((err) => {
-      console.warn('[AUTH] setPersistence error:', err);
+      console.warn(`[AUTH TELEMETRY] setPersistence ERRO (${new Date().toISOString()}):`, err);
     });
 }
 
