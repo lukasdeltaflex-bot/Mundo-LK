@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/presentation/context/AuthContext';
 import { auth, db } from '@/infrastructure/firebase/config/firebase.config';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 export const FirestoreDiagnosticPanel: React.FC = () => {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -190,9 +192,10 @@ export const FirestoreDiagnosticPanel: React.FC = () => {
 
           {/* ETAPA 1 — CAPTURAR UID REAL (auth.currentUser.uid) */}
           <div className="bg-slate-900/80 p-2.5 rounded-lg border border-cyan-500/30">
-            <h4 className="font-bold text-cyan-400 mb-1">📌 ETAPA 1 — Capturar UID Real (`auth.currentUser`)</h4>
+            <h4 className="font-bold text-cyan-400 mb-1">📌 ETAPA 1 — Instante de Autenticação (`auth.currentUser`)</h4>
             <div className="space-y-1 text-[11px]">
-              <div><span className="text-slate-500">UID Real (`auth.currentUser.uid`):</span> <span className="font-bold text-cyan-300 select-all">{nativeAuthInfo.uid}</span></div>
+              <div><span className="text-slate-500">AUTH READY (Native):</span> <span className="font-bold text-cyan-300 select-all">{nativeAuthInfo.uid}</span></div>
+              <div><span className="text-slate-500">REACT USER (Context):</span> <span className="font-bold text-purple-300 select-all">{user?.uid || 'null'}</span></div>
               <div><span className="text-slate-500">Email:</span> <span className="text-slate-200">{nativeAuthInfo.email}</span></div>
               <div><span className="text-slate-500">Provider:</span> <span className="text-amber-300">{nativeAuthInfo.providers}</span></div>
               <div><span className="text-slate-500">isAnonymous:</span> <span className={nativeAuthInfo.isAnonymous ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{String(nativeAuthInfo.isAnonymous)}</span></div>
