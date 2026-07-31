@@ -5,6 +5,8 @@ import {
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   User as FirebaseUser,
 } from 'firebase/auth';
 import { auth } from '../config/firebase.config';
@@ -16,6 +18,10 @@ export class FirebaseAuthService {
 
   public async login(email: string, pass: string): Promise<User> {
     try {
+      if (typeof window !== 'undefined') {
+        await setPersistence(auth, browserLocalPersistence);
+        console.log('[AUTH] setPersistence concluído antes de signInWithEmailAndPassword');
+      }
       const userCred = await signInWithEmailAndPassword(auth, email, pass);
       const fbUser = userCred.user;
 
@@ -76,6 +82,10 @@ export class FirebaseAuthService {
 
   public async register(name: string, email: string, pass: string): Promise<User> {
     try {
+      if (typeof window !== 'undefined') {
+        await setPersistence(auth, browserLocalPersistence);
+        console.log('[AUTH] setPersistence concluído antes de createUserWithEmailAndPassword');
+      }
       const userCred = await createUserWithEmailAndPassword(auth, email, pass);
       const fbUser = userCred.user;
 
