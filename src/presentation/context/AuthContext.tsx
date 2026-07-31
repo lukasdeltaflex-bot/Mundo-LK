@@ -21,37 +21,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const authService = new FirebaseAuthService();
 
   useEffect(() => {
+    console.log('[AUTH] initializeAuth context mount');
     // Check localStorage for persisted session fallback
     const savedUserJson = typeof window !== 'undefined' ? localStorage.getItem('mundo_lk_user') : null;
     if (savedUserJson) {
       try {
         const uData = JSON.parse(savedUserJson);
-        setUser(
-          new User({
-            uid: uData.uid,
-            name: uData.name,
-            email: uData.email,
-            photoURL: uData.photoURL,
-            role: uData.role || 'AFFILIATE',
-            status: uData.status || 'ACTIVE',
-            createdAt: new Date(uData.createdAt),
-            updatedAt: new Date(uData.updatedAt),
-            lastLogin: new Date(uData.lastLogin),
-          })
-        );
+        const restoredUser = new User({
+          uid: uData.uid,
+          name: uData.name,
+          email: uData.email,
+          photoURL: uData.photoURL,
+          role: uData.role || 'AFFILIATE',
+          status: uData.status || 'ACTIVE',
+          createdAt: new Date(uData.createdAt),
+          updatedAt: new Date(uData.updatedAt),
+          lastLogin: new Date(uData.lastLogin),
+        });
+        setUser(restoredUser);
+        console.log('[AUTH] Restauração síncrona via localStorage:', restoredUser.uid);
       } catch {
         // Ignore parse error
       }
     }
 
     const unsubscribe = authService.subscribeToAuthChanges((u) => {
-      setUser(u);
-      setLoading(false);
+      console.log('[AUTH] onAuthStateChanged evento recebido:', {
+        hasUser: !!u,
+        uid: u?.uid || 'null',
+        email: u?.email || 'N/A',
+      });
+
       if (u) {
-        localStorage.setItem('mundo_lk_user', JSON.stringify(u));
-      } else {
-        localStorage.removeItem('mundo_lk_user');
+        setUser(u);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('mundo_lk_user', JSON.stringify(u));
+        }
       }
+      // NUNCA remover o localStorage na inicialização se u for null!
+      // A remoção de localStorage.removeItem só é permitida em logout() explícito.
+
+      setLoading(false);
+      console.log('[AUTH] loading atualizado:', false, '| currentUser:', u?.uid || 'null');
     });
 
     return () => unsubscribe();
