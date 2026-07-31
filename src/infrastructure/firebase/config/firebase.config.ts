@@ -1,6 +1,14 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
-import { getAuth, setPersistence, browserLocalPersistence, Auth } from 'firebase/auth';
+import {
+  getAuth,
+  initializeAuth,
+  setPersistence,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  inMemoryPersistence,
+  Auth,
+} from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Configuração oficial estrita do projeto Firebase "mundo-lk-eb4da"
@@ -19,7 +27,22 @@ const initTime = new Date().toISOString();
 console.log(`[AUTH TELEMETRY] initializeApp (${initTime})`);
 export const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db: Firestore = getFirestore(app);
-export const auth: Auth = getAuth(app);
+
+// Inicialização resiliente para Safari iOS (IndexedDB -> localStorage -> inMemory)
+export const auth: Auth = (() => {
+  if (typeof window !== 'undefined') {
+    try {
+      console.log('[AUTH TELEMETRY] Configurando initializeAuth com resiliência para Safari iOS');
+      return initializeAuth(app, {
+        persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence],
+      });
+    } catch {
+      return getAuth(app);
+    }
+  }
+  return getAuth(app);
+})();
+
 export const storage: FirebaseStorage = getStorage(app);
 
 // ── TELEMETRIA DE PERSISTÊNCIA EM RUNTIME ──────────────────────────────────
@@ -31,7 +54,7 @@ if (typeof window !== 'undefined') {
       const endTime = new Date().toISOString();
       console.log(`[AUTH TELEMETRY] setPersistence RESOLVIDO: ${endTime}`);
     })
-    .catch((err) => {
+    .catch((err: any) => {
       console.warn(`[AUTH TELEMETRY] setPersistence ERRO (${new Date().toISOString()}):`, err);
     });
 }
