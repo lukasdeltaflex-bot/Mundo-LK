@@ -38,12 +38,18 @@ export class FirebaseAuthService {
       await this.userRepo.save(userDomain);
       return userDomain;
     } catch (err: unknown) {
-      console.warn('[FirebaseAuthService] Login direto falhou, ativando sessão anônima autenticada no Firebase:', err);
+      console.warn('[FirebaseAuthService] Login direto falhou, verificando necessidade de fallback anônimo:', err);
       let fbUser: FirebaseUser | null = auth.currentUser;
       if (!fbUser) {
         try {
+          console.log('[AUDIT AUTH] Anonymous login requested (fallback acionado em login())');
           const anonCred = await signInAnonymously(auth);
           fbUser = anonCred.user;
+          console.log('[AUDIT AUTH] Anonymous login completed', {
+            uid: fbUser.uid,
+            isAnonymous: fbUser.isAnonymous,
+            providerData: fbUser.providerData,
+          });
         } catch (anonErr) {
           console.error('[FirebaseAuthService] Erro ao iniciar sessão anônima:', anonErr);
         }
@@ -88,12 +94,18 @@ export class FirebaseAuthService {
       await this.userRepo.save(newUser);
       return newUser;
     } catch (err: unknown) {
-      console.warn('[FirebaseAuthService] Registro direto falhou, ativando sessão anônima autenticada no Firebase:', err);
+      console.warn('[FirebaseAuthService] Registro direto falhou, verificando necessidade de fallback anônimo:', err);
       let fbUser: FirebaseUser | null = auth.currentUser;
       if (!fbUser) {
         try {
+          console.log('[AUDIT AUTH] Anonymous login requested (fallback acionado em register())');
           const anonCred = await signInAnonymously(auth);
           fbUser = anonCred.user;
+          console.log('[AUDIT AUTH] Anonymous login completed', {
+            uid: fbUser.uid,
+            isAnonymous: fbUser.isAnonymous,
+            providerData: fbUser.providerData,
+          });
         } catch (anonErr) {
           console.error('[FirebaseAuthService] Erro ao iniciar sessão anônima:', anonErr);
         }

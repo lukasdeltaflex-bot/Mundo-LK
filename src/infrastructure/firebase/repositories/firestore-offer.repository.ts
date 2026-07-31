@@ -37,11 +37,37 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
   public async findByUserId(userId: string): Promise<Offer[]> {
     try {
-      const q = query(collection(db, this.collectionName), where('userId', '==', userId), limit(50));
+      const constraints = [where('userId', '==', userId), limit(50)];
+      const q = query(collection(db, this.collectionName), ...constraints);
       const snap = await getDocs(q);
+
+      // ── ETAPA 2 & 6 & 7: AUDITORIA DE LEITURA ───────────────────────────
+      console.group('[AUDIT] Firestore Offers');
+      console.log('Project:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mundo-lk-eb4da');
+      console.log('Environment:', process.env.NODE_ENV);
+      console.log('Current UID:', auth.currentUser?.uid);
+      console.log('Current Email:', auth.currentUser?.email);
+      console.log('Query Collection:', this.collectionName);
+      console.log('Query Target userId:', userId);
+      console.log('Documents Returned:', snap.size);
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        console.log(d.id, {
+          userId: data.userId,
+          tenantId: data.tenantId,
+          marketplaceId: data.marketplaceId,
+          marketplaceName: data.marketplaceName,
+          createdAt: data.createdAt,
+        });
+      });
+      console.groupEnd();
+
       return snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
-    } catch (err) {
-      console.warn('[FirestoreOfferRepository] findByUserId error:', err);
+    } catch (err: any) {
+      console.error('[AUDIT] Firestore Error', {
+        code: err?.code || 'unknown',
+        message: err?.message || String(err),
+      });
       return [];
     }
   }
@@ -58,6 +84,28 @@ export class FirestoreOfferRepository implements IOfferRepository {
       }
       const q = query(collection(db, this.collectionName), ...constraints);
       const snap = await getDocs(q);
+
+      // ── ETAPA 2 & 6 & 7: AUDITORIA DE LEITURA PAGINADA ─────────────────
+      console.group('[AUDIT] Firestore Offers (Paged)');
+      console.log('Project:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'mundo-lk-eb4da');
+      console.log('Environment:', process.env.NODE_ENV);
+      console.log('Current UID:', auth.currentUser?.uid);
+      console.log('Current Email:', auth.currentUser?.email);
+      console.log('Query Collection:', this.collectionName);
+      console.log('Query Target userId:', userId);
+      console.log('Documents Returned:', snap.size);
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        console.log(d.id, {
+          userId: data.userId,
+          tenantId: data.tenantId,
+          marketplaceId: data.marketplaceId,
+          marketplaceName: data.marketplaceName,
+          createdAt: data.createdAt,
+        });
+      });
+      console.groupEnd();
+
       const items = snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
       const newLastSnap = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : undefined;
 
@@ -66,15 +114,16 @@ export class FirestoreOfferRepository implements IOfferRepository {
         cursor: newLastSnap,
         hasMore: snap.docs.length === pageSize,
       };
-    } catch (err) {
-      console.warn('[FirestoreOfferRepository] findPagedByUserId error:', err);
+    } catch (err: any) {
+      console.error('[AUDIT] Firestore Error', {
+        code: err?.code || 'unknown',
+        message: err?.message || String(err),
+      });
       return { items: [], hasMore: false };
     }
   }
 
   public async save(offer: Offer): Promise<void> {
-    // ── ETAPA 2: Hard fail se usuário não autenticado ─────────────────────
-    // Não usar fallback silencioso para evitar dado órfão no Firestore
     const activeUid = auth.currentUser?.uid;
     if (!activeUid) {
       throw new Error(
@@ -94,13 +143,22 @@ export class FirestoreOfferRepository implements IOfferRepository {
       const ref = doc(db, this.collectionName, offer.id);
       await setDoc(ref, cleanRaw, { merge: true });
 
-      // ── Log de auditoria de persistência ──────────────────────────────
-      console.log(
-        `[AUDIT] Offer ${offer.id} salva com sucesso.` +
-        ` uid=${activeUid} | tenantId=${activeUid}` +
-        ` | marketplace=${offer.marketplaceId || 'N/A'}` +
-        ` | detectedBy=${offer.marketplaceDetectedBy || 'N/A'}`
-      );
+      // ── ETAPA 1: VERIFICAÇÃO IMEDIATA APÓS setDoc() ──────────────────────
+      const checkSnap = await getDoc(ref);
+      if (!checkSnap.exists()) {
+        const err = new Error(`[AUDIT FAIL] Documento ${offer.id} não foi encontrado no Firestore imediatamente após setDoc()!`);
+        console.error('[AUDIT ERROR]', err.message);
+        throw err;
+      }
+
+      const savedData = checkSnap.data();
+      console.log('[AUDIT] Offer Saved', {
+        'Document ID': offer.id,
+        userId: savedData.userId,
+        tenantId: savedData.tenantId,
+        marketplaceId: savedData.marketplaceId || 'N/A',
+        createdAt: savedData.createdAt,
+      });
     } catch (error) {
       console.error('[FirestoreOfferRepository] Erro ao salvar no Firestore:', error);
       throw error;
