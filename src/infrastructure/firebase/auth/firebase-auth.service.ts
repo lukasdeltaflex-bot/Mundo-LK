@@ -44,39 +44,8 @@ export class FirebaseAuthService {
       await this.userRepo.save(userDomain);
       return userDomain;
     } catch (err: unknown) {
-      console.warn('[FirebaseAuthService] Login direto falhou, verificando necessidade de fallback anônimo:', err);
-      let fbUser: FirebaseUser | null = auth.currentUser;
-      if (!fbUser) {
-        try {
-          console.log('[AUDIT AUTH] Anonymous login requested (fallback acionado em login())');
-          const anonCred = await signInAnonymously(auth);
-          fbUser = anonCred.user;
-          console.log('[AUDIT AUTH] Anonymous login completed', {
-            uid: fbUser.uid,
-            isAnonymous: fbUser.isAnonymous,
-            providerData: fbUser.providerData,
-          });
-        } catch (anonErr) {
-          console.error('[FirebaseAuthService] Erro ao iniciar sessão anônima:', anonErr);
-        }
-      }
-
-      const activeUid = fbUser?.uid || 'demo_user_123';
-      const demoUser = new User({
-        uid: activeUid,
-        name: email.split('@')[0] || 'Afiliado Mundo LK',
-        email,
-        role: 'AFFILIATE',
-        status: 'ACTIVE',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastLogin: new Date(),
-      });
-
-      if (fbUser) {
-        await this.userRepo.save(demoUser);
-      }
-      return demoUser;
+      console.error('[FirebaseAuthService] Login falhou:', err);
+      throw err;
     }
   }
 
@@ -104,39 +73,8 @@ export class FirebaseAuthService {
       await this.userRepo.save(newUser);
       return newUser;
     } catch (err: unknown) {
-      console.warn('[FirebaseAuthService] Registro direto falhou, verificando necessidade de fallback anônimo:', err);
-      let fbUser: FirebaseUser | null = auth.currentUser;
-      if (!fbUser) {
-        try {
-          console.log('[AUDIT AUTH] Anonymous login requested (fallback acionado em register())');
-          const anonCred = await signInAnonymously(auth);
-          fbUser = anonCred.user;
-          console.log('[AUDIT AUTH] Anonymous login completed', {
-            uid: fbUser.uid,
-            isAnonymous: fbUser.isAnonymous,
-            providerData: fbUser.providerData,
-          });
-        } catch (anonErr) {
-          console.error('[FirebaseAuthService] Erro ao iniciar sessão anônima:', anonErr);
-        }
-      }
-
-      const activeUid = fbUser?.uid || `user_${Date.now()}`;
-      const newUser = new User({
-        uid: activeUid,
-        name,
-        email,
-        role: 'AFFILIATE',
-        status: 'ACTIVE',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastLogin: new Date(),
-      });
-
-      if (fbUser) {
-        await this.userRepo.save(newUser);
-      }
-      return newUser;
+      console.error('[FirebaseAuthService] Registro falhou:', err);
+      throw err;
     }
   }
 

@@ -34,9 +34,13 @@ export default function LixeiraPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const loadTrashed = async () => {
+    if (!user?.uid) {
+      setLoading(false);
+      return;
+    }
     try {
       const repo = new FirestoreProductRepository();
-      const uid = user?.uid || 'guest';
+      const uid = user.uid;
       const rawList = await repo.findTrashed(uid);
 
       const formatted: UITrashedItem[] = rawList.map((docItem) => ({

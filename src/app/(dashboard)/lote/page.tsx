@@ -28,7 +28,8 @@ export default function LotePage() {
     setIsProcessing(true);
     setIsPaused(false);
 
-    const activeUid = user?.uid || 'guest';
+    if (!user?.uid) return;
+    const activeUid = user.uid;
 
     for (let index = 0; index < items.length; index++) {
       const item = items[index];

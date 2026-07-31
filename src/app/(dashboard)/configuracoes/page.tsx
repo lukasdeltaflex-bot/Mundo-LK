@@ -152,9 +152,10 @@ export default function ConfiguracoesPage() {
 
   // ─── Handlers: Backup ──────────────────────────────────────────────────────
   const handleExportJSON = async () => {
+    if (!user?.uid) return;
     setExporting(true);
     try {
-      const uid = user?.uid || 'guest';
+      const uid = user.uid;
       const prodRepo = new FirestoreProductRepository();
       const offerRepo = new FirestoreOfferRepository();
 
@@ -163,43 +164,23 @@ export default function ConfiguracoesPage() {
 
       const backupData = {
         app: 'Mundo LK',
-        version: '4.0',
+        version: '4.0.0',
         exportedAt: new Date().toISOString(),
-        userId: uid,
         products,
         offers,
       };
 
-      const jsonStr = JSON.stringify(backupData, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const sizeKB = (blob.size / 1024).toFixed(1);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mundo-lk-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
 
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute('href', url);
-      downloadAnchor.setAttribute('download', `mundo_lk_backup_${Date.now()}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-
-      const newLog: UIBackupLog = {
-        id: `bck_${Date.now()}`,
-        type: 'COMPLETO',
-        format: 'JSON',
-        size: `${sizeKB} KB`,
-        date: new Date().toLocaleString('pt-BR'),
-        status: 'SUCESSO',
-      };
-
-      setBackups([newLog, ...backups]);
-
-      if (user) {
-        await setDoc(doc(db, 'backup_logs', newLog.id), { ...newLog, userId: uid });
-      }
-
-      setSuccessMsg('Backup exportado e baixado com sucesso!');
-      setTimeout(() => setSuccessMsg(null), 3500);
-    } catch (err: any) {
+      setSuccessMsg('Backup exportado com sucesso!');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err) {
       console.error('Erro ao exportar backup:', err);
     } finally {
       setExporting(false);

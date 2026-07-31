@@ -34,7 +34,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const loadProducts = async () => {
-    const uid = user?.uid || 'guest';
+    if (!user?.uid) {
+      setLoading(false);
+      return;
+    }
+    const uid = user.uid;
     try {
       const prodRepo = new FirestoreProductRepository();
       const prods = await prodRepo.findAll(uid);

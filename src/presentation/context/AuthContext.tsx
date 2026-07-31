@@ -22,28 +22,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     console.log('[AUTH] initializeAuth context mount');
-    // Check localStorage for persisted session fallback
-    const savedUserJson = typeof window !== 'undefined' ? localStorage.getItem('mundo_lk_user') : null;
-    if (savedUserJson) {
-      try {
-        const uData = JSON.parse(savedUserJson);
-        const restoredUser = new User({
-          uid: uData.uid,
-          name: uData.name,
-          email: uData.email,
-          photoURL: uData.photoURL,
-          role: uData.role || 'AFFILIATE',
-          status: uData.status || 'ACTIVE',
-          createdAt: new Date(uData.createdAt),
-          updatedAt: new Date(uData.updatedAt),
-          lastLogin: new Date(uData.lastLogin),
-        });
-        setUser(restoredUser);
-        console.log('[AUTH] Restauração síncrona via localStorage:', restoredUser.uid);
-      } catch {
-        // Ignore parse error
-      }
-    }
 
     const unsubscribe = authService.subscribeToAuthChanges((u) => {
       console.log('[AUTH] onAuthStateChanged evento recebido:', {
@@ -52,17 +30,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: u?.email || 'N/A',
       });
 
-      if (u) {
-        setUser(u);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('mundo_lk_user', JSON.stringify(u));
-        }
-      }
-      // NUNCA remover o localStorage na inicialização se u for null!
-      // A remoção de localStorage.removeItem só é permitida em logout() explícito.
-
+      // Firebase Auth é a ÚNICA fonte de verdade da identidade do usuário
+      setUser(u);
       setLoading(false);
-      console.log('[AUTH] loading atualizado:', false, '| currentUser:', u?.uid || 'null');
+      console.log('[AUTH] loading atualizado: false | currentUser:', u?.uid || 'null');
     });
 
     return () => unsubscribe();
@@ -73,7 +44,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const loggedUser = await authService.login(email, pass);
       setUser(loggedUser);
-      localStorage.setItem('mundo_lk_user', JSON.stringify(loggedUser));
       return loggedUser;
     } finally {
       setLoading(false);
@@ -85,7 +55,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const registeredUser = await authService.register(name, email, pass);
       setUser(registeredUser);
-      localStorage.setItem('mundo_lk_user', JSON.stringify(registeredUser));
       return registeredUser;
     } finally {
       setLoading(false);
@@ -101,7 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await authService.logout();
       setUser(null);
-      localStorage.removeItem('mundo_lk_user');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mundo_lk_user');
+      }
     } finally {
       setLoading(false);
     }

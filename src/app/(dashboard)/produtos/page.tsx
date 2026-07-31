@@ -267,11 +267,15 @@ export default function ProdutosPage() {
   };
 
   const loadProducts = async () => {
+    if (!user?.uid) {
+      console.log('[PRODUTOS] loadProducts abortado: usuário não autenticado');
+      return;
+    }
     setLoading(true);
     try {
       const productRepo = new FirestoreProductRepository();
       const offerRepo = new FirestoreOfferRepository();
-      const uid = user?.uid || 'guest';
+      const uid = user.uid;
 
       const [list, offerList] = await Promise.all([
         productRepo.findAll(uid),
@@ -346,12 +350,12 @@ export default function ProdutosPage() {
   };
 
   const handleConfirmMoveToTrash = async () => {
-    if (!deletingProduct) return;
+    if (!deletingProduct || !user?.uid) return;
     setProcessing(true);
 
     try {
       const repo = new FirestoreProductRepository();
-      const uid = user?.uid || 'guest';
+      const uid = user.uid;
       await repo.moveToTrash(deletingProduct.id, deletionReason, uid);
 
       setProducts(products.filter((p) => p.id !== deletingProduct.id));

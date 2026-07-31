@@ -315,9 +315,10 @@ export default function AgendamentoPage() {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
+    if (!user?.uid) return;
     setSaving(true);
     const id = `sch_${Date.now()}`;
-    const uid = user?.uid || 'guest';
+    const uid = user.uid;
 
     const item: UISchedule = {
       id,
