@@ -7,8 +7,6 @@ import { QueryProvider } from '@/presentation/providers/QueryProvider';
 import { ProtectedRoute } from '@/presentation/components/auth/ProtectedRoute';
 import { SidebarProvider } from '@/presentation/context/SidebarContext';
 
-import { FirestoreDiagnosticPanel } from '@/presentation/components/debug/FirestoreDiagnosticPanel';
-
 export default function DashboardLayout({
   children,
 }: {
@@ -27,7 +25,6 @@ export default function DashboardLayout({
               </main>
               <AppBottomNav />
               <AppFloatingMenuButton />
-              <FirestoreDiagnosticPanel />
             </div>
           </div>
         </SidebarProvider>
