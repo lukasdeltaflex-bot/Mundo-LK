@@ -95,6 +95,18 @@ export async function saveApprovedOfferAction(
       channelText:   preview.offer.channelText || finalWhatsApp,
     });
 
+    const mktSlug = preview.product.marketplaceSlug || 'shopee';
+    const mktNameMap: Record<string, string> = {
+      shopee: 'Shopee',
+      mercadolivre: 'Mercado Livre',
+      amazon: 'Amazon',
+      magalu: 'Magalu',
+      aliexpress: 'AliExpress',
+      tiktokshop: 'TikTok Shop',
+      shein: 'Shein',
+    };
+    const mktName = (preview.product as any).marketplaceName || mktNameMap[mktSlug.toLowerCase()] || mktSlug;
+
     const offer = new Offer({
       id:                 offerId,
       productId:          product.id,
@@ -108,11 +120,14 @@ export async function saveApprovedOfferAction(
       cta:                editedCta || preview.offer.cta,
       aiProviderUsed:     'gemini-2.5-flash',
       createdAt:          new Date(),
+      marketplaceId:      mktSlug,
+      marketplaceName:    mktName,
+      marketplaceDetectedBy: (preview.product as any).marketplaceDetectedBy || 'url_parser',
     });
 
     await offerRepo.save(offer);
 
-    console.log('[SAVE] Oferta salva com sucesso! OfferId:', offerId);
+    console.log('[SAVE] Oferta salva com sucesso! OfferId:', offerId, '| Marketplace:', mktSlug);
 
     return { success: true, productId: product.id, offerId: offer.id };
   } catch (err) {

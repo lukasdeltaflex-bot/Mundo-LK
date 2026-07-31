@@ -29,6 +29,9 @@ export interface OfferPreview {
     originalUrl:     string;
     affiliateUrl:    string;
     marketplaceSlug: string;
+    marketplaceId?:  string;
+    marketplaceName?: string;
+    marketplaceDetectedBy?: string;
     categoryId:      string;
   };
   analysis: {
@@ -40,19 +43,22 @@ export interface OfferPreview {
     emocaoDeCompra:     string;
   };
   offer: {
-    score:         number;
-    scoreLabel:    string;
-    justification: string;
-    cta:           string;
-    hashtags:      string[];
-    emojis:        string[];
-    whatsAppText:  string;
-    telegramText:  string;
-    instagramText: string;
-    facebookText:  string;
-    channelText:   string;
-    storyText:     string;
-    style:         OfferStyle;
+    score:           number;
+    scoreLabel:      string;
+    justification:   string;
+    cta:             string;
+    hashtags:        string[];
+    emojis:          string[];
+    whatsAppText:    string;
+    telegramText:    string;
+    instagramText:   string;
+    facebookText:    string;
+    channelText:     string;
+    storyText:       string;
+    versaoConversao?: string;
+    versaoPremium?:   string;
+    versaoSocial?:    string;
+    style:           OfferStyle;
   };
 }
 
@@ -310,6 +316,18 @@ export async function analyzeProductUrlAction(input: {
 
     console.log(`[Gemini] ✅ Oferta gerada em ${durationMs}ms. (CacheHit: ${orchestratorResult.cacheHit}, Originalidade: ${objectiveMetrics?.originalityPercent}%)`);
 
+    const mktNameMap: Record<string, string> = {
+      shopee: 'Shopee',
+      mercadolivre: 'Mercado Livre',
+      amazon: 'Amazon',
+      magalu: 'Magalu',
+      aliexpress: 'AliExpress',
+      tiktokshop: 'TikTok Shop',
+      shein: 'Shein',
+    };
+    const mktSlug = productData.marketplace || 'shopee';
+    const mktName = mktNameMap[mktSlug.toLowerCase()] || mktSlug;
+
     return {
       success: true,
       data: {
@@ -325,7 +343,10 @@ export async function analyzeProductUrlAction(input: {
           imageUrl: productData.image,
           originalUrl: productData.originalUrl || rawUrl,
           affiliateUrl: productData.canonicalUrl || rawUrl,
-          marketplaceSlug: productData.marketplace,
+          marketplaceSlug: mktSlug,
+          marketplaceId: mktSlug,
+          marketplaceName: mktName,
+          marketplaceDetectedBy: 'url_parser',
           categoryId: categoria,
         },
         analysis: {
@@ -349,6 +370,9 @@ export async function analyzeProductUrlAction(input: {
           facebookText,
           channelText,
           storyText,
+          versaoConversao: rawAnalysis.versaoConversao ? String(rawAnalysis.versaoConversao) : undefined,
+          versaoPremium: rawAnalysis.versaoPremium ? String(rawAnalysis.versaoPremium) : undefined,
+          versaoSocial: rawAnalysis.versaoSocial ? String(rawAnalysis.versaoSocial) : undefined,
           style,
         },
         debugPromptInfo: rawAnalysis.sanitizedPromptDebug,

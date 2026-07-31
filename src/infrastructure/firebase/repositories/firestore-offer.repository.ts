@@ -73,16 +73,34 @@ export class FirestoreOfferRepository implements IOfferRepository {
   }
 
   public async save(offer: Offer): Promise<void> {
+    // ── ETAPA 2: Hard fail se usuário não autenticado ─────────────────────
+    // Não usar fallback silencioso para evitar dado órfão no Firestore
+    const activeUid = auth.currentUser?.uid;
+    if (!activeUid) {
+      throw new Error(
+        '[FirestoreOfferRepository] Usuário não autenticado ao salvar oferta. ' +
+        'A sessão pode ter expirado. Faça login novamente.'
+      );
+    }
+
     const raw = OfferMapper.toPersistence(offer);
-    const activeUid = auth.currentUser?.uid || offer.userId;
     const cleanRaw = {
       ...raw,
       userId: activeUid,
-      tenantId: activeUid,
+      tenantId: activeUid, // tenantId SEMPRE == userId para garantir regras Firestore
     };
+
     try {
       const ref = doc(db, this.collectionName, offer.id);
       await setDoc(ref, cleanRaw, { merge: true });
+
+      // ── Log de auditoria de persistência ──────────────────────────────
+      console.log(
+        `[AUDIT] Offer ${offer.id} salva com sucesso.` +
+        ` uid=${activeUid} | tenantId=${activeUid}` +
+        ` | marketplace=${offer.marketplaceId || 'N/A'}` +
+        ` | detectedBy=${offer.marketplaceDetectedBy || 'N/A'}`
+      );
     } catch (error) {
       console.error('[FirestoreOfferRepository] Erro ao salvar no Firestore:', error);
       throw error;

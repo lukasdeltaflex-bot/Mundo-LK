@@ -1,6 +1,8 @@
 import { ChannelContent } from '../value-objects/channel-content.vo';
 import { ScoreType } from '../value-objects/score-level.vo';
 
+export type MarketplaceDetectionSource = 'url_parser' | 'manual_selection' | 'api_response' | 'unknown';
+
 export interface OfferProps {
   id: string;
   productId: string;
@@ -14,6 +16,10 @@ export interface OfferProps {
   cta: string;
   aiProviderUsed: string;
   createdAt: Date;
+  // ── Marketplace Intelligence (Fase 2.5) ─────────────────────────────────
+  marketplaceId?: string;              // ex: "shopee", "amazon", "mercadolivre"
+  marketplaceName?: string;            // ex: "Shopee", "Amazon"
+  marketplaceDetectedBy?: MarketplaceDetectionSource; // rastreabilidade da detecção
 }
 
 /**
@@ -32,6 +38,10 @@ export class Offer {
   public readonly cta: string;
   public readonly aiProviderUsed: string;
   public readonly createdAt: Date;
+  // ── Marketplace Intelligence (Fase 2.5) ─────────────────────────────────
+  public readonly marketplaceId?: string;
+  public readonly marketplaceName?: string;
+  public readonly marketplaceDetectedBy?: MarketplaceDetectionSource;
 
   constructor(props: OfferProps) {
     this.id = props.id;
@@ -46,5 +56,8 @@ export class Offer {
     this.cta = props.cta;
     this.aiProviderUsed = props.aiProviderUsed;
     this.createdAt = props.createdAt;
+    this.marketplaceId = props.marketplaceId;
+    this.marketplaceName = props.marketplaceName;
+    this.marketplaceDetectedBy = props.marketplaceDetectedBy;
   }
 }

@@ -1,4 +1,4 @@
-import { Offer } from '../../../core/domain/entities/offer.entity';
+import { Offer, MarketplaceDetectionSource } from '../../../core/domain/entities/offer.entity';
 import { ChannelContent } from '../../../core/domain/value-objects/channel-content.vo';
 
 export interface FirestoreOfferDoc {
@@ -14,6 +14,10 @@ export interface FirestoreOfferDoc {
   cta: string;
   aiProviderUsed: string;
   createdAt: string;
+  // ── Marketplace Intelligence (Fase 2.5) ─────────────────────────────────
+  marketplaceId?: string;
+  marketplaceName?: string;
+  marketplaceDetectedBy?: MarketplaceDetectionSource;
 }
 
 export class OfferMapper {
@@ -71,6 +75,10 @@ export class OfferMapper {
       cta: doc.cta || rootDoc.cta || '',
       aiProviderUsed: doc.aiProviderUsed || 'gemini-2.5-flash',
       createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
+      // ── Marketplace Intelligence (Fase 2.5) ────────────────────────────
+      marketplaceId: doc.marketplaceId || rootDoc.marketplaceSlug || undefined,
+      marketplaceName: doc.marketplaceName || undefined,
+      marketplaceDetectedBy: (doc.marketplaceDetectedBy as MarketplaceDetectionSource) || 'url_parser',
     });
   }
 
@@ -84,6 +92,7 @@ export class OfferMapper {
       scoreLabel: entity.scoreLabel,
       scoreJustification: entity.scoreJustification,
       copies: copiesMap,
+      // Espelhar copies na raiz do doc para compatibilidade retroativa
       whatsAppText: copiesMap.whatsAppText,
       whatsappText: copiesMap.whatsAppText,
       telegramText: copiesMap.telegramText,
@@ -94,6 +103,10 @@ export class OfferMapper {
       cta: entity.cta,
       aiProviderUsed: entity.aiProviderUsed,
       createdAt: entity.createdAt.toISOString(),
+      // ── Marketplace Intelligence (Fase 2.5) ────────────────────────────
+      ...(entity.marketplaceId && { marketplaceId: entity.marketplaceId }),
+      ...(entity.marketplaceName && { marketplaceName: entity.marketplaceName }),
+      ...(entity.marketplaceDetectedBy && { marketplaceDetectedBy: entity.marketplaceDetectedBy }),
     } as any;
   }
 }
