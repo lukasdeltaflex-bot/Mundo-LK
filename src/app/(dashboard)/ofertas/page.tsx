@@ -16,6 +16,10 @@ import { SourceOfTruthService } from '@/core/domain/services/SourceOfTruthServic
 import { SmartOrganizationResult, AffiliateSmartOrganizer } from '@/core/domain/services/AffiliateSmartOrganizer';
 import { Button } from '@/presentation/components/ui/Button';
 
+import { useAuth } from '@/presentation/context/AuthContext';
+import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
+import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+
 export type DynamicCollectionTab =
   | 'TODAS'
   | 'NOVIDADES'
@@ -28,6 +32,7 @@ export type DynamicCollectionTab =
   | 'FAVORITAS';
 
 export default function OfertasLibraryPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<DynamicCollectionTab>('TODAS');
   const [quickFilter, setQuickFilter] = useState<string>('TODOS');
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,7 +40,6 @@ export default function OfertasLibraryPage() {
 
   const smartOrganizer = AffiliateSmartOrganizer.getInstance();
 
-  // Estado de exemplo de ofertas com organização inteligente da IA
   const [offersData, setOffersData] = useState<
     Array<{
       offer: AffiliateOffer;
@@ -44,88 +48,81 @@ export default function OfertasLibraryPage() {
   >([]);
 
   useEffect(() => {
-    // Inicialização da biblioteca de ofertas com dados confirmados
-    const initialOffers = [
-      {
-        id: 'off_lib_01',
-        title: 'Perfume Importado Sauvage Dior Eau de Parfum 100ml',
-        price: 689.90,
-        originalPrice: 899.00,
-        url: 'https://produto.mercadolivre.com.br/MLB-112233-perfume-sauvage-dior',
-        marketplace: 'mercadolivre' as const,
-      },
-      {
-        id: 'off_lib_02',
-        title: 'Smartphone Samsung Galaxy S24 Ultra 512GB 5G Câmera 200MP',
-        price: 6299.00,
-        originalPrice: 7999.00,
-        url: 'https://shopee.com.br/product/12345/67890-galaxy-s24-ultra',
-        marketplace: 'shopee' as const,
-      },
-      {
-        id: 'off_lib_03',
-        title: 'Tênis Nike Air Force 1 07 Masculino Couro Branco',
-        price: 799.99,
-        originalPrice: 999.99,
-        url: 'https://produto.mercadolivre.com.br/MLB-998877-tenis-nike-air-force',
-        marketplace: 'mercadolivre' as const,
-      },
-    ];
-
     async function loadOrganizedOffers() {
-      const linkResolver = AffiliateLinkResolver.getInstance();
-      const sourceOfTruth = SourceOfTruthService.getInstance();
+      if (!user?.uid) return;
+      try {
+        const offerRepo = new FirestoreOfferRepository();
+        const productRepo = new FirestoreProductRepository();
 
-      const resultPromises = initialOffers.map(async (item) => {
-        const link = linkResolver.resolve({
-          originalMarketplaceUrl: item.url,
-          userAffiliateUrl: item.url,
+        const [rawOffers, rawProducts] = await Promise.all([
+          offerRepo.findByUserId(user.uid),
+          productRepo.findAll(user.uid),
+        ]);
+
+        const prodMap = new Map(rawProducts.map((p) => [p.id, p]));
+
+        const linkResolver = AffiliateLinkResolver.getInstance();
+        const sourceOfTruth = SourceOfTruthService.getInstance();
+
+        const resultPromises = rawOffers.map(async (rawOff) => {
+          const associatedProd = rawOff.productId ? prodMap.get(rawOff.productId) : null;
+          const title = associatedProd?.title || 'Oferta sem título';
+          const priceVal = associatedProd?.currentPrice?.amount || 0;
+          const prevPriceVal = associatedProd?.previousPrice?.amount || undefined;
+          const url = associatedProd?.affiliateUrl?.url || associatedProd?.originalUrl || 'https://shopee.com.br';
+
+          const link = linkResolver.resolve({
+            originalMarketplaceUrl: url,
+            userAffiliateUrl: url,
+          });
+
+          const pricing = sourceOfTruth.validatePricing({
+            currentPrice: priceVal,
+            originalPrice: prevPriceVal,
+          });
+
+          const commission = sourceOfTruth.validateCommission({
+            value: null,
+            percentage: 8,
+          });
+
+          const offer = new AffiliateOffer({
+            id: rawOff.id,
+            userId: user.uid,
+            marketplace: (rawOff as any).marketplaceId || associatedProd?.marketplaceSlug || 'shopee',
+            marketplaceItemId: `ITEM_${rawOff.id}`,
+            originalUrl: url,
+            affiliateLink: link,
+            productData: {
+              title,
+              images: { main: associatedProd?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500', gallery: associatedProd?.images || [] },
+              category: associatedProd?.categoryId || 'Geral',
+              seller: associatedProd?.brand || 'Oficial',
+            },
+            pricing,
+            commission,
+            status: 'ACTIVE',
+          });
+
+          const org = await smartOrganizer.analyzeAndOrganize({
+            title,
+            price: priceVal,
+            previousPrice: prevPriceVal,
+            url,
+          });
+
+          return { offer, organization: org };
         });
 
-        const pricing = sourceOfTruth.validatePricing({
-          currentPrice: item.price,
-          originalPrice: item.originalPrice,
-        });
-
-        const commission = sourceOfTruth.validateCommission({
-          value: null,
-          percentage: 8,
-        });
-
-        const offer = new AffiliateOffer({
-          id: item.id,
-          userId: 'usr_affiliate_demo',
-          marketplace: item.marketplace,
-          marketplaceItemId: `ITEM_${item.id}`,
-          originalUrl: item.url,
-          affiliateLink: link,
-          productData: {
-            title: item.title,
-            images: { main: 'https://http2.mlstatic.com/D_NQ_NP_2X_612255-F.webp', gallery: ['https://http2.mlstatic.com/D_NQ_NP_2X_612255-F.webp'] },
-            category: 'Achados Gerais',
-            seller: 'Oficial',
-          },
-          pricing,
-          commission,
-          status: 'ACTIVE',
-        });
-
-        const org = await smartOrganizer.analyzeAndOrganize({
-          title: item.title,
-          price: item.price,
-          previousPrice: item.originalPrice,
-          url: item.url,
-        });
-
-        return { offer, organization: org };
-      });
-
-      const loaded = await Promise.all(resultPromises);
-      setOffersData(loaded);
+        const loaded = await Promise.all(resultPromises);
+        setOffersData(loaded);
+      } catch (err) {
+        console.warn('[Ofertas] Erro ao carregar biblioteca do Firestore:', err);
+      }
     }
 
     loadOrganizedOffers();
-  }, []);
+  }, [user]);
 
   const handleUpdateOrganization = (offerId: string, updatedOrg: SmartOrganizationResult) => {
     setOffersData((prev) =>

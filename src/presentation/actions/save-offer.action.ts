@@ -125,9 +125,9 @@ export async function saveApprovedOfferAction(
       marketplaceDetectedBy: (preview.product as any).marketplaceDetectedBy || 'url_parser',
     });
 
-    await offerRepo.save(offer);
+    await offerRepo.create(offer);
 
-    console.log('[SAVE] Oferta salva com sucesso! OfferId:', offerId, '| Marketplace:', mktSlug);
+    console.log('[SAVE] Nova oferta criada com sucesso! OfferId:', offerId, '| Marketplace:', mktSlug);
 
     return { success: true, productId: product.id, offerId: offer.id };
   } catch (err) {

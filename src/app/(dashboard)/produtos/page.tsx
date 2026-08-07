@@ -152,7 +152,7 @@ export default function ProdutosPage() {
   const { user } = useAuth();
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [offersMap, setOffersMap] = useState<Record<string, Offer>>({});
+  const [offersMap, setOffersMap] = useState<Record<string, Offer[]>>({});
   const [loading, setLoading] = useState(true);
 
   // Search & Filtering State
@@ -202,7 +202,8 @@ export default function ProdutosPage() {
     const affiliateUrl = getUrlString(p.affiliateUrl, p.originalUrl || '');
     const imageUrl = p.images && p.images.length > 0 ? p.images[0] : undefined;
 
-    const savedOffer = offersMap[p.id];
+    const savedOffers = offersMap[p.id] || [];
+    const savedOffer = savedOffers[0];
     const copies = savedOffer?.copies?.copies;
 
     const savedWhatsApp = copies?.whatsAppText || copies?.longText;
@@ -284,9 +285,12 @@ export default function ProdutosPage() {
 
       setProducts(list);
 
-      const map: Record<string, Offer> = {};
+      const map: Record<string, Offer[]> = {};
       offerList.forEach((off) => {
-        if (off.productId) map[off.productId] = off;
+        if (off.productId) {
+          if (!map[off.productId]) map[off.productId] = [];
+          map[off.productId].push(off);
+        }
       });
       setOffersMap(map);
     } catch (err) {

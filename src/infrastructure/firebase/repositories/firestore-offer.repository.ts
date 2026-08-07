@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, auth } from '../config/firebase.config';
 import { IOfferRepository } from '../../../core/domain/ports/repositories/IOfferRepository';
 import { Offer } from '../../../core/domain/entities/offer.entity';
@@ -104,46 +104,70 @@ export class FirestoreOfferRepository implements IOfferRepository {
     }
   }
 
-  public async save(offer: Offer): Promise<void> {
-    const activeUid = auth.currentUser?.uid;
+  public async create(offer: Offer): Promise<void> {
+    const activeUid = auth.currentUser?.uid || offer.userId;
     if (!activeUid) {
       throw new Error(
-        '[FirestoreOfferRepository] Usuário não autenticado ao salvar oferta. ' +
-        'A sessão pode ter expirado. Faça login novamente.'
+        '[FirestoreOfferRepository] Usuário não autenticado ao criar oferta.'
       );
     }
+
+    const uniqueOfferId = offer.id && offer.id.startsWith('off_')
+      ? offer.id
+      : `off_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
     const raw = OfferMapper.toPersistence(offer);
     const cleanRaw = {
       ...raw,
+      id: uniqueOfferId,
       userId: activeUid,
-      tenantId: activeUid, // tenantId SEMPRE == userId para garantir regras Firestore
+      tenantId: activeUid,
+      createdAt: raw.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     try {
-      const ref = doc(db, this.collectionName, offer.id);
-      await setDoc(ref, cleanRaw, { merge: true });
-
-      // ── ETAPA 1: VERIFICAÇÃO IMEDIATA APÓS setDoc() ──────────────────────
-      const checkSnap = await getDoc(ref);
-      if (!checkSnap.exists()) {
-        const err = new Error(`[AUDIT FAIL] Documento ${offer.id} não foi encontrado no Firestore imediatamente após setDoc()!`);
-        console.error('[AUDIT ERROR]', err.message);
-        throw err;
-      }
-
-      const savedData = checkSnap.data();
-      console.log('[AUDIT] Offer Saved', {
-        'Document ID': offer.id,
-        userId: savedData.userId,
-        tenantId: savedData.tenantId,
-        marketplaceId: savedData.marketplaceId || 'N/A',
-        createdAt: savedData.createdAt,
-      });
+      const ref = doc(db, this.collectionName, uniqueOfferId);
+      await setDoc(ref, cleanRaw);
+      console.log('[FirestoreOfferRepository] Nova oferta criada com sucesso. OfferID:', uniqueOfferId);
     } catch (error) {
-      console.error('[FirestoreOfferRepository] Erro ao salvar no Firestore:', error);
+      console.error('[FirestoreOfferRepository] Erro ao criar oferta:', error);
       throw error;
     }
+  }
+
+  public async update(id: string, offerChanges: Partial<Offer>): Promise<void> {
+    const activeUid = auth.currentUser?.uid;
+    if (!activeUid) {
+      throw new Error('[FirestoreOfferRepository] Usuário não autenticado ao atualizar oferta.');
+    }
+    if (!id) {
+      throw new Error('[FirestoreOfferRepository] ID da oferta é obrigatório para atualização.');
+    }
+
+    try {
+      const ref = doc(db, this.collectionName, id);
+      const updatePayload: Record<string, any> = {
+        ...offerChanges,
+        updatedAt: new Date().toISOString(),
+      };
+      await updateDoc(ref, updatePayload);
+      console.log('[FirestoreOfferRepository] Oferta atualizada com sucesso:', id);
+    } catch (error) {
+      console.error('[FirestoreOfferRepository] Erro ao atualizar oferta:', error);
+      throw error;
+    }
+  }
+
+  public async save(offer: Offer): Promise<void> {
+    if (offer.id) {
+      const existing = await this.findById(offer.id);
+      if (existing) {
+        await this.update(offer.id, offer);
+        return;
+      }
+    }
+    await this.create(offer);
   }
 
   public async delete(id: string): Promise<void> {

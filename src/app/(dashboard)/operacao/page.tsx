@@ -54,7 +54,7 @@ export default function AffiliateOperationsHubPage() {
 
   // Estados dos Produtos / Histórico
   const [products, setProducts] = useState<Product[]>([]);
-  const [offersMap, setOffersMap] = useState<Record<string, Offer>>({});
+  const [offersMap, setOffersMap] = useState<Record<string, Offer[]>>({});
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
@@ -101,9 +101,12 @@ export default function AffiliateOperationsHubPage() {
         offerRepo.findByUserId(user.uid),
       ]);
       setProducts(list);
-      const map: Record<string, Offer> = {};
+      const map: Record<string, Offer[]> = {};
       offerList.forEach((off) => {
-        if (off.productId) map[off.productId] = off;
+        if (off.productId) {
+          if (!map[off.productId]) map[off.productId] = [];
+          map[off.productId].push(off);
+        }
       });
       setOffersMap(map);
     } catch (err) {
@@ -311,7 +314,8 @@ export default function AffiliateOperationsHubPage() {
       <OfferHistoryTable
         products={products}
         onShareProduct={(p) => {
-          const savedOffer = offersMap[p.id];
+          const savedOffers = offersMap[p.id] || [];
+          const savedOffer = savedOffers[0];
           const copies = savedOffer?.copies?.copies;
           const affiliateUrl = p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl;
 
