@@ -27,6 +27,14 @@ const CATEGORY_OPTIONS = [
   'Geral',
 ];
 
+const MARKETPLACE_OPTIONS = [
+  { slug: 'mercadolivre', label: 'Mercado Livre' },
+  { slug: 'shopee', label: 'Shopee' },
+  { slug: 'shein', label: 'SHEIN' },
+  { slug: 'amazon', label: 'Amazon' },
+  { slug: 'outros', label: 'Outro' },
+];
+
 export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> = ({
   data,
   marketplaceSlug,
@@ -40,6 +48,13 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
     if (!val || val <= 0) return '';
     return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
+
+  const initialMkt = (marketplaceSlug || data.marketplace || '').toLowerCase();
+  const isMktAutoDetected = ['shopee', 'mercadolivre', 'amazon', 'shein', 'magalu', 'aliexpress', 'tiktokshop'].includes(initialMkt);
+
+  const [selectedMarketplace, setSelectedMarketplace] = useState<string>(
+    isMktAutoDetected ? initialMkt : 'shopee'
+  );
 
   const [title, setTitle] = useState(isValidTitle(data.title) ? data.title : '');
   const [price, setPrice] = useState(formatBRL(data.currentPrice));
@@ -79,8 +94,11 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
     const numericPrevPrice = parseFloat(prevPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
     const numericRating = parseFloat(rating);
 
+    const finalMarketplace = isMktAutoDetected ? initialMkt : selectedMarketplace;
+
     const confirmed: ProductExtractionResult = {
       ...data,
+      marketplace: finalMarketplace,
       title: title.trim(),
       description: description.trim(),
       currentPrice: isNaN(numericPrice) ? 0 : numericPrice,
@@ -164,6 +182,31 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
 
             {/* Inputs */}
             <div className="md:col-span-2 space-y-3">
+              {/* Fallback Manual de Marketplace quando não identificado automaticamente */}
+              {!isMktAutoDetected && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                  <label className="text-xs font-bold text-amber-300 block mb-1.5">
+                    ⚠️ Marketplace não identificado. Selecione uma opção:
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {MARKETPLACE_OPTIONS.map((mkt) => (
+                      <button
+                        key={mkt.slug}
+                        type="button"
+                        onClick={() => setSelectedMarketplace(mkt.slug)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition-all ${
+                          selectedMarketplace === mkt.slug
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow'
+                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-amber-500/50'
+                        }`}
+                      >
+                        {mkt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Title */}
               <div>
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
