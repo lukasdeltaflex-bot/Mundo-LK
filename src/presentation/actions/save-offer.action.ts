@@ -83,10 +83,8 @@ export async function saveApprovedOfferAction(
 
     await productRepo.save(product);
 
-    // ── Build Offer entity ──────────────────────────────────────────────────
-    const offerId = `off_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    // ── Build Offer entity via CreateOfferUseCase ───────────────────────────
     const finalWhatsApp = editedCopy || preview.offer.whatsAppText;
-
     const copies = ChannelContent.create({
       whatsAppText:  finalWhatsApp,
       telegramText:  preview.offer.telegramText || finalWhatsApp,
@@ -107,29 +105,28 @@ export async function saveApprovedOfferAction(
     };
     const mktName = (preview.product as any).marketplaceName || mktNameMap[mktSlug.toLowerCase()] || mktSlug;
 
-    const offer = new Offer({
-      id:                 offerId,
-      productId:          product.id,
-      userId:             userId,
-      scoreValue:         preview.offer.score,
-      scoreLabel:         (preview.offer.scoreLabel as ScoreType) || 'GOOD',
+    const { CreateOfferUseCase } = await import('@/core/application/use-cases/offers/CreateOfferUseCase');
+    const createOfferUseCase = new CreateOfferUseCase(offerRepo, productRepo);
+
+    const createdOffer = await createOfferUseCase.execute({
+      product,
+      userId,
+      scoreValue: preview.offer.score,
+      scoreLabel: (preview.offer.scoreLabel as ScoreType) || 'GOOD',
       scoreJustification: preview.offer.justification,
       copies,
-      hashtags:           preview.offer.hashtags,
-      emojis:             preview.offer.emojis,
-      cta:                editedCta || preview.offer.cta,
-      aiProviderUsed:     'gemini-2.5-flash',
-      createdAt:          new Date(),
-      marketplaceId:      mktSlug,
-      marketplaceName:    mktName,
+      hashtags: preview.offer.hashtags,
+      emojis: preview.offer.emojis,
+      cta: editedCta || preview.offer.cta,
+      aiProviderUsed: 'gemini-2.5-flash',
+      marketplaceId: mktSlug,
+      marketplaceName: mktName,
       marketplaceDetectedBy: (preview.product as any).marketplaceDetectedBy || 'url_parser',
     });
 
-    await offerRepo.create(offer);
+    console.log('[SAVE] Nova oferta criada com sucesso via UseCase! OfferId:', createdOffer.id, '| Marketplace:', mktSlug);
 
-    console.log('[SAVE] Nova oferta criada com sucesso! OfferId:', offerId, '| Marketplace:', mktSlug);
-
-    return { success: true, productId: product.id, offerId: offer.id };
+    return { success: true, productId: product.id, offerId: createdOffer.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[SAVE ERROR]', msg);
