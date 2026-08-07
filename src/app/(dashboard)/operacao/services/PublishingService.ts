@@ -25,32 +25,50 @@ export class PublishingService {
     offerProps: Partial<OfferProps>,
     userId: string
   ): Promise<SaveOfferResult> {
-    // 1. Garantir um productId único por criação para evitar que a chave de marketplace sobrescreva produtos anteriores
-    const uniqueProductId = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const rawUrl = extraction.originalUrl || extraction.canonicalUrl || 'https://shopee.com.br';
 
-    const productProps: ProductProps = {
-      id: uniqueProductId,
-      userId,
-      title: extraction.title || 'Produto Sem Título',
-      description: extraction.description || '',
-      brand: extraction.brand || 'Geral',
-      categoryId: extraction.category || 'Geral',
-      marketplaceSlug: extraction.marketplace ? extraction.marketplace.toLowerCase() : 'shopee',
-      originalUrl: extraction.originalUrl || extraction.canonicalUrl || 'https://shopee.com.br',
-      affiliateUrl: AffiliateLink.create(extraction.originalUrl || extraction.canonicalUrl || 'https://shopee.com.br'),
-      currentPrice: Price.create(extraction.currentPrice || 0),
-      previousPrice: extraction.originalPrice ? Price.create(extraction.originalPrice) : null,
-      discountPercentage: DiscountPercentage.create(extraction.discountPercentage || 0),
-      images: extraction.image ? [extraction.image, ...(extraction.gallery || [])] : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500'],
-      status: 'ACTIVE',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // 1. Product Matching Waterfall: Busca se o produto já existe no catálogo do usuário pela URL
+    let existingProduct: Product | null = null;
+    try {
+      if (rawUrl && rawUrl.length > 10) {
+        existingProduct = await this.productRepo.findByOriginalUrl(rawUrl, userId);
+      }
+    } catch (err) {
+      console.warn('[PublishingService] Erro ao buscar produto existente:', err);
+    }
 
-    const product = new Product(productProps);
-    await this.productRepo.save(product);
+    let product: Product;
+    if (existingProduct) {
+      product = existingProduct;
+      if (extraction.currentPrice && extraction.currentPrice > 0) {
+        product.updatePrice(Price.create(extraction.currentPrice));
+        await this.productRepo.save(product);
+      }
+    } else {
+      const uniqueProductId = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const productProps: ProductProps = {
+        id: uniqueProductId,
+        userId,
+        title: extraction.title || 'Produto Sem Título',
+        description: extraction.description || '',
+        brand: extraction.brand || 'Geral',
+        categoryId: extraction.category || 'Geral',
+        marketplaceSlug: extraction.marketplace ? extraction.marketplace.toLowerCase() : 'shopee',
+        originalUrl: rawUrl,
+        affiliateUrl: AffiliateLink.create(rawUrl),
+        currentPrice: Price.create(extraction.currentPrice || 0),
+        previousPrice: extraction.originalPrice ? Price.create(extraction.originalPrice) : null,
+        discountPercentage: DiscountPercentage.create(extraction.discountPercentage || 0),
+        images: extraction.image ? [extraction.image, ...(extraction.gallery || [])] : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500'],
+        status: 'ACTIVE',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      product = new Product(productProps);
+      await this.productRepo.save(product);
+    }
 
-    // 2. Delegar a criação da Oferta ao CreateOfferUseCase (com ID de negócio amigável OFF-YYYYMMDD-XXXX e sem merge: true)
+    // 2. Sempre criar uma NOVA oferta via CreateOfferUseCase (ID amigável OFF-YYYYMMDD-XXXX)
     const { CreateOfferUseCase } = await import('@/core/application/use-cases/offers/CreateOfferUseCase');
     const createOfferUseCase = new CreateOfferUseCase(this.offerRepo, this.productRepo);
 
@@ -70,11 +88,12 @@ export class PublishingService {
       marketplaceDetectedBy: 'url_parser',
     });
 
-    console.log('[AUDIT EXECUTION] Product and Offer Saved:', {
+    console.log('[AUDIT EXECUTION] Product and Offer Saved (1:N):', {
       offerId: offer.id,
       productId: product.id,
       marketplace: product.marketplaceSlug,
       originalUrl: product.originalUrl,
+      isNewProduct: !existingProduct,
     });
 
     return {
