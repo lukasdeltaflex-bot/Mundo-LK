@@ -45,41 +45,27 @@ export async function saveApprovedOfferAction(
     const discountPct   = DiscountPercentage.calculate(currentPrice, null);
     const affiliateLink = AffiliateLink.create(preview.product.affiliateUrl || preview.product.originalUrl);
 
-    // Stable product ID based on URL + userId
-    const urlHash = Buffer.from(preview.product.originalUrl)
-      .toString('base64')
-      .replace(/[^a-z0-9]/gi, '')
-      .slice(0, 20);
-    const productId = `prod_${urlHash}_${userId.slice(0, 8)}`;
+    // Generates a unique product ID per offer creation to guarantee non-colliding catalog persistence
+    const productId = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-    // Check for existing product filtered by userId to satisfy Firestore Security Rules
-    let product: Product | null = null;
-    try {
-      product = await productRepo.findByOriginalUrl(preview.product.originalUrl, userId);
-    } catch (e) {
-      console.warn('[SAVE] Warn finding existing product, creating new:', e);
-    }
-
-    if (!product) {
-      product = new Product({
-        id:                 productId,
-        userId,
-        title:              editedTitle || preview.product.title,
-        description:        preview.product.description || 'Produto oficial',
-        brand:              preview.product.brand || 'Desconhecida',
-        categoryId:         preview.product.categoryId || 'Geral',
-        marketplaceSlug:    preview.product.marketplaceSlug || 'shopee',
-        originalUrl:        preview.product.originalUrl,
-        affiliateUrl:       affiliateLink,
-        currentPrice,
-        previousPrice:      null,
-        discountPercentage: discountPct,
-        images:             preview.product.imageUrl ? [preview.product.imageUrl] : [],
-        status:             'ACTIVE',
-        createdAt:          new Date(),
-        updatedAt:          new Date(),
-      });
-    }
+    const product = new Product({
+      id:                 productId,
+      userId,
+      title:              editedTitle || preview.product.title,
+      description:        preview.product.description || 'Produto oficial',
+      brand:              preview.product.brand || 'Desconhecida',
+      categoryId:         preview.product.categoryId || 'Geral',
+      marketplaceSlug:    preview.product.marketplaceSlug || 'shopee',
+      originalUrl:        preview.product.originalUrl,
+      affiliateUrl:       affiliateLink,
+      currentPrice,
+      previousPrice:      null,
+      discountPercentage: discountPct,
+      images:             preview.product.imageUrl ? [preview.product.imageUrl] : [],
+      status:             'ACTIVE',
+      createdAt:          new Date(),
+      updatedAt:          new Date(),
+    });
 
     await productRepo.save(product);
 

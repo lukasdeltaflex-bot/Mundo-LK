@@ -40,30 +40,24 @@ export class ImportAndGenerateOfferWorkflow {
     const previousPrice = extractedData.previousPrice ? Price.create(extractedData.previousPrice) : null;
     const discountPercentage = DiscountPercentage.calculate(currentPrice, previousPrice);
 
-    let product = await this.productRepository.findByOriginalUrl(extractedData.originalUrl);
-
-    if (!product) {
-      product = new Product({
-        id: `prod_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
-        userId: input.userId,
-        title: extractedData.title,
-        description: extractedData.description,
-        brand: extractedData.brand || 'Desconhecida',
-        categoryId: 'general',
-        marketplaceSlug: adapter.marketplaceSlug,
-        originalUrl: extractedData.originalUrl,
-        affiliateUrl: affiliateLink,
-        currentPrice,
-        previousPrice,
-        discountPercentage,
-        images: [extractedData.mainImage, ...(extractedData.gallery || [])],
-        status: 'ACTIVE',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-    } else {
-      product.updatePrice(currentPrice);
-    }
+    const product = new Product({
+      id: `prod_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
+      userId: input.userId,
+      title: extractedData.title,
+      description: extractedData.description,
+      brand: extractedData.brand || 'Desconhecida',
+      categoryId: 'general',
+      marketplaceSlug: adapter.marketplaceSlug,
+      originalUrl: extractedData.originalUrl,
+      affiliateUrl: affiliateLink,
+      currentPrice,
+      previousPrice,
+      discountPercentage,
+      images: [extractedData.mainImage, ...(extractedData.gallery || [])],
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     await this.productRepository.save(product);
 
@@ -71,7 +65,7 @@ export class ImportAndGenerateOfferWorkflow {
     const aiResult = await this.aiProvider.generateOfferContent(product);
 
     const offer = new Offer({
-      id: `off_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
+      id: `OFF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
       productId: product.id,
       userId: product.userId,
       scoreValue: aiResult.score.value,
@@ -85,7 +79,7 @@ export class ImportAndGenerateOfferWorkflow {
       createdAt: new Date(),
     });
 
-    await this.offerRepository.save(offer);
+    await this.offerRepository.create(offer);
 
     // 6. Dispatch Domain Event
     await this.eventBus.publish(new OfferCreatedEvent(offer, product));

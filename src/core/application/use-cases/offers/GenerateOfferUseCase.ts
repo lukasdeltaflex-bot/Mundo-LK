@@ -16,7 +16,7 @@ export class GenerateOfferUseCase {
     const aiResult = await this.aiProvider.generateOfferContent(product);
 
     const offer = new Offer({
-      id: `off_${Date.now()}_${Math.floor(performance.now() * 1000)}`,
+      id: `OFF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
       productId: product.id,
       userId: product.userId,
       scoreValue: aiResult.score.value,
@@ -30,7 +30,7 @@ export class GenerateOfferUseCase {
       createdAt: new Date(),
     });
 
-    await this.offerRepository.save(offer);
+    await this.offerRepository.create(offer);
     await this.eventBus.publish(new OfferCreatedEvent(offer, product));
 
     return offer;
