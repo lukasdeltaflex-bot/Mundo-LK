@@ -136,6 +136,12 @@ export class FirestoreProductRepository implements IProductRepository {
       status: 'ACTIVE' as const,
     };
     try {
+      console.log('[FirestoreProductRepository AUDIT] setDoc Product:', {
+        id: product.id,
+        title: product.title,
+        marketplace: product.marketplaceSlug,
+        userId: activeUid,
+      });
       const ref = doc(db, this.collectionName, product.id);
       await setDoc(ref, cleanRaw, { merge: true });
     } catch (error) {
