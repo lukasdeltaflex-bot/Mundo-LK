@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Tag, Search, Sparkles, Filter, ShieldCheck, Flame, Star,
-  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2
+  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2
 } from 'lucide-react';
 import { SmartCategoryBadge } from './components/SmartCategoryBadge';
 import { AffiliateMobileShareSheet } from '../operacao/components/AffiliateMobileShareSheet';
@@ -130,6 +130,17 @@ export default function OfertasLibraryPage() {
     );
   };
 
+  const handleDeleteOffer = async (offerId: string, offerTitle: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir a oferta "${offerTitle}"?`)) return;
+    try {
+      const repo = new FirestoreOfferRepository();
+      await repo.delete(offerId);
+      setOffersData((prev) => prev.filter((item) => item.offer.id !== offerId));
+    } catch (err) {
+      console.error('Erro ao excluir oferta:', err);
+    }
+  };
+
   const handleReclassifyWithAI = async (offerId: string) => {
     const target = offersData.find((item) => item.offer.id === offerId);
     if (!target) return;
@@ -249,9 +260,19 @@ export default function OfertasLibraryPage() {
                   className="h-16 w-16 rounded-xl object-cover border border-slate-800 shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <span className="rounded bg-slate-800 px-2 py-0.5 text-[9px] font-bold text-slate-400 uppercase">
-                    {offer.marketplace}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="rounded bg-slate-800 px-2 py-0.5 text-[9px] font-bold text-slate-400 uppercase">
+                      {offer.marketplace}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteOffer(offer.id, offer.productData.title)}
+                      className="text-slate-500 hover:text-red-400 p-0.5 transition"
+                      title="Excluir Oferta"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   <h3 className="text-xs font-bold text-white line-clamp-2 mt-1">{offer.productData.title}</h3>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm font-extrabold text-emerald-400">

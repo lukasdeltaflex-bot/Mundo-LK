@@ -959,6 +959,16 @@ export default function ProdutosPage() {
                           >
                             {isCopied ? 'Copiado' : 'Link'}
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            className="text-xs px-2 py-1"
+                            title="Mover para a Lixeira"
+                            leftIcon={<Trash2 className="h-3 w-3" />}
+                            onClick={() => handleOpenTrashModal(p)}
+                          >
+                            Excluir
+                          </Button>
                         </div>
                       </td>
                     </tr>
