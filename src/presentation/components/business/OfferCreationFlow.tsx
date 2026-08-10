@@ -104,6 +104,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const handleGenerateAI = useCallback(async (confirmed: ProductExtractionResult, overrideStyle?: OfferStyle) => {
     setError(null);
     setStep('analyzing');
+    setExtractedData(confirmed);
 
     try {
       const result = await analyzeProductUrlAction({
@@ -246,8 +247,22 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     if (!extractedData) return;
     const selectedStyle = newStyle ?? style;
     setStyle(selectedStyle);
-    handleGenerateAI(extractedData, selectedStyle);
-  }, [extractedData, style, handleGenerateAI]);
+
+    // Preserva integralmente o contexto e dados estruturais do produto existente (título, preço, imagem, marca, marketplace, url)
+    const preservedContext: ProductExtractionResult = {
+      ...extractedData,
+      title: editTitle.trim() || preview?.product.title || extractedData.title,
+      image: preview?.product.imageUrl || extractedData.image,
+      brand: preview?.product.brand || extractedData.brand,
+      category: preview?.product.categoryId || extractedData.category,
+      marketplace: preview?.product.marketplaceSlug || extractedData.marketplace,
+      originalUrl: preview?.product.originalUrl || extractedData.originalUrl,
+      canonicalUrl: preview?.product.affiliateUrl || extractedData.canonicalUrl,
+    };
+
+    setExtractedData(preservedContext);
+    handleGenerateAI(preservedContext, selectedStyle);
+  }, [extractedData, preview, editTitle, style, handleGenerateAI]);
 
   // Switch version tab
   const handleSelectVersion = (idx: number) => {
@@ -433,7 +448,10 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
           data={{ ...extractedData, confidenceScore: confidence } as any}
           marketplaceSlug={marketplace}
           affiliateUrl={affiliateUrl}
-          onConfirm={(confirmed) => handleGenerateAI(confirmed)}
+          onConfirm={(confirmed) => {
+            setExtractedData(confirmed);
+            handleGenerateAI(confirmed);
+          }}
           onCancel={() => setStep('input')}
         />
       )}

@@ -272,7 +272,7 @@ export async function analyzeProductUrlAction(input: {
       currentPrice,
       previousPrice,
       discountPercentage: discountPct,
-      images: [productData.image, ...productData.gallery].filter(Boolean),
+      images: [productData.image, ...(productData.gallery || [])].filter(Boolean),
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date(),
