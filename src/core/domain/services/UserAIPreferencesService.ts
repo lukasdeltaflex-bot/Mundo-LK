@@ -145,17 +145,27 @@ export class UserAIPreferencesService {
         source: 'MANUAL_USER_EDIT',
       };
 
-      // Persiste o evento no Firestore
+      // Persiste o evento individual no Firestore para auditoria
       const eventDocRef = doc(this.db, 'user_text_edit_events', event.id!);
       await setDoc(eventDocRef, event);
 
-      // Atualiza Keywords personalizadas e Termos a evitar com base na repetição
-      const updatedKeywords = Array.from(new Set([...(existing.customKeywords || []), ...addedTerms])).slice(0, 15);
-      const updatedAvoidTerms = Array.from(new Set([...(existing.learnedAvoidTerms || []), ...removedTerms])).slice(0, 15);
+      // Regra da Fase 4 (BUG-AI-001): O evento é sempre registrado, mas a promoção de termos
+      // para o perfil consolidado (customKeywords e learnedAvoidTerms) só ocorre quando o score
+      // de confiança consolidado for >= 70%, evitando overfitting por edições isoladas.
+      const newConfidence = Math.min(100, existing.confidenceScore + 5);
+      const isConsolidatedThreshold = newConfidence >= 70;
+
+      const updatedKeywords = isConsolidatedThreshold
+        ? Array.from(new Set([...(existing.customKeywords || []), ...addedTerms])).slice(0, 15)
+        : (existing.customKeywords || []);
+
+      const updatedAvoidTerms = isConsolidatedThreshold
+        ? Array.from(new Set([...(existing.learnedAvoidTerms || []), ...removedTerms])).slice(0, 15)
+        : (existing.learnedAvoidTerms || []);
 
       const updated: UserAIPreferences = {
         ...existing,
-        confidenceScore: Math.min(100, existing.confidenceScore + 5),
+        confidenceScore: newConfidence,
         preferEmojiDensity: emojiAfter,
         preferLength: lengthPref,
         customKeywords: updatedKeywords,

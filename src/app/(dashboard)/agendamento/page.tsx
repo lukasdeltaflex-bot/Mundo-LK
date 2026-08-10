@@ -194,7 +194,7 @@ export default function AgendamentoPage() {
       if (filterMarketplace !== 'TODOS' && evt.marketplaceSlug !== filterMarketplace) {
         return false;
       }
-      if (filterChannel !== 'TODOS' && !evt.channel.toLowerCase().includes(filterChannel.toLowerCase())) {
+      if (filterChannel !== 'TODOS' && !(evt.channel || '').toLowerCase().includes(filterChannel.toLowerCase())) {
         return false;
       }
       return true;

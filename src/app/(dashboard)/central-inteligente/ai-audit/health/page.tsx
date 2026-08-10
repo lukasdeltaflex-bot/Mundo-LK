@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Brain, ShieldCheck, Activity, ArrowLeft, RefreshCcw,
@@ -8,20 +8,49 @@ import {
 } from 'lucide-react';
 import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
+import { useAuth } from '@/presentation/context/AuthContext';
+import { AIAuditLoggerService, AIAuditMetrics } from '@/core/domain/services/AIAuditLoggerService';
 
 export default function AIHealthDashboardPage() {
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState<AIAuditMetrics>({
+    totalCalls: 0,
+    successCount: 0,
+    errorCount: 0,
+    cacheHits: 0,
+    avgDurationMs: 720,
+    totalTokens: 0,
+    savedTokensByCache: 0,
+  });
+  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString('pt-BR'));
+
+  const loadRealHealthMetrics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const summary = await AIAuditLoggerService.getMetricsSummary();
+      setMetrics(summary);
+      setLastUpdated(new Date().toLocaleTimeString('pt-BR'));
+    } catch (err) {
+      console.warn('[AIHealthDashboardPage] Falha ao carregar métricas em tempo real:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRealHealthMetrics();
+  }, [loadRealHealthMetrics]);
 
   const handleRefresh = () => {
-    setLoading(true);
-    setTimeout(() => setLoading(false), 500);
+    loadRealHealthMetrics();
   };
 
   const healthModules = [
     { name: 'AI Orchestrator', role: 'Maestro Central de Pipeline', status: 'ONLINE', icon: Brain, desc: 'Gerenciador único de chamadas e resiliência' },
     { name: 'AIFeatureFlagsService', role: 'Feature Toggling em Tempo de Execução', status: 'ONLINE', icon: Layers, desc: '6 flags ativas' },
     { name: 'AILearningEngineService', role: 'Camada de Inferência & Memória 5 Camadas', status: 'ONLINE', icon: Cpu, desc: 'Ranking strategyScore + Time Decay' },
-    { name: 'AIContextBuilder', role: 'Formatador Desacoplado de Prompt', status: 'ONLINE', icon: Zap, desc: 'contextVersion: 1 | Token Cap Top 3' },
+    { name: 'AIContextBuilder', role: 'Formatador Desacoplado de Prompt', status: 'ONLINE', icon: Zap, desc: 'contextVersion: 2 | Token Cap Top 3' },
     { name: 'PromptOptimizerService', role: 'Engenharia Otimizada de Prompt', status: 'ONLINE', icon: Flame, desc: 'Few-Shot & CoT Direct Directives' },
     { name: 'AIModelSelectorService', role: 'Resolução Multi-Modelo', status: 'ONLINE', icon: Server, desc: 'gemini-2.5-flash (Ativo)' },
     { name: 'AICostControllerService', role: 'Controle de Custo & Token Cap', status: 'ONLINE', icon: Lock, desc: 'Orçamento de 4096 tokens max' },
@@ -65,7 +94,9 @@ export default function AIHealthDashboardPage() {
           <CheckCircle2 className="h-8 w-8 text-emerald-400 shrink-0" />
           <div>
             <h3 className="text-base font-extrabold text-white">Todos os 9 Módulos do AI Orchestrator estão OPERACIONAIS (100% Online)</h3>
-            <p className="text-xs text-emerald-200 mt-0.5">Sem falhas registradas. Resposta média: ~720ms | Taxa de Sucesso: 99.8%</p>
+            <p className="text-xs text-emerald-200 mt-0.5">
+              Chamadas registradas: {metrics.totalCalls} | Resposta média: {metrics.avgDurationMs}ms | Sucessos: {metrics.successCount} (Atualizado às {lastUpdated})
+            </p>
           </div>
         </div>
         <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-extrabold text-emerald-300 border border-emerald-500/40">
