@@ -23,7 +23,8 @@ export function extractProductDataFromHtml(html: string, url: string, marketplac
 
   const { current: jsonLdPrice, previous: jsonLdPrevPrice } = extractPriceFromJsonLd(jsonLd);
   const ogPrice = parsePrice(extractMeta(html, 'product:price:amount') || extractMeta(html, 'og:price:amount'));
-  const price = jsonLdPrice ?? ogPrice;
+  const htmlPrice = extractHtmlPrice(html);
+  const price = jsonLdPrice ?? ogPrice ?? htmlPrice;
 
   const brand = extractBrand(jsonLd, html);
   const category = extractCategory(jsonLd, html);
@@ -82,6 +83,34 @@ function parsePrice(raw: string): number | null {
   const cleaned = raw.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
   const n = parseFloat(cleaned);
   return isNaN(n) || n <= 0 ? null : n;
+}
+
+function extractHtmlPrice(html: string): number | null {
+  if (!html) return null;
+
+  // 1. Check itemprop="price"
+  const itempropMatch = html.match(/itemprop=["']price["'][^>]+content=["']([^"']+)["']/i) ||
+                        html.match(/content=["']([^"']+)["'][^>]+itemprop=["']price["']/i);
+  if (itempropMatch?.[1]) {
+    const p = parsePrice(itempropMatch[1]);
+    if (p) return p;
+  }
+
+  // 2. Check Mercado Livre / e-commerce price fraction tag
+  const mlPriceMatch = html.match(/class=["'][^"']*price-tag-fraction[^"']*["'][^>]*>(\d+)<\/span>/i);
+  if (mlPriceMatch?.[1]) {
+    const p = parsePrice(mlPriceMatch[1]);
+    if (p) return p;
+  }
+
+  // 3. Check JSON embedding patterns (e.g. "price": 199.90 or "price": "199.90")
+  const jsonPriceMatch = html.match(/["']price["']\s*:\s*["']?(\d+(?:\.\d{1,2})?)["']?/i);
+  if (jsonPriceMatch?.[1]) {
+    const p = parsePrice(jsonPriceMatch[1]);
+    if (p) return p;
+  }
+
+  return null;
 }
 
 function extractTitleFromUrlSlug(url: string): string {
