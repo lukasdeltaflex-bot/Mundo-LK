@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
@@ -20,7 +20,24 @@ export default function LotePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
+  const isPausedRef = useRef(false);
+  const isCancelledRef = useRef(false);
+
   const batchService = BatchImportService.getInstance();
+
+  const handleTogglePause = () => {
+    const nextState = !isPaused;
+    setIsPaused(nextState);
+    isPausedRef.current = nextState;
+  };
+
+  const handleCancel = () => {
+    setIsProcessing(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
+    isCancelledRef.current = true;
+    setQueue([]);
+  };
 
   const handleStartBatch = async () => {
     const urls = urlsInput.split('\n').filter((u) => u.trim());
@@ -30,12 +47,24 @@ export default function LotePage() {
     setQueue(items);
     setIsProcessing(true);
     setIsPaused(false);
+    isPausedRef.current = false;
+    isCancelledRef.current = false;
 
     if (!user?.uid) return;
     const activeUid = user.uid;
     const publishingService = new PublishingService();
 
     for (let index = 0; index < items.length; index++) {
+      if (isCancelledRef.current) break;
+
+      // Trava de pausa real: enquanto estiver pausado, aguarda sem disparar requisições
+      while (isPausedRef.current) {
+        if (isCancelledRef.current) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+
+      if (isCancelledRef.current) break;
+
       const item = items[index];
       setQueue((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, status: 'PROCESSING', progress: 30 } : i))
@@ -171,7 +200,7 @@ export default function LotePage() {
                     size="sm"
                     variant="outline"
                     className="text-xs"
-                    onClick={() => setIsPaused(!isPaused)}
+                    onClick={handleTogglePause}
                   >
                     {isPaused ? <Play className="h-3.5 w-3.5 text-emerald-400" /> : <Pause className="h-3.5 w-3.5 text-amber-400" />}
                   </Button>
@@ -179,10 +208,7 @@ export default function LotePage() {
                     size="sm"
                     variant="danger"
                     className="text-xs"
-                    onClick={() => {
-                      setIsProcessing(false);
-                      setQueue([]);
-                    }}
+                    onClick={handleCancel}
                   >
                     <XCircle className="h-3.5 w-3.5" />
                   </Button>

@@ -20,6 +20,9 @@ import { Offer } from '@/core/domain/entities/offer.entity';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
 import { SocialShareModal, SocialShareData } from '@/presentation/components/business/SocialShareModal';
+import { PaginationControls } from '@/presentation/components/ui/PaginationControls';
+import { useFirestorePagination } from '@/presentation/hooks/useFirestorePagination';
+import { QueryDocumentSnapshot } from 'firebase/firestore';
 
 // ─── Image Fallback Component with Lazy Loading ──────────────────────────────
 
