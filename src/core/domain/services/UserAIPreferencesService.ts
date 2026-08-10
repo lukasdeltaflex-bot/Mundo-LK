@@ -1,6 +1,21 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 
+export interface UserTextEditEvent {
+  id?: string;
+  userId: string;
+  originalText: string;
+  editedText: string;
+  addedTerms: string[];
+  removedTerms: string[];
+  lengthBefore: number;
+  lengthAfter: number;
+  emojiDensityBefore: 'baixa' | 'media' | 'alta';
+  emojiDensityAfter: 'baixa' | 'media' | 'alta';
+  timestamp: string;
+  source: 'MANUAL_USER_EDIT';
+}
+
 export interface UserAIPreferences {
   userId: string;
   strategyVersion: number;
@@ -11,6 +26,7 @@ export interface UserAIPreferences {
   avoidCliches: boolean;
   tonePreference: 'direto' | 'emocional' | 'tecnico';
   customKeywords: string[];
+  learnedAvoidTerms?: string[];
 }
 
 export class UserAIPreferencesService {
@@ -33,7 +49,6 @@ export class UserAIPreferencesService {
   public static async getUserPreferences(userId: string): Promise<UserAIPreferences | null> {
     if (!userId || userId === 'guest') return null;
 
-    // L1 Cache Check
     const cached = this.cache.get(userId);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
       return cached.data;
@@ -53,8 +68,36 @@ export class UserAIPreferencesService {
     return null;
   }
 
-  public static async recordUserEdit(userId: string, originalCopy: string, editedCopy: string): Promise<void> {
-    if (!userId || userId === 'guest' || !editedCopy || originalCopy === editedCopy) return;
+  /**
+   * Extrai palavras relevantes (comprimento > 3, ignorando stop-words comuns)
+   */
+  private static extractRelevantTerms(text: string): string[] {
+    const stopWords = new Set([
+      'este', 'esta', 'para', 'com', 'mais', 'como', 'pela', 'pelo', 'onde',
+      'tudo', 'voce', 'você', 'sobre', 'está', 'estao', 'estão', 'muito', 'essa',
+      'esse', 'qual', 'quais', 'seus', 'suas', 'cada', 'tudo', 'aqui', 'apenas'
+    ]);
+
+    const clean = text
+      .toLowerCase()
+      .replace(/[^\w\s\u00C0-\u00FF]/g, ' ')
+      .replace(/\s+/g, ' ');
+
+    return Array.from(new Set(
+      clean.split(' ')
+        .map((w) => w.trim())
+        .filter((w) => w.length > 3 && !stopWords.has(w))
+    ));
+  }
+
+  public static async recordUserEdit(
+    userId: string,
+    originalCopy: string,
+    editedCopy: string,
+    marketplaceSlug = 'geral',
+    categoryId = 'geral'
+  ): Promise<UserTextEditEvent | null> {
+    if (!userId || userId === 'guest' || !editedCopy || originalCopy === editedCopy) return null;
 
     try {
       const existing = (await this.getUserPreferences(userId)) || {
@@ -67,38 +110,81 @@ export class UserAIPreferencesService {
         avoidCliches: true,
         tonePreference: 'direto',
         customKeywords: [],
+        learnedAvoidTerms: [],
       };
 
-      // Análise da densidade de emojis no texto editado
-      const emojiCount = (editedCopy.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
-      const emojiDensity = emojiCount > 5 ? 'alta' : emojiCount > 2 ? 'media' : 'baixa';
+      // 1. Densidade de Emojis Antes vs Depois
+      const countEmojis = (str: string) => (str.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
+      const getEmojiDensity = (c: number): 'baixa' | 'media' | 'alta' => (c > 5 ? 'alta' : c > 2 ? 'media' : 'baixa');
 
-      // Análise de tamanho
+      const emojiBefore = getEmojiDensity(countEmojis(originalCopy));
+      const emojiAfter = getEmojiDensity(countEmojis(editedCopy));
+
+      // 2. Comprimento
       const lengthPref = editedCopy.length < 150 ? 'conciso' : editedCopy.length > 500 ? 'detalhado' : 'medio';
+
+      // 3. Extração de Termos Adicionados e Removidos (Diff Real)
+      const origTerms = this.extractRelevantTerms(originalCopy);
+      const editTerms = this.extractRelevantTerms(editedCopy);
+
+      const addedTerms = editTerms.filter((t) => !origTerms.includes(t));
+      const removedTerms = origTerms.filter((t) => !editTerms.includes(t));
+
+      const event: UserTextEditEvent = {
+        id: `edit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        userId,
+        originalText: originalCopy,
+        editedText: editedCopy,
+        addedTerms,
+        removedTerms,
+        lengthBefore: originalCopy.length,
+        lengthAfter: editedCopy.length,
+        emojiDensityBefore: emojiBefore,
+        emojiDensityAfter: emojiAfter,
+        timestamp: new Date().toISOString(),
+        source: 'MANUAL_USER_EDIT',
+      };
+
+      // Persiste o evento no Firestore
+      const eventDocRef = doc(this.db, 'user_text_edit_events', event.id!);
+      await setDoc(eventDocRef, event);
+
+      // Atualiza Keywords personalizadas e Termos a evitar com base na repetição
+      const updatedKeywords = Array.from(new Set([...(existing.customKeywords || []), ...addedTerms])).slice(0, 15);
+      const updatedAvoidTerms = Array.from(new Set([...(existing.learnedAvoidTerms || []), ...removedTerms])).slice(0, 15);
 
       const updated: UserAIPreferences = {
         ...existing,
         confidenceScore: Math.min(100, existing.confidenceScore + 5),
-        preferEmojiDensity: emojiDensity,
+        preferEmojiDensity: emojiAfter,
         preferLength: lengthPref,
+        customKeywords: updatedKeywords,
+        learnedAvoidTerms: updatedAvoidTerms,
         updatedAt: new Date().toISOString(),
       };
 
-      const docRef = doc(this.db, 'user_ai_preferences', userId);
-      await setDoc(docRef, updated, { merge: true });
+      const userDocRef = doc(this.db, 'user_ai_preferences', userId);
+      await setDoc(userDocRef, updated, { merge: true });
       this.cache.set(userId, { data: updated, timestamp: Date.now() });
-      console.log(`[UserAIPreferencesService] 👤 Preferências do usuário ${userId} atualizadas com sucesso.`);
+
+      console.log(`[UserAIPreferencesService] 👤 Evento de edição registrado para ${userId}. Adicionados: [${addedTerms.join(', ')}], Removidos: [${removedTerms.join(', ')}]`);
+
+      return event;
     } catch (err) {
       console.warn('[UserAIPreferencesService] Falha ao registrar edição do usuário:', err);
+      return null;
     }
   }
 
   public static formatPreferencesPrompt(prefs: UserAIPreferences | null): string {
     if (!prefs) return '';
+    const keywordsStr = prefs.customKeywords && prefs.customKeywords.length > 0 ? `\n- Vocabulário/Termos preferidos pelo usuário: ${prefs.customKeywords.join(', ')}` : '';
+    const avoidStr = prefs.learnedAvoidTerms && prefs.learnedAvoidTerms.length > 0 ? `\n- Evitar termos frequentemente removidos: ${prefs.learnedAvoidTerms.join(', ')}` : '';
+
     return `👤 PREFERÊNCIAS HISTÓRICAS DO USUÁRIO (Confiança: ${prefs.confidenceScore}%):
 - Densidade de Emojis desejada: ${prefs.preferEmojiDensity.toUpperCase()}
 - Extensão de texto preferida: ${prefs.preferLength.toUpperCase()}
 - Tom de comunicação preferido: ${prefs.tonePreference.toUpperCase()}
-- Evitar clichês genéricos: SIM`;
+- Evitar clichês genéricos: SIM${keywordsStr}${avoidStr}`;
   }
 }

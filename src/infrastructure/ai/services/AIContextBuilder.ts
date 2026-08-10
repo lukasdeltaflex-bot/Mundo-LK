@@ -131,11 +131,14 @@ ${context.avaliacao ? `- Avaliação: ${context.avaliacao}` : ''}
 
     // 1. User Preferences (Highest Priority)
     if (userPrefs) {
+      const keywordsStr = userPrefs.customKeywords && userPrefs.customKeywords.length > 0 ? `\n- Vocabulário Preferido: ${userPrefs.customKeywords.join(', ')}` : '';
+      const avoidStr = userPrefs.learnedAvoidTerms && userPrefs.learnedAvoidTerms.length > 0 ? `\n- Termos a Evitar: ${userPrefs.learnedAvoidTerms.join(', ')}` : '';
+
       blocks.push(`━━━ HIERARQUIA 1: PREFERÊNCIAS HISTÓRICAS DO USUÁRIO (Confiança: ${userPrefs.confidenceScore}%) ━━━
 - Emojis: ${userPrefs.preferEmojiDensity.toUpperCase()}
 - Extensão: ${userPrefs.preferLength.toUpperCase()}
 - Tom: ${userPrefs.tonePreference.toUpperCase()}
-- Evitar Clichês: SIM`);
+- Evitar Clichês: SIM${keywordsStr}${avoidStr}`);
     }
 
     // 2. Winning Strategies (Top 3 Cap)
