@@ -23,8 +23,10 @@ export function extractProductDataFromHtml(html: string, url: string, marketplac
 
   const { current: jsonLdPrice, previous: jsonLdPrevPrice } = extractPriceFromJsonLd(jsonLd);
   const ogPrice = parsePrice(extractMeta(html, 'product:price:amount') || extractMeta(html, 'og:price:amount'));
+  const nextDataPrice = extractNextDataPrice(html);
+  const windowStatePrice = extractWindowStatePrice(html);
   const htmlPrice = extractHtmlPrice(html);
-  const price = jsonLdPrice ?? ogPrice ?? htmlPrice;
+  const price = jsonLdPrice ?? ogPrice ?? nextDataPrice ?? windowStatePrice ?? htmlPrice;
 
   const brand = extractBrand(jsonLd, html);
   const category = extractCategory(jsonLd, html);
@@ -78,11 +80,92 @@ function extractMeta(html: string, property: string): string {
   return '';
 }
 
-function parsePrice(raw: string): number | null {
-  if (!raw) return null;
-  const cleaned = raw.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
-  const n = parseFloat(cleaned);
+function parsePrice(raw: string | number): number | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw === 'number') return isNaN(raw) || raw <= 0 ? null : raw;
+
+  const str = String(raw).trim();
+  if (!str) return null;
+
+  // Formato pt-BR estrito: "1.299,90" ou "99,90"
+  if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(str) || /^\d+,\d{2}$/.test(str)) {
+    const cleaned = str.replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    return isNaN(n) || n <= 0 ? null : n;
+  }
+
+  // Limpeza de caracteres não numéricos exceto ponto e vírgula
+  const cleaned = str.replace(/[^\d.,]/g, '');
+  if (!cleaned) return null;
+
+  const dotIdx = cleaned.lastIndexOf('.');
+  const commaIdx = cleaned.lastIndexOf(',');
+
+  if (commaIdx > dotIdx) {
+    const norm = cleaned.replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(norm);
+    return isNaN(n) || n <= 0 ? null : n;
+  }
+
+  const norm = cleaned.replace(/,/g, '');
+  const n = parseFloat(norm);
   return isNaN(n) || n <= 0 ? null : n;
+}
+
+function searchPriceInObject(obj: any, depth = 0): number | null {
+  if (!obj || typeof obj !== 'object' || depth > 6) return null;
+
+  const keys = ['price', 'currentPrice', 'salePrice', 'discountPrice', 'finalPrice', 'price_amount', 'priceAmount', 'lowPrice', 'offerPrice'];
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null) {
+      const val = obj[key];
+      const parsed = parsePrice(val);
+      if (parsed !== null) return parsed;
+      if (typeof val === 'object' && val.value !== undefined) {
+        const parsedVal = parsePrice(val.value);
+        if (parsedVal !== null) return parsedVal;
+      }
+    }
+  }
+
+  const values = Array.isArray(obj) ? obj : Object.values(obj);
+  for (const val of values) {
+    if (val && typeof val === 'object') {
+      const found = searchPriceInObject(val, depth + 1);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
+function extractNextDataPrice(html: string): number | null {
+  try {
+    const match = html.match(/<script\s+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (!match?.[1]) return null;
+    const json = JSON.parse(match[1].trim());
+    return searchPriceInObject(json?.props?.pageProps);
+  } catch {
+    return null;
+  }
+}
+
+function extractWindowStatePrice(html: string): number | null {
+  const patterns = [
+    /window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/i,
+    /window\.__PRELOADED_STATE__\s*=\s*({[\s\S]*?});/i,
+    /window\.__PRODUCT_DATA__\s*=\s*({[\s\S]*?});/i,
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) {
+      try {
+        const json = JSON.parse(match[1].trim());
+        const price = searchPriceInObject(json);
+        if (price !== null) return price;
+      } catch {}
+    }
+  }
+  return null;
 }
 
 function extractHtmlPrice(html: string): number | null {
