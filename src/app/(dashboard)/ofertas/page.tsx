@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Tag, Search, Sparkles, Filter, ShieldCheck, Flame, Star,
-  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2
+  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2, Loader2
 } from 'lucide-react';
 import { SmartCategoryBadge } from './components/SmartCategoryBadge';
 import { AffiliateMobileShareSheet } from '../operacao/components/AffiliateMobileShareSheet';
@@ -19,6 +19,10 @@ import { Button } from '@/presentation/components/ui/Button';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+import { Offer } from '@/core/domain/entities/offer.entity';
+import { PaginationControls } from '@/presentation/components/ui/PaginationControls';
+import { useFirestorePagination } from '@/presentation/hooks/useFirestorePagination';
+import { QueryDocumentSnapshot } from 'firebase/firestore';
 
 export type DynamicCollectionTab =
   | 'TODAS'
@@ -47,24 +51,35 @@ export default function OfertasLibraryPage() {
     }>
   >([]);
 
+  const fetchOffersPage = useCallback(
+    async (pageSize: number, cursor?: QueryDocumentSnapshot) => {
+      if (!user?.uid) return { items: [], hasMore: false };
+      const offerRepo = new FirestoreOfferRepository();
+      return offerRepo.findPagedByUserId(user.uid, pageSize, cursor);
+    },
+    [user?.uid]
+  );
+
+  const pagination = useFirestorePagination<Offer>({
+    fetchPage: fetchOffersPage,
+    initialPageSize: 12,
+  });
+
   useEffect(() => {
-    async function loadOrganizedOffers() {
-      if (!user?.uid) return;
+    async function organizePageOffers() {
+      if (!user?.uid || pagination.items.length === 0) {
+        setOffersData([]);
+        return;
+      }
       try {
-        const offerRepo = new FirestoreOfferRepository();
         const productRepo = new FirestoreProductRepository();
-
-        const [rawOffers, rawProducts] = await Promise.all([
-          offerRepo.findByUserId(user.uid),
-          productRepo.findAll(user.uid),
-        ]);
-
+        const rawProducts = await productRepo.findAll(user.uid);
         const prodMap = new Map(rawProducts.map((p) => [p.id, p]));
 
         const linkResolver = AffiliateLinkResolver.getInstance();
         const sourceOfTruth = SourceOfTruthService.getInstance();
 
-        const resultPromises = rawOffers.map(async (rawOff) => {
+        const resultPromises = pagination.items.map(async (rawOff) => {
           const associatedProd = rawOff.productId ? prodMap.get(rawOff.productId) : null;
           const title = associatedProd?.title || 'Oferta sem título';
           const priceVal = associatedProd?.currentPrice?.amount || 0;
@@ -121,8 +136,8 @@ export default function OfertasLibraryPage() {
       }
     }
 
-    loadOrganizedOffers();
-  }, [user]);
+    organizePageOffers();
+  }, [user, pagination.items]);
 
   const handleUpdateOrganization = (offerId: string, updatedOrg: SmartOrganizationResult) => {
     setOffersData((prev) =>
@@ -309,6 +324,19 @@ export default function OfertasLibraryPage() {
           </div>
         ))}
       </div>
+
+      {/* ── Pagination Controls ──────────────────────────────────────────────── */}
+      <PaginationControls
+        currentPage={pagination.currentPage}
+        pageSize={pagination.pageSize}
+        onPageSizeChange={pagination.changePageSize}
+        hasMore={pagination.hasMore}
+        onNext={pagination.nextPage}
+        onPrev={pagination.prevPage}
+        isFirstPage={pagination.isFirstPage}
+        loading={pagination.loading}
+        totalDisplayed={filteredOffers.length}
+      />
 
       {/* Modal Mobile Share Sheet */}
       {selectedOfferForMobile && (
