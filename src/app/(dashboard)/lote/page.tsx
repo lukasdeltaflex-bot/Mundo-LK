@@ -8,6 +8,9 @@ import { Layers, Play, Pause, XCircle, CheckCircle2, AlertCircle, Loader2 } from
 import { BatchImportService, BatchItem } from '@/infrastructure/queue/batch-import.service';
 
 import { ImportEngine } from '../operacao/services/ImportEngine';
+import { PublishingService } from '../operacao/services/PublishingService';
+import { ChannelContent } from '@/core/domain/value-objects/channel-content.vo';
+import { OfferProps } from '@/core/domain/entities/offer.entity';
 import { useAuth } from '@/presentation/context/AuthContext';
 
 export default function LotePage() {
@@ -30,6 +33,7 @@ export default function LotePage() {
 
     if (!user?.uid) return;
     const activeUid = user.uid;
+    const publishingService = new PublishingService();
 
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
@@ -39,7 +43,33 @@ export default function LotePage() {
 
       try {
         const result = await new ImportEngine().resolveProduct(item.url);
-        if (result && result.data) {
+        if (result && result.data && result.data.title) {
+          // Prepara cópias e propriedades da oferta para salvar via PublishingService
+          const priceStr = result.data.currentPrice ? `R$ ${result.data.currentPrice.toFixed(2)}` : 'R$ 0,00';
+          const urlStr = result.data.originalUrl || result.data.canonicalUrl || item.url;
+          const defaultCopy = `🔥 *${result.data.title}*\n\n💰 Por apenas *${priceStr}*\n\n👉 Confira no link oficial:\n${urlStr}`;
+
+          const channelContent = ChannelContent.create({
+            whatsAppText: defaultCopy,
+            telegramText: defaultCopy,
+            instagramText: defaultCopy,
+            facebookText: defaultCopy,
+          });
+
+          const offerProps: Partial<OfferProps> = {
+            copies: channelContent,
+            scoreValue: 90,
+            scoreLabel: 'EXCELLENT' as any,
+            scoreJustification: 'Oferta cadastrada com sucesso via Importação em Lote',
+            hashtags: ['#Oferta', '#Desconto', '#MundoLK'],
+            emojis: ['🔥', '⚡'],
+            cta: '👉 Clique no link oficial e garanta a sua!',
+            aiProviderUsed: 'ImportEngine Batch',
+          };
+
+          // Grava o Product (com Product Matching Waterfall) e a Offer no Firestore
+          await publishingService.saveProductAndOffer(result.data, offerProps, activeUid);
+
           setQueue((prev) =>
             prev.map((i) =>
               i.id === item.id
@@ -60,7 +90,7 @@ export default function LotePage() {
                     ...i,
                     status: 'FAILED',
                     progress: 100,
-                    error: result.reviewReason || 'Falha ao extrair dados do produto',
+                    error: result?.reviewReason || 'Falha ao extrair dados do produto',
                   }
                 : i
             )
