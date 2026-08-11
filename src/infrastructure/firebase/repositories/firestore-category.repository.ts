@@ -157,15 +157,15 @@ export class FirestoreCategoryRepository implements ICategoryRepository {
     return new ManagedCategory({
       id: doc.id,
       userId: doc.userId,
-      name: doc.name,
-      slug: doc.slug,
-      description: doc.description,
-      parentCategoryId: doc.parentCategoryId,
+      name: doc.name || 'Sem nome',
+      slug: doc.slug || ManagedCategory.slugify(doc.name || 'cat'),
+      description: doc.description || '',
+      parentCategoryId: doc.parentCategoryId ?? null,
       active: doc.active ?? true,
       iconName: doc.iconName || 'Tag',
       productCount: doc.productCount || 0,
-      createdAt: new Date(doc.createdAt),
-      updatedAt: new Date(doc.updatedAt),
+      createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
+      updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date(),
     });
   }
 
@@ -175,15 +175,15 @@ export class FirestoreCategoryRepository implements ICategoryRepository {
       id: entity.id,
       userId: activeUid,
       tenantId: activeUid,
-      name: entity.name,
-      slug: entity.slug,
-      description: entity.description,
-      parentCategoryId: entity.parentCategoryId,
-      active: entity.active,
-      iconName: entity.iconName,
-      productCount: entity.productCount,
-      createdAt: entity.createdAt.toISOString(),
-      updatedAt: entity.updatedAt.toISOString(),
+      name: entity.name || '',
+      slug: entity.slug || ManagedCategory.slugify(entity.name || 'cat'),
+      description: entity.description || '',
+      parentCategoryId: entity.parentCategoryId ?? null,
+      active: entity.active ?? true,
+      iconName: entity.iconName || 'Tag',
+      productCount: entity.productCount ?? 0,
+      createdAt: (entity.createdAt || new Date()).toISOString(),
+      updatedAt: (entity.updatedAt || new Date()).toISOString(),
     };
   }
 }

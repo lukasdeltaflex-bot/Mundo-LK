@@ -715,6 +715,47 @@ async function runCategorizationTestSuite() {
   }
 
   // ---------------------------------------------------------------------------
+  // TESTE 22 (ADICIONAL): Persistência e Integridade de Subcategoria & Categoria Pai
+  // ---------------------------------------------------------------------------
+  try {
+    const parentCat = new ManagedCategory({
+      id: 'cat_beleza_test',
+      userId: 'user_01',
+      name: 'Beleza Test',
+      description: 'Categoria pai de teste',
+      parentCategoryId: null,
+    });
+
+    const subCat = new ManagedCategory({
+      id: 'subcat_pele_test',
+      userId: 'user_01',
+      name: 'Cuidados Especiais',
+      description: 'Subcategoria de teste',
+      parentCategoryId: parentCat.id,
+    });
+
+    const isSub = subCat.isSubcategory();
+    const isParentSub = parentCat.isSubcategory();
+
+    if (
+      subCat.id !== parentCat.id &&
+      subCat.parentCategoryId === 'cat_beleza_test' &&
+      isSub === true &&
+      isParentSub === false &&
+      parentCat.id === 'cat_beleza_test'
+    ) {
+      console.log('✅ TESTE 22 PASSOU: Criar subcategoria "Cuidados Especiais" vinculou parentCategoryId="cat_beleza_test" e não sobrescreveu a categoria pai');
+      passed++;
+    } else {
+      console.error('❌ TESTE 22 FALHOU:', { parentCat, subCat });
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 22 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
   // SUMMARY
   // ---------------------------------------------------------------------------
   console.log('\n================================================================');

@@ -68,7 +68,24 @@ export function CategoryManagementTab({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !user?.uid) return;
+    if (!name.trim() || !user?.uid || saving) return;
+
+    const trimmedName = name.trim();
+    const targetParentId = parentCategoryId || null;
+
+    // Check for duplicate category/subcategory name under the same parent
+    const isDuplicate = categories.some(
+      (c) =>
+        (!editingCategory || c.id !== editingCategory.id) &&
+        (c.parentCategoryId ?? null) === targetParentId &&
+        c.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      alert(`Já existe uma ${targetParentId ? 'subcategoria' : 'categoria'} com o nome "${trimmedName}".`);
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -76,9 +93,9 @@ export function CategoryManagementTab({
 
       if (editingCategory) {
         editingCategory.updateInfo({
-          name: name.trim(),
+          name: trimmedName,
           description: description.trim(),
-          parentCategoryId: parentCategoryId || null,
+          parentCategoryId: targetParentId,
           active,
         });
         await repo.save(editingCategory);
@@ -86,9 +103,9 @@ export function CategoryManagementTab({
         const newCat = new ManagedCategory({
           id: `cat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           userId: user.uid,
-          name: name.trim(),
+          name: trimmedName,
           description: description.trim(),
-          parentCategoryId: parentCategoryId || null,
+          parentCategoryId: targetParentId,
           active,
         });
         await repo.save(newCat);
@@ -97,7 +114,8 @@ export function CategoryManagementTab({
       setModalOpen(false);
       onRefresh();
     } catch (err) {
-      console.error('Erro ao salvar categoria:', err);
+      console.error('[CategoryManagementTab] Erro ao salvar categoria/subcategoria:', err);
+      alert('Ocorreu um erro ao salvar a categoria no Firestore. Por favor, tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -140,7 +158,12 @@ export function CategoryManagementTab({
       {/* Category Tree Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {parentCategories.map((parent) => {
-          const subCats = categories.filter((c) => c.parentCategoryId === parent.id);
+          const subCats = categories.filter(
+            (c) =>
+              c.parentCategoryId === parent.id ||
+              (parent.slug && c.parentCategoryId === parent.slug) ||
+              (parent.name && c.parentCategoryId === parent.name)
+          );
           const count = categoryCounts[parent.id] || categoryCounts[parent.name] || 0;
 
           return (
