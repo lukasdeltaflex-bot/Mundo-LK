@@ -1,6 +1,7 @@
 import { Price, DiscountPercentage, AffiliateLink } from '../value-objects';
 
 export type ProductStatus = 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
+export type CategorySource = 'AI' | 'MANUAL' | 'IMPORT' | 'SYSTEM' | 'LEARNED';
 
 export interface DispatchRecord {
   id: string;
@@ -35,6 +36,14 @@ export interface ProductProps {
   images: string[];
   status: ProductStatus;
 
+  // Categorization Engine Fields
+  subcategoryId?: string | null;
+  categorySource?: CategorySource | null;
+  categoryConfidence?: number | null;
+  categoryLocked?: boolean;
+  categoryUpdatedAt?: Date | null;
+  categoryReasoning?: string | null;
+
   // Dispatch & Campaign Tracking Fields
   dispatchCount?: number;
   firstDispatchedAt?: Date | null;
@@ -47,7 +56,7 @@ export interface ProductProps {
 }
 
 /**
- * Pure Domain Entity representing an Affiliate Product with Campaign Dispatch Control.
+ * Pure Domain Entity representing an Affiliate Product with Campaign Dispatch Control & Hybrid Categorization Engine.
  */
 export class Product {
   public readonly id: string;
@@ -64,6 +73,14 @@ export class Product {
   public discountPercentage: DiscountPercentage;
   public images: string[];
   public status: ProductStatus;
+
+  // Categorization State
+  public subcategoryId: string | null;
+  public categorySource: CategorySource | null;
+  public categoryConfidence: number | null;
+  public categoryLocked: boolean;
+  public categoryUpdatedAt: Date | null;
+  public categoryReasoning: string | null;
 
   // Dispatch Tracking State
   public dispatchCount: number;
@@ -91,6 +108,13 @@ export class Product {
     this.images = props.images;
     this.status = props.status;
 
+    this.subcategoryId = props.subcategoryId || null;
+    this.categorySource = props.categorySource || null;
+    this.categoryConfidence = props.categoryConfidence ?? null;
+    this.categoryLocked = props.categoryLocked ?? false;
+    this.categoryUpdatedAt = props.categoryUpdatedAt || null;
+    this.categoryReasoning = props.categoryReasoning || null;
+
     this.dispatchCount = props.dispatchCount ?? 0;
     this.firstDispatchedAt = props.firstDispatchedAt ?? null;
     this.lastDispatchedAt = props.lastDispatchedAt ?? null;
@@ -99,6 +123,34 @@ export class Product {
 
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
+  }
+
+  public updateCategory(params: {
+    categoryId: string | null;
+    subcategoryId?: string | null;
+    source: CategorySource;
+    confidence?: number | null;
+    locked?: boolean;
+    reasoning?: string | null;
+  }): boolean {
+    // MANUAL LOCKED precedence safeguard
+    if (this.categoryLocked && params.source !== 'MANUAL') {
+      return false; // Ignored as locked by manual user assignment
+    }
+
+    this.categoryId = params.categoryId || '';
+    this.subcategoryId = params.subcategoryId || null;
+    this.categorySource = params.source;
+    this.categoryConfidence = params.confidence ?? null;
+    if (params.locked !== undefined) {
+      this.categoryLocked = params.locked;
+    }
+    this.categoryUpdatedAt = new Date();
+    if (params.reasoning !== undefined) {
+      this.categoryReasoning = params.reasoning;
+    }
+    this.updatedAt = new Date();
+    return true;
   }
 
   public updatePrice(newPrice: Price): void {

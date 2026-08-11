@@ -1,4 +1,4 @@
-import { Product, DispatchRecord } from '../../../core/domain/entities/product.entity';
+import { Product, DispatchRecord, CategorySource } from '../../../core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '../../../core/domain/value-objects';
 
 export interface FirestoreProductDoc {
@@ -18,6 +18,14 @@ export interface FirestoreProductDoc {
   status: 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
   publicationCount?: number;
   opportunityScore?: number;
+
+  // Categorization Persistence Fields
+  subcategoryId?: string | null;
+  categorySource?: CategorySource | null;
+  categoryConfidence?: number | null;
+  categoryLocked?: boolean;
+  categoryUpdatedAt?: string | null;
+  categoryReasoning?: string | null;
 
   // Dispatch Tracking Persistence Fields
   dispatchCount?: number;
@@ -53,6 +61,13 @@ export class ProductMapper {
       images: doc.images || [],
       status: doc.status,
 
+      subcategoryId: doc.subcategoryId || null,
+      categorySource: doc.categorySource || null,
+      categoryConfidence: doc.categoryConfidence ?? null,
+      categoryLocked: doc.categoryLocked ?? false,
+      categoryUpdatedAt: doc.categoryUpdatedAt ? new Date(doc.categoryUpdatedAt) : null,
+      categoryReasoning: doc.categoryReasoning || null,
+
       dispatchCount: doc.dispatchCount ?? 0,
       firstDispatchedAt: doc.firstDispatchedAt ? new Date(doc.firstDispatchedAt) : null,
       lastDispatchedAt: doc.lastDispatchedAt ? new Date(doc.lastDispatchedAt) : null,
@@ -80,6 +95,13 @@ export class ProductMapper {
       discountPercentage: entity.discountPercentage.value,
       images: entity.images,
       status: entity.status,
+
+      subcategoryId: entity.subcategoryId || null,
+      categorySource: entity.categorySource || null,
+      categoryConfidence: entity.categoryConfidence ?? null,
+      categoryLocked: entity.categoryLocked ?? false,
+      categoryUpdatedAt: entity.categoryUpdatedAt ? entity.categoryUpdatedAt.toISOString() : null,
+      categoryReasoning: entity.categoryReasoning || null,
 
       dispatchCount: entity.dispatchCount || 0,
       firstDispatchedAt: entity.firstDispatchedAt ? entity.firstDispatchedAt.toISOString() : null,

@@ -15,8 +15,15 @@ import {
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
-import { Product, DispatchRecord, DispatchStatus } from '@/core/domain/entities/product.entity';
+import { Product, DispatchRecord, DispatchStatus, CategorySource } from '@/core/domain/entities/product.entity';
 import { Offer } from '@/core/domain/entities/offer.entity';
+import { ManagedCategory } from '@/core/domain/entities/managed-category.entity';
+import { FirestoreCategoryRepository } from '@/infrastructure/firebase/repositories/firestore-category.repository';
+import { FirestoreCategoryPreferenceRepository } from '@/infrastructure/firebase/repositories/firestore-category-preference.repository';
+import { ProductCategorizationService } from '@/core/domain/services/ProductCategorizationService';
+import { CategorySelectorModal } from '@/presentation/components/business/CategorySelectorModal';
+import { BulkCategoryModal } from '@/presentation/components/business/BulkCategoryModal';
+import { CategoryManagementTab } from '@/presentation/components/business/CategoryManagementTab';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
 import { SocialShareModal, SocialShareData } from '@/presentation/components/business/SocialShareModal';
@@ -307,6 +314,80 @@ export default function ProdutosPage() {
     loadProducts();
   }, [user]);
 
+  // ── Categorization State (Fase 4) ──────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'catalogo' | 'categorias'>('catalogo');
+  const [categories, setCategories] = useState<ManagedCategory[]>([]);
+  const [categoryModalProduct, setCategoryModalProduct] = useState<Product | null>(null);
+  const [isBulkCategoryModalOpen, setIsBulkCategoryModalOpen] = useState<boolean>(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [categorizingWithAI, setCategorizingWithAI] = useState<boolean>(false);
+  const [selectedCategorySourceFilter, setSelectedCategorySourceFilter] = useState<string>('TODOS');
+
+  const loadCategories = async () => {
+    if (!user?.uid) return;
+    try {
+      const categoryRepo = new FirestoreCategoryRepository();
+      let list = await categoryRepo.findAll(user.uid);
+      if (list.length === 0) {
+        list = await categoryRepo.seedDefaultsIfEmpty(user.uid);
+      }
+      setCategories(list);
+    } catch (err) {
+      console.warn('Erro ao carregar categorias:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, [user]);
+
+  const handleRunAICategorizationForUncategorized = async () => {
+    if (!user?.uid || categories.length === 0) return;
+    setCategorizingWithAI(true);
+    try {
+      const service = new ProductCategorizationService();
+      const productRepo = new FirestoreProductRepository();
+      const prefRepo = new FirestoreCategoryPreferenceRepository();
+
+      const preferences = await prefRepo.findByUserId(user.uid);
+      const uncategorized = products.filter((p) => !p.categoryId || p.categoryId === 'Geral' || p.categorySource === 'SYSTEM');
+
+      let updatedCount = 0;
+      for (const product of uncategorized) {
+        const result = await service.classifyProduct(product, categories, preferences);
+        if (result.categoryId && result.source !== 'SYSTEM') {
+          product.updateCategory({
+            categoryId: result.categoryId,
+            subcategoryId: result.subcategoryId,
+            source: result.source as CategorySource,
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+          });
+          await productRepo.save(product);
+          updatedCount++;
+        }
+      }
+
+      await loadProducts();
+      setSuccessMsg(`Categorização por IA concluída! ${updatedCount} produtos categorizados.`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Erro na categorização por IA:', err);
+    } finally {
+      setCategorizingWithAI(false);
+    }
+  };
+
+  const realCategoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      if (p.categoryId) {
+        counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [products]);
+
   const handleCopyLink = (id: string, url: string) => {
     navigator.clipboard.writeText(url);
     setCopiedId(id);
@@ -440,6 +521,12 @@ export default function ProdutosPage() {
           return false;
         }
       }
+      // 6. Category Source / Lock Filter
+      if (selectedCategorySourceFilter === 'LOCKED') {
+        if (!p.categoryLocked) return false;
+      } else if (selectedCategorySourceFilter !== 'TODOS') {
+        if (p.categorySource !== selectedCategorySourceFilter) return false;
+      }
       return true;
     }).sort((a, b) => {
       if (sortOption === 'nunca_enviada') {
@@ -470,7 +557,7 @@ export default function ProdutosPage() {
       }
       return 0;
     });
-  }, [products, selectedMarketplace, selectedCategory, selectedDispatchFilter, searchQuery, onlyPromotions, sortOption]);
+  }, [products, selectedMarketplace, selectedCategory, selectedDispatchFilter, selectedCategorySourceFilter, searchQuery, onlyPromotions, sortOption]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
@@ -496,6 +583,17 @@ export default function ProdutosPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="text-xs border-purple-500/30 text-purple-300 hover:bg-purple-500/10"
+            leftIcon={<Sparkles className={`h-3.5 w-3.5 ${categorizingWithAI ? 'animate-spin' : ''}`} />}
+            onClick={handleRunAICategorizationForUncategorized}
+            disabled={categorizingWithAI}
+          >
+            {categorizingWithAI ? 'Categorizando com IA...' : 'Categorizar com IA'}
+          </Button>
+
           <Link href="/dashboard">
             <Button size="sm" variant="primary" className="text-xs shadow-lg shadow-blue-600/20" leftIcon={<Plus className="h-3.5 w-3.5" />}>
               Novo Produto
@@ -507,6 +605,37 @@ export default function ProdutosPage() {
             </Button>
           </Link>
         </div>
+      </div>
+
+      {/* Sub-Navigation Tabs Bar (Catálogo vs Central de Categorias) */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+        <button
+          onClick={() => setActiveTab('catalogo')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === 'catalogo'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+              : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <ShoppingBag className="h-3.5 w-3.5" />
+          <span>Catálogo & Ofertas</span>
+          <span className="rounded-full bg-slate-950/60 px-2 py-0.5 text-[10px]">{products.length}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('categorias')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === 'categorias'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+              : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <Tag className="h-3.5 w-3.5" />
+          <span>Central de Categorias</span>
+          <span className="rounded-full bg-slate-950/60 px-2 py-0.5 text-[10px]">
+            {categories.filter((c) => !c.parentCategoryId).length}
+          </span>
+        </button>
       </div>
 
       {/* Success Notification */}
@@ -558,31 +687,83 @@ export default function ProdutosPage() {
         </div>
       </div>
 
-      {/* ── Search, Filters & View Control Bar ─────────────────────────────── */}
-      <div className="space-y-3">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 shadow-md">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              placeholder="Buscar oferta por nome, marca, categoria ou ID..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/80 transition"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+      {/* ── Tab View Switcher (Categorias vs Catálogo) ───────────────────────── */}
+      {activeTab === 'categorias' ? (
+        <CategoryManagementTab categories={categories} products={products} onRefresh={loadProducts} />
+      ) : (
+        <div className="space-y-6">
+          {/* ── Real Firestore Derived Category Counters Tab Bar ───────────────── */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => { setSelectedCategory('TODAS'); setCurrentPage(1); }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                selectedCategory === 'TODAS'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/80'
+              }`}
+            >
+              <span>Todos</span>
+              <span className="rounded-full bg-slate-950/60 px-1.5 py-0.5 text-[10px]">{products.length}</span>
+            </button>
+            {categories
+              .filter((c) => !c.parentCategoryId && c.active)
+              .map((cat) => {
+                const count = realCategoryCounts[cat.name] || realCategoryCounts[cat.id] || 0;
+                const isSelected = selectedCategory === cat.name || selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => { setSelectedCategory(cat.name); setCurrentPage(1); }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/80'
+                    }`}
+                  >
+                    <span>{cat.name}</span>
+                    <span className="rounded-full bg-slate-950/60 px-1.5 py-0.5 text-[10px]">{count}</span>
+                  </button>
+                );
+              })}
           </div>
 
-          {/* Quick Filters */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* ── Search, Filters & View Control Bar ─────────────────────────────── */}
+          <div className="space-y-3">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 shadow-md">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                  placeholder="Buscar oferta por nome, marca, categoria ou ID..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/80 transition"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Filters */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Category Source & Lock Filter */}
+                <select
+                  value={selectedCategorySourceFilter}
+                  onChange={(e) => { setSelectedCategorySourceFilter(e.target.value); setCurrentPage(1); }}
+                  className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-slate-300 focus:outline-none focus:border-blue-500 cursor-pointer"
+                >
+                  <option value="TODOS">Todas as Origens IA/Manual</option>
+                  <option value="AI">🤖 Classificado por IA</option>
+                  <option value="MANUAL">👤 Definição Manual</option>
+                  <option value="LEARNED">🧠 Aprendido por Memória</option>
+                  <option value="LOCKED">🔒 Bloqueado contra IA</option>
+                </select>
             {/* Sort Selector */}
             <div className="relative flex items-center">
               <ArrowUpDown className="absolute left-3 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
@@ -756,8 +937,31 @@ export default function ProdutosPage() {
                   </h3>
 
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span className="truncate">{p.brand || p.categoryId || 'Geral'}</span>
-                    <span>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('pt-BR') : ''}</span>
+                    <span className="truncate">{p.brand || 'Geral'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryModalProduct(p)}
+                      className="hover:scale-105 transition"
+                      title="Clique para editar a categoria deste produto"
+                    >
+                      {p.categorySource === 'AI' ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
+                          🤖 {p.categoryId || 'Sem Categoria'} {p.categoryConfidence ? `${Math.round(p.categoryConfidence * 100)}%` : ''}
+                        </span>
+                      ) : p.categorySource === 'MANUAL' ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 text-[9px] font-bold text-purple-400">
+                          👤 {p.categoryId || 'Sem Categoria'} {p.categoryLocked ? '🔒' : ''}
+                        </span>
+                      ) : p.categorySource === 'LEARNED' ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                          🧠 {p.categoryId || 'Sem Categoria'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-1.5 py-0.5 text-[9px] font-medium text-slate-400">
+                          🏷️ {p.categoryId || 'Sem Categoria'}
+                        </span>
+                      )}
+                    </button>
                   </div>
 
                   {/* Price Section */}
@@ -874,6 +1078,7 @@ export default function ProdutosPage() {
               <thead className="bg-slate-950 border-b border-slate-800 text-[11px] uppercase font-bold text-slate-400">
                 <tr>
                   <th className="py-3.5 px-4">Oferta / Produto</th>
+                  <th className="py-3.5 px-4">Categoria / Subcategoria</th>
                   <th className="py-3.5 px-4">Marketplace</th>
                   <th className="py-3.5 px-4">Preço</th>
                   <th className="py-3.5 px-4">Semáforo de Envio</th>
@@ -908,6 +1113,32 @@ export default function ProdutosPage() {
                             <span className="text-[10px] text-slate-400">{p.brand || 'Sem marca'}</span>
                           </div>
                         </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <button
+                          type="button"
+                          onClick={() => setCategoryModalProduct(p)}
+                          className="hover:scale-105 transition"
+                          title="Clique para editar a categoria"
+                        >
+                          {p.categorySource === 'AI' ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 text-[10px] font-bold text-blue-400">
+                              🤖 {p.categoryId || 'Sem Categoria'} {p.categoryConfidence ? `· ${Math.round(p.categoryConfidence * 100)}%` : ''}
+                            </span>
+                          ) : p.categorySource === 'MANUAL' ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 text-[10px] font-bold text-purple-400">
+                              👤 {p.categoryId || 'Sem Categoria'} {p.categoryLocked ? '🔒' : ''}
+                            </span>
+                          ) : p.categorySource === 'LEARNED' ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                              🧠 {p.categoryId || 'Sem Categoria'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                              🏷️ {p.categoryId || 'Sem Categoria'}
+                            </span>
+                          )}
+                        </button>
                       </td>
                       <td className="py-3 px-4">
                         <MarketplaceBadge marketplaceSlug={p.marketplaceSlug} />
@@ -1270,6 +1501,34 @@ export default function ProdutosPage() {
       {shareModalData && (
         <SocialShareModal data={shareModalData} onClose={() => setShareModalData(null)} />
       )}
+        </div>
+      )}
+
+      {/* ── Categorization Modals ────────────────────────────────────────────── */}
+      <CategorySelectorModal
+        product={categoryModalProduct}
+        categories={categories}
+        isOpen={Boolean(categoryModalProduct)}
+        onClose={() => setCategoryModalProduct(null)}
+        onSuccess={(updated) => {
+          setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+          setSuccessMsg(`Categoria do produto "${updated.title}" atualizada com sucesso!`);
+          setTimeout(() => setSuccessMsg(null), 3000);
+        }}
+      />
+
+      <BulkCategoryModal
+        selectedProducts={products.filter((p) => selectedProductIds.includes(p.id))}
+        categories={categories}
+        isOpen={isBulkCategoryModalOpen}
+        onClose={() => setIsBulkCategoryModalOpen(false)}
+        onSuccess={(count) => {
+          setSuccessMsg(`Categoria atualizada com sucesso para ${count} produtos!`);
+          loadProducts();
+          setSelectedProductIds([]);
+          setTimeout(() => setSuccessMsg(null), 3000);
+        }}
+      />
     </div>
   );
 }
