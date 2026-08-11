@@ -10,7 +10,7 @@ import {
   ShoppingBag, Plus, Layers, Sparkles, Trash2, X, AlertTriangle, CheckCircle2,
   Search, LayoutGrid, List, Filter, Copy, ExternalLink, RefreshCw, ChevronLeft, ChevronRight,
   TrendingDown, Tag, Clock, ArrowUpDown, Image as ImageIcon, Check, Send, History, AlertCircle,
-  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2
+  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2, ChevronDown, Lock, Unlock
 } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
@@ -23,6 +23,7 @@ import { FirestoreCategoryPreferenceRepository } from '@/infrastructure/firebase
 import { ProductCategorizationService } from '@/core/domain/services/ProductCategorizationService';
 import { CategorySelectorModal } from '@/presentation/components/business/CategorySelectorModal';
 import { BulkCategoryModal } from '@/presentation/components/business/BulkCategoryModal';
+import { BulkDeleteModal } from '@/presentation/components/business/BulkDeleteModal';
 import { CategoryManagementTab } from '@/presentation/components/business/CategoryManagementTab';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
@@ -319,9 +320,113 @@ export default function ProdutosPage() {
   const [categories, setCategories] = useState<ManagedCategory[]>([]);
   const [categoryModalProduct, setCategoryModalProduct] = useState<Product | null>(null);
   const [isBulkCategoryModalOpen, setIsBulkCategoryModalOpen] = useState<boolean>(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState<boolean>(false);
+  const [isMoreActionsMenuOpen, setIsMoreActionsMenuOpen] = useState<boolean>(false);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [categorizingWithAI, setCategorizingWithAI] = useState<boolean>(false);
   const [selectedCategorySourceFilter, setSelectedCategorySourceFilter] = useState<string>('TODOS');
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllVisible = (visibleProducts: Product[]) => {
+    const visibleIds = visibleProducts.map((p) => p.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedProductIds.includes(id));
+
+    if (allSelected) {
+      setSelectedProductIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    } else {
+      setSelectedProductIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const handleRunAICategorizationForSelected = async () => {
+    if (!user?.uid || categories.length === 0 || selectedProductIds.length === 0) return;
+    setCategorizingWithAI(true);
+    try {
+      const selectedProds = products.filter((p) => selectedProductIds.includes(p.id));
+      const lockedProds = selectedProds.filter((p) => p.categoryLocked);
+      const eligibleProds = selectedProds.filter((p) => !p.categoryLocked);
+
+      if (eligibleProds.length === 0) {
+        setSuccessMsg(
+          `Todos os ${selectedProds.length} produtos selecionados estão bloqueados contra alterações da IA.`
+        );
+        setTimeout(() => setSuccessMsg(null), 4000);
+        return;
+      }
+
+      const service = new ProductCategorizationService();
+      const productRepo = new FirestoreProductRepository();
+      const prefRepo = new FirestoreCategoryPreferenceRepository();
+
+      const preferences = await prefRepo.findByUserId(user.uid);
+      let updatedCount = 0;
+
+      for (const product of eligibleProds) {
+        const result = await service.classifyProduct(product, categories, preferences);
+        if (result.categoryId && result.source !== 'SYSTEM') {
+          product.updateCategory({
+            categoryId: result.categoryId,
+            subcategoryId: result.subcategoryId,
+            source: result.source as CategorySource,
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+          });
+          await productRepo.save(product);
+          updatedCount++;
+        }
+      }
+
+      await loadProducts();
+      setSuccessMsg(
+        `IA analisou ${eligibleProds.length} produtos (${updatedCount} atualizados). ${lockedProds.length} ignorados por estarem bloqueados.`
+      );
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Erro na categorização por IA dos selecionados:', err);
+    } finally {
+      setCategorizingWithAI(false);
+      setIsMoreActionsMenuOpen(false);
+    }
+  };
+
+  const handleBulkSetLock = async (locked: boolean) => {
+    if (selectedProductIds.length === 0 || !user?.uid) return;
+    setProcessing(true);
+    try {
+      const selectedProds = products.filter((p) => selectedProductIds.includes(p.id));
+      selectedProds.forEach((p) => {
+        p.updateCategory({
+          categoryId: p.categoryId,
+          subcategoryId: p.subcategoryId,
+          source: 'MANUAL',
+          confidence: p.categoryConfidence,
+          locked,
+          reasoning: locked
+            ? 'Bloqueado manualmente em massa pelo usuário.'
+            : 'Desbloqueado manualmente em massa pelo usuário.',
+        });
+      });
+
+      const repo = new FirestoreProductRepository();
+      await repo.updateCategoryBatch(selectedProds);
+
+      setSuccessMsg(
+        `${selectedProds.length} produtos ${locked ? 'bloqueados' : 'desbloqueados'} com sucesso!`
+      );
+      setSelectedProductIds([]);
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err) {
+      console.error('Erro ao alterar trava em massa:', err);
+    } finally {
+      setProcessing(false);
+      setIsMoreActionsMenuOpen(false);
+    }
+  };
 
   const loadCategories = async () => {
     if (!user?.uid) return;
@@ -687,11 +792,105 @@ export default function ProdutosPage() {
         </div>
       </div>
 
-      {/* ── Tab View Switcher (Categorias vs Catálogo) ───────────────────────── */}
       {activeTab === 'categorias' ? (
         <CategoryManagementTab categories={categories} products={products} onRefresh={loadProducts} />
       ) : (
         <div className="space-y-6">
+          {/* ── Sticky / Floating Bulk Action Bar (Fase 4 Adendo) ────────────────── */}
+          {selectedProductIds.length > 0 && (
+            <div className="sticky top-4 z-40 flex flex-wrap items-center justify-between gap-3 bg-blue-950/90 border border-blue-500/40 p-3.5 rounded-2xl backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-md">
+                  {selectedProductIds.length}
+                </span>
+                <span className="text-xs font-bold text-blue-200">
+                  {selectedProductIds.length === 1 ? '1 produto selecionado' : `${selectedProductIds.length} produtos selecionados`}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Primary Action: Alterar Categoria */}
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="text-xs shadow-md shadow-blue-600/30"
+                  leftIcon={<Layers className="h-3.5 w-3.5" />}
+                  onClick={() => setIsBulkCategoryModalOpen(true)}
+                >
+                  Alterar Categoria
+                </Button>
+
+                {/* Primary Action: Excluir */}
+                <Button
+                  size="sm"
+                  variant="danger"
+                  className="text-xs shadow-md shadow-red-600/30"
+                  leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                  onClick={() => setIsBulkDeleteModalOpen(true)}
+                >
+                  Excluir
+                </Button>
+
+                {/* Dropdown: Mais Ações */}
+                <div className="relative">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="text-xs border-slate-700 text-slate-200"
+                    rightIcon={<ChevronDown className="h-3.5 w-3.5" />}
+                    onClick={() => setIsMoreActionsMenuOpen(!isMoreActionsMenuOpen)}
+                  >
+                    Mais ações
+                  </Button>
+
+                  {isMoreActionsMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-52 rounded-xl border border-slate-800 bg-slate-900 shadow-2xl p-1.5 z-50 text-xs text-slate-200 animate-in fade-in zoom-in-95 space-y-1">
+                      <button
+                        onClick={handleRunAICategorizationForSelected}
+                        disabled={categorizingWithAI}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 transition font-medium text-purple-300 text-left"
+                      >
+                        <Sparkles className={`h-3.5 w-3.5 text-purple-400 ${categorizingWithAI ? 'animate-spin' : ''}`} />
+                        <span>Categorizar com IA</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleBulkSetLock(true)}
+                        disabled={processing}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 transition font-medium text-amber-300 text-left"
+                      >
+                        <Lock className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Bloquear Categoria</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleBulkSetLock(false)}
+                        disabled={processing}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 transition font-medium text-emerald-300 text-left"
+                      >
+                        <Unlock className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>Desbloquear Categoria</span>
+                      </button>
+
+                      <div className="border-t border-slate-800 my-1"></div>
+
+                      <button
+                        onClick={() => {
+                          setSelectedProductIds([]);
+                          setIsMoreActionsMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 transition font-medium text-slate-400 hover:text-white text-left"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>Limpar seleção</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Real Firestore Derived Category Counters Tab Bar ───────────────── */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             <button
@@ -908,14 +1107,28 @@ export default function ProdutosPage() {
             return (
               <div
                 key={p.id}
-                className="group relative flex flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-900/90 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-500/10"
+                className={`group relative flex flex-col justify-between rounded-2xl border p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                  selectedProductIds.includes(p.id)
+                    ? 'border-blue-500 bg-blue-950/20 shadow-blue-500/10'
+                    : 'border-slate-800/80 bg-slate-900/90 hover:border-blue-500/40 hover:shadow-blue-500/10'
+                }`}
               >
                 {/* Image & Overlay Actions */}
                 <div className="relative mb-3">
+                  {/* Card Selection Checkbox */}
+                  <div className="absolute top-2 left-2 z-20">
+                    <input
+                      type="checkbox"
+                      checked={selectedProductIds.includes(p.id)}
+                      onChange={() => toggleSelectProduct(p.id)}
+                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-blue-500 cursor-pointer shadow"
+                    />
+                  </div>
+
                   <ProductImageThumbnail src={mainImg} title={p.title} />
 
                   {/* Badges Overlay */}
-                  <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                  <div className="absolute top-2 left-8 flex flex-col gap-1 items-start">
                     <MarketplaceBadge marketplaceSlug={p.marketplaceSlug} />
                     {hasDiscount && (
                       <span className="rounded-md bg-amber-500/90 px-2 py-0.5 text-[10px] font-extrabold text-slate-950 shadow">
@@ -1077,6 +1290,22 @@ export default function ProdutosPage() {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950 border-b border-slate-800 text-[11px] uppercase font-bold text-slate-400">
                 <tr>
+                  <th className="py-3.5 px-4 w-10">
+                    <input
+                      type="checkbox"
+                      checked={paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedProductIds.includes(p.id))}
+                      ref={(node) => {
+                        if (node) {
+                          const isAll = paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedProductIds.includes(p.id));
+                          const isSome = paginatedProducts.some((p) => selectedProductIds.includes(p.id)) && !isAll;
+                          node.indeterminate = isSome;
+                        }
+                      }}
+                      onChange={() => toggleSelectAllVisible(paginatedProducts)}
+                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                      title="Selecionar todos os produtos visíveis nesta página"
+                    />
+                  </th>
                   <th className="py-3.5 px-4">Oferta / Produto</th>
                   <th className="py-3.5 px-4">Categoria / Subcategoria</th>
                   <th className="py-3.5 px-4">Marketplace</th>
@@ -1096,7 +1325,15 @@ export default function ProdutosPage() {
                   const dispatchStatus = p.getDispatchStatus();
 
                   return (
-                    <tr key={p.id} className="hover:bg-slate-800/40 transition">
+                    <tr key={p.id} className={`transition ${selectedProductIds.includes(p.id) ? 'bg-blue-600/15' : 'hover:bg-slate-800/40'}`}>
+                      <td className="py-3 px-4 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.includes(p.id)}
+                          onChange={() => toggleSelectProduct(p.id)}
+                          className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-950 border border-slate-800">
@@ -1524,6 +1761,20 @@ export default function ProdutosPage() {
         onClose={() => setIsBulkCategoryModalOpen(false)}
         onSuccess={(count) => {
           setSuccessMsg(`Categoria atualizada com sucesso para ${count} produtos!`);
+          loadProducts();
+          setSelectedProductIds([]);
+          setTimeout(() => setSuccessMsg(null), 3000);
+        }}
+      />
+
+      <BulkDeleteModal
+        selectedProducts={products.filter((p) => selectedProductIds.includes(p.id))}
+        offersMap={offersMap}
+        userId={user?.uid || ''}
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => setIsBulkDeleteModalOpen(false)}
+        onSuccess={(count) => {
+          setSuccessMsg(`${count} produtos movidos para a Lixeira inteligente.`);
           loadProducts();
           setSelectedProductIds([]);
           setTimeout(() => setSuccessMsg(null), 3000);

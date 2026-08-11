@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, updateDoc, limit, startAfter, QueryDocumentSnapshot, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../config/firebase.config';
 import { IProductRepository } from '../../../core/domain/ports/repositories/IProductRepository';
 import { Product } from '../../../core/domain/entities/product.entity';
@@ -110,6 +110,61 @@ export class FirestoreProductRepository implements IProductRepository {
 
     const trashRef = doc(db, 'trash_products', id);
     await setDoc(trashRef, { id, productId: id, userId, reason, deletedAt }, { merge: true });
+  }
+
+  public async moveManyToTrash(ids: string[], reason: string, userId: string): Promise<void> {
+    if (ids.length === 0) return;
+    const deletedAt = new Date().toISOString();
+
+    // Process in chunks of 250 (max 500 ops per Firestore batch: 2 ops per product)
+    const chunkSize = 200;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+
+      chunk.forEach((id) => {
+        const prodRef = doc(db, this.collectionName, id);
+        batch.update(prodRef, {
+          status: 'TRASHED',
+          deletedAt,
+          deletedBy: userId,
+          deletionReason: reason,
+          updatedAt: deletedAt,
+        });
+
+        const trashRef = doc(db, 'trash_products', id);
+        batch.set(trashRef, { id, productId: id, userId, reason, deletedAt }, { merge: true });
+      });
+
+      await batch.commit();
+    }
+  }
+
+  public async updateCategoryBatch(products: Product[]): Promise<void> {
+    if (products.length === 0) return;
+    const chunkSize = 400; // max 500 ops per Firestore writeBatch
+
+    for (let i = 0; i < products.length; i += chunkSize) {
+      const chunk = products.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+
+      chunk.forEach((p) => {
+        const prodRef = doc(db, this.collectionName, p.id);
+        const raw = ProductMapper.toPersistence(p);
+        batch.update(prodRef, {
+          categoryId: raw.categoryId,
+          subcategoryId: raw.subcategoryId || null,
+          categorySource: raw.categorySource,
+          categoryConfidence: raw.categoryConfidence ?? null,
+          categoryLocked: raw.categoryLocked ?? false,
+          categoryUpdatedAt: raw.categoryUpdatedAt,
+          categoryReasoning: raw.categoryReasoning || null,
+          updatedAt: raw.updatedAt,
+        });
+      });
+
+      await batch.commit();
+    }
   }
 
   public async restoreFromTrash(id: string): Promise<void> {
