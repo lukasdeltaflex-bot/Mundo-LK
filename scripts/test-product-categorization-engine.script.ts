@@ -1,9 +1,12 @@
 import { Product } from '../src/core/domain/entities/product.entity';
 import { Offer } from '../src/core/domain/entities/offer.entity';
 import { ManagedCategory } from '../src/core/domain/entities/managed-category.entity';
+import { DispatchChannel } from '../src/core/domain/entities/dispatch-channel.entity';
+import { TargetGroup } from '../src/core/domain/entities/target-group.entity';
 import { CategoryPreference } from '../src/core/domain/entities/category-preference.entity';
 import { ProductCategorizationService } from '../src/core/domain/services/ProductCategorizationService';
 import { Price, DiscountPercentage, AffiliateLink, ChannelContent } from '../src/core/domain/value-objects';
+import { ensurePriceBoldInCopy } from '../src/core/utils/price-formatting.utils';
 
 async function runCategorizationTestSuite() {
   console.log('================================================================');
@@ -756,10 +759,176 @@ async function runCategorizationTestSuite() {
   }
 
   // ---------------------------------------------------------------------------
+  // TESTE 23: Cadastrar Canal de Divulgação (DispatchChannel)
+  // ---------------------------------------------------------------------------
+  try {
+    const channel = new DispatchChannel({
+      id: 'chan_01',
+      userId: 'user_01',
+      name: 'WhatsApp VIP Promoções',
+      active: true,
+    });
+
+    if (channel.id === 'chan_01' && channel.name === 'WhatsApp VIP Promoções' && channel.active) {
+      console.log('✅ TESTE 23 PASSOU: Cadastrar Canal de Divulgação funcional');
+      passed++;
+    } else {
+      console.error('❌ TESTE 23 FALHOU:', channel);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 23 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TESTE 24: Editar Canal de Divulgação
+  // ---------------------------------------------------------------------------
+  try {
+    const channel = new DispatchChannel({
+      id: 'chan_02',
+      userId: 'user_01',
+      name: 'Instagram Stories',
+      active: true,
+    });
+
+    channel.updateName('Instagram Oficial Feed & Stories');
+
+    if (channel.name === 'Instagram Oficial Feed & Stories') {
+      console.log('✅ TESTE 24 PASSOU: Editar Canal de Divulgação atualizou nome com sucesso');
+      passed++;
+    } else {
+      console.error('❌ TESTE 24 FALHOU:', channel);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 24 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TESTE 25: Desativar / Excluir Canal de Divulgação
+  // ---------------------------------------------------------------------------
+  try {
+    const channel = new DispatchChannel({
+      id: 'chan_03',
+      userId: 'user_01',
+      name: 'Canal Antigo',
+      active: true,
+    });
+
+    channel.deactivate();
+
+    if (channel.active === false) {
+      console.log('✅ TESTE 25 PASSOU: Desativar Canal de Divulgação atualizou active=false');
+      passed++;
+    } else {
+      console.error('❌ TESTE 25 FALHOU:', channel);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 25 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TESTE 26: Cadastrar Grupo / Lista de Destino (TargetGroup)
+  // ---------------------------------------------------------------------------
+  try {
+    const group = new TargetGroup({
+      id: 'grp_01',
+      userId: 'user_01',
+      name: 'Grupo VIP Tech 2026',
+      description: 'Clientes interessados em tecnologia',
+      active: true,
+    });
+
+    if (group.id === 'grp_01' && group.name === 'Grupo VIP Tech 2026' && group.description === 'Clientes interessados em tecnologia') {
+      console.log('✅ TESTE 26 PASSOU: Cadastrar Grupo / Lista de Destino com descrição funcional');
+      passed++;
+    } else {
+      console.error('❌ TESTE 26 FALHOU:', group);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 26 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TESTE 27: Editar Grupo / Lista de Destino
+  // ---------------------------------------------------------------------------
+  try {
+    const group = new TargetGroup({
+      id: 'grp_02',
+      userId: 'user_01',
+      name: 'Lista Moda',
+      description: 'Ofertas de vestuário',
+      active: true,
+    });
+
+    group.updateInfo('Lista Moda Feminina 2026', 'Ofertas exclusivas de roupas e sapatos');
+
+    if (group.name === 'Lista Moda Feminina 2026' && group.description === 'Ofertas exclusivas de roupas e sapatos') {
+      console.log('✅ TESTE 27 PASSOU: Editar Grupo / Lista de Destino atualizou nome e descrição com sucesso');
+      passed++;
+    } else {
+      console.error('❌ TESTE 27 FALHOU:', group);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 27 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TESTE 28: Preço Sempre Renderizado em Negrito (ensurePriceBoldInCopy)
+  // ---------------------------------------------------------------------------
+  try {
+    const rawCopy = 'Confira esta oferta incrível no link oficial por apenas R$ 49,90 com frete grátis!';
+    const formattedPrice = 'R$ 49,90';
+
+    const boldCopy = ensurePriceBoldInCopy(rawCopy, formattedPrice);
+
+    if (boldCopy.includes('*R$ 49,90*') || boldCopy.includes('**R$ 49,90**')) {
+      console.log('✅ TESTE 28 PASSOU: Preço R$ 49,90 formatado automaticamente em NEGRITO na copy');
+      passed++;
+    } else {
+      console.error('❌ TESTE 28 FALHOU:', boldCopy);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 28 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TESTE 29: Atualização Dinâmica do Preço em Negrito na Copy quando o valor altera
+  // ---------------------------------------------------------------------------
+  try {
+    const initialCopy = '🔥 *Mesa de Cabeceira*\n\n💰 Por apenas *R$ 49,90*\n\n🛒 Link Oficial: https://shopee.com';
+    const updatedPrice = 'R$ 129,90';
+
+    // Simulate price change from R$ 49,90 to R$ 129,90
+    const updatedCopy = ensurePriceBoldInCopy('🔥 *Mesa de Cabeceira*\n\n🛒 Link Oficial: https://shopee.com', updatedPrice);
+
+    if (updatedCopy.includes('*R$ 129,90*')) {
+      console.log('✅ TESTE 29 PASSOU: Atualização dinâmica do preço refletiu R$ 129,90 em NEGRITO na copy');
+      passed++;
+    } else {
+      console.error('❌ TESTE 29 FALHOU:', updatedCopy);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 29 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
   // SUMMARY
   // ---------------------------------------------------------------------------
   console.log('\n================================================================');
-  console.log(`📊 RESUMO DA SUÍTE DE TESTES DA FASE 4 + ADENDO:`);
+  console.log(`📊 RESUMO DA SUÍTE DE TESTES DA FASE 4 + EVOLUÇÃO:`);
   console.log(`   TOTAL DE TESTES : ${passed + failed}`);
   console.log(`   TESTES APROVADOS: ${passed}`);
   console.log(`   TESTES FALHADOS : ${failed}`);

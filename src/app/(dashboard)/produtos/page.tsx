@@ -10,7 +10,7 @@ import {
   ShoppingBag, Plus, Layers, Sparkles, Trash2, X, AlertTriangle, CheckCircle2,
   Search, LayoutGrid, List, Filter, Copy, ExternalLink, RefreshCw, ChevronLeft, ChevronRight,
   TrendingDown, Tag, Clock, ArrowUpDown, Image as ImageIcon, Check, Send, History, AlertCircle,
-  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2, ChevronDown, Lock, Unlock
+  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2, ChevronDown, Lock, Unlock, Settings
 } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
@@ -18,12 +18,17 @@ import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories
 import { Product, DispatchRecord, DispatchStatus, CategorySource } from '@/core/domain/entities/product.entity';
 import { Offer } from '@/core/domain/entities/offer.entity';
 import { ManagedCategory } from '@/core/domain/entities/managed-category.entity';
+import { DispatchChannel } from '@/core/domain/entities/dispatch-channel.entity';
+import { TargetGroup } from '@/core/domain/entities/target-group.entity';
 import { FirestoreCategoryRepository } from '@/infrastructure/firebase/repositories/firestore-category.repository';
 import { FirestoreCategoryPreferenceRepository } from '@/infrastructure/firebase/repositories/firestore-category-preference.repository';
+import { FirestoreDispatchChannelRepository } from '@/infrastructure/firebase/repositories/firestore-dispatch-channel.repository';
+import { FirestoreTargetGroupRepository } from '@/infrastructure/firebase/repositories/firestore-target-group.repository';
 import { ProductCategorizationService } from '@/core/domain/services/ProductCategorizationService';
 import { CategorySelectorModal } from '@/presentation/components/business/CategorySelectorModal';
 import { BulkCategoryModal } from '@/presentation/components/business/BulkCategoryModal';
 import { BulkDeleteModal } from '@/presentation/components/business/BulkDeleteModal';
+import { DispatchOptionsManagerModal } from '@/presentation/components/business/DispatchOptionsManagerModal';
 import { CategoryManagementTab } from '@/presentation/components/business/CategoryManagementTab';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
@@ -31,6 +36,7 @@ import { SocialShareModal, SocialShareData } from '@/presentation/components/bus
 import { PaginationControls } from '@/presentation/components/ui/PaginationControls';
 import { useFirestorePagination } from '@/presentation/hooks/useFirestorePagination';
 import { QueryDocumentSnapshot } from 'firebase/firestore';
+import { ensurePriceBoldInCopy } from '@/core/utils/price-formatting.utils';
 
 // ─── Image Fallback Component with Lazy Loading ──────────────────────────────
 
@@ -221,8 +227,12 @@ export default function ProdutosPage() {
     const savedTelegram = copies?.telegramText || savedWhatsApp;
     const savedInstagram = copies?.instagramText || savedWhatsApp;
     const savedFacebook = copies?.facebookText || savedWhatsApp;
-
     const fallbackCopy = `🔥 *${p.title}*\n\n💰 Por apenas *${formattedPrice}*${formattedOldPrice ? ` (De ${formattedOldPrice})` : ''}\n\n👉 Confira no link oficial:\n${affiliateUrl}`;
+
+    const rawWhatsApp = savedWhatsApp || fallbackCopy;
+    const rawTelegram = savedTelegram || savedWhatsApp || fallbackCopy;
+    const rawInstagram = savedInstagram || savedWhatsApp || fallbackCopy;
+    const rawFacebook = savedFacebook || savedWhatsApp || fallbackCopy;
 
     setShareModalData({
       title: p.title,
@@ -231,10 +241,10 @@ export default function ProdutosPage() {
       discountPercent,
       imageUrl,
       affiliateUrl,
-      whatsAppText: savedWhatsApp || fallbackCopy,
-      telegramText: savedTelegram || savedWhatsApp || fallbackCopy,
-      instagramText: savedInstagram || savedWhatsApp || fallbackCopy,
-      facebookText: savedFacebook || savedWhatsApp || fallbackCopy,
+      whatsAppText: ensurePriceBoldInCopy(rawWhatsApp, formattedPrice),
+      telegramText: ensurePriceBoldInCopy(rawTelegram, formattedPrice),
+      instagramText: ensurePriceBoldInCopy(rawInstagram, formattedPrice),
+      facebookText: ensurePriceBoldInCopy(rawFacebook, formattedPrice),
     });
   };
 
@@ -428,6 +438,29 @@ export default function ProdutosPage() {
     }
   };
 
+  // ── Dispatch Channels & Target Groups State ──────────────────────────────
+  const [dispatchChannels, setDispatchChannels] = useState<DispatchChannel[]>([]);
+  const [targetGroups, setTargetGroups] = useState<TargetGroup[]>([]);
+  const [isOptionsManagerOpen, setIsOptionsManagerOpen] = useState<boolean>(false);
+
+  const loadDispatchOptions = async () => {
+    if (!user?.uid) return;
+    try {
+      const chanRepo = new FirestoreDispatchChannelRepository();
+      const groupRepo = new FirestoreTargetGroupRepository();
+
+      const [chanList, groupList] = await Promise.all([
+        chanRepo.findAll(user.uid),
+        groupRepo.findAll(user.uid),
+      ]);
+
+      setDispatchChannels(chanList);
+      setTargetGroups(groupList);
+    } catch (err) {
+      console.warn('Erro ao carregar canais e grupos de envio:', err);
+    }
+  };
+
   const loadCategories = async () => {
     if (!user?.uid) return;
     try {
@@ -444,6 +477,7 @@ export default function ProdutosPage() {
 
   useEffect(() => {
     loadCategories();
+    loadDispatchOptions();
   }, [user]);
 
   const handleRunAICategorizationForUncategorized = async () => {
@@ -1519,32 +1553,56 @@ export default function ProdutosPage() {
 
               <form onSubmit={handleRecordDispatchSubmit} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300 block">Canal de Divulgação</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-300 block text-xs">Canal de Divulgação</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsOptionsManagerOpen(true)}
+                      className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition"
+                    >
+                      <Settings className="h-3 w-3" /> Gerenciar opções
+                    </button>
+                  </div>
                   <select
                     value={channel}
                     onChange={(e) => setChannel(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
                   >
-                    <option value="WhatsApp Promoções 01">WhatsApp Promoções 01</option>
-                    <option value="WhatsApp Achadinhos VIP">WhatsApp Achadinhos VIP</option>
-                    <option value="Telegram Ofertas Pro">Telegram Ofertas Pro</option>
-                    <option value="Instagram Feed / Stories">Instagram Feed / Stories</option>
-                    <option value="Facebook Grupos">Facebook Grupos</option>
-                    <option value="TikTok Shop / Vídeo">TikTok Shop / Vídeo</option>
-                    <option value="Outro Canal">Outro Canal</option>
+                    {dispatchChannels
+                      .filter((c) => c.active)
+                      .map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300 block">Grupo / Lista de Destino</label>
-                  <input
-                    type="text"
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-300 block text-xs">Grupo / Lista de Destino</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsOptionsManagerOpen(true)}
+                      className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition"
+                    >
+                      <Settings className="h-3 w-3" /> Gerenciar opções
+                    </button>
+                  </div>
+                  <select
                     value={targetGroup}
                     onChange={(e) => setTargetGroup(e.target.value)}
-                    placeholder="Ex: Grupo VIP #01, Canal Geral, Feed Principal"
-                    required
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                  />
+                  >
+                    <option value="">-- Selecione uma lista/grupo --</option>
+                    {targetGroups
+                      .filter((g) => g.active)
+                      .map((g) => (
+                        <option key={g.id} value={g.name}>
+                          {g.name} {g.description ? `(${g.description})` : ''}
+                        </option>
+                      ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1779,6 +1837,15 @@ export default function ProdutosPage() {
           setSelectedProductIds([]);
           setTimeout(() => setSuccessMsg(null), 3000);
         }}
+      />
+
+      <DispatchOptionsManagerModal
+        channels={dispatchChannels}
+        groups={targetGroups}
+        products={products}
+        isOpen={isOptionsManagerOpen}
+        onClose={() => setIsOptionsManagerOpen(false)}
+        onRefresh={loadDispatchOptions}
       />
     </div>
   );
