@@ -69,8 +69,14 @@ export class FirestoreDispatchChannelRepository {
 
     try {
       const ref = doc(db, this.collectionName, channel.id);
-      await setDoc(ref, raw, { merge: true });
-      console.log('[FirestoreDispatchChannelRepository.save] Canal salvo com sucesso:', channel.id);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        await setDoc(ref, raw, { merge: true });
+        console.log('[FirestoreDispatchChannelRepository.save] Canal atualizado com sucesso:', channel.id);
+      } else {
+        await setDoc(ref, raw);
+        console.log('[FirestoreDispatchChannelRepository.save] Canal criado com sucesso:', channel.id);
+      }
     } catch (err: any) {
       console.error('[FirestoreDispatchChannelRepository.save] FALHA AO GRAVAR CANAL NO FIRESTORE:', {
         docId: channel.id,
@@ -90,7 +96,7 @@ export class FirestoreDispatchChannelRepository {
     for (const item of channels) {
       const raw = this.toPersistence(item, activeUid || item.userId);
       const ref = doc(db, this.collectionName, item.id);
-      batch.set(ref, raw, { merge: true });
+      batch.set(ref, raw);
     }
     try {
       await batch.commit();
