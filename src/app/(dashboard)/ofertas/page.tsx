@@ -20,6 +20,7 @@ import { useAuth } from '@/presentation/context/AuthContext';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { Offer } from '@/core/domain/entities/offer.entity';
+import { Product } from '@/core/domain/entities/product.entity';
 import { PaginationControls } from '@/presentation/components/ui/PaginationControls';
 import { useFirestorePagination } from '@/presentation/hooks/useFirestorePagination';
 import { QueryDocumentSnapshot } from 'firebase/firestore';
@@ -47,6 +48,7 @@ export default function OfertasLibraryPage() {
   const [offersData, setOffersData] = useState<
     Array<{
       offer: AffiliateOffer;
+      product: Product | null;
       organization: SmartOrganizationResult;
     }>
   >([]);
@@ -80,7 +82,7 @@ export default function OfertasLibraryPage() {
         const sourceOfTruth = SourceOfTruthService.getInstance();
 
         const resultPromises = pagination.items.map(async (rawOff) => {
-          const associatedProd = rawOff.productId ? prodMap.get(rawOff.productId) : null;
+          const associatedProd = rawOff.productId ? prodMap.get(rawOff.productId) || null : null;
           const title = associatedProd?.title || 'Oferta sem título';
           const priceVal = associatedProd?.currentPrice?.amount || 0;
           const prevPriceVal = associatedProd?.previousPrice?.amount || undefined;
@@ -126,7 +128,7 @@ export default function OfertasLibraryPage() {
             url,
           });
 
-          return { offer, organization: org };
+          return { offer, product: associatedProd, organization: org };
         });
 
         const loaded = await Promise.all(resultPromises);
@@ -171,7 +173,7 @@ export default function OfertasLibraryPage() {
     handleUpdateOrganization(offerId, reclassified);
   };
 
-  const filteredOffers = offersData.filter(({ offer, organization }) => {
+  const filteredOffers = offersData.filter(({ offer, product, organization }) => {
     const matchesSearch =
       searchQuery === '' ||
       offer.productData.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -180,11 +182,42 @@ export default function OfertasLibraryPage() {
 
     if (!matchesSearch) return false;
 
-    if (activeTab === 'ALTA_PRIORIDADE') return organization.priority === 'ALTA';
-    if (activeTab === 'ALTO_POTENCIAL') return organization.potentialLevel === 'ALTO';
+    const dispatchStatus = product ? product.getDispatchStatus() : 'NUNCA_ENVIADA';
+
+    if (activeTab === 'NUNCA_COMPARTILHADAS' || quickFilter === 'NUNCA_COMPARTILHADAS') {
+      if (dispatchStatus !== 'NUNCA_ENVIADA') return false;
+    }
+    if (activeTab === 'COMPARTILHADAS_HOJE' || quickFilter === 'HOJE') {
+      if (dispatchStatus !== 'ENVIADA_HOJE') return false;
+    }
+    if (activeTab === 'ALTA_PRIORIDADE') {
+      if (dispatchStatus !== 'NUNCA_ENVIADA' && organization.priority !== 'ALTA') return false;
+    }
+    if (activeTab === 'ALTO_POTENCIAL') {
+      if (organization.potentialLevel !== 'ALTO') return false;
+    }
+    if (quickFilter === 'ALTO_DESCONTO') {
+      const discount = offer.pricing.originalPrice
+        ? ((offer.pricing.originalPrice - offer.pricing.currentPrice) / offer.pricing.originalPrice) * 100
+        : 0;
+      if (discount < 15) return false;
+    }
 
     return true;
   });
+
+  // Carregamento progressivo seguro se a página atual zerar resultados ao filtrar
+  useEffect(() => {
+    if (
+      !pagination.loading &&
+      pagination.hasMore &&
+      filteredOffers.length === 0 &&
+      offersData.length > 0 &&
+      activeTab !== 'TODAS'
+    ) {
+      pagination.nextPage();
+    }
+  }, [filteredOffers.length, offersData.length, pagination.hasMore, pagination.loading, activeTab, pagination.nextPage]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">

@@ -127,6 +127,13 @@ function DispatchStatusBadge({ status }: { status: DispatchStatus }) {
           🟡 Reenvio recomendado (&gt;15d)
         </span>
       );
+    case 'AGUARDANDO_REENVIO':
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-800 border border-slate-700/60 px-2.5 py-1 text-[10px] font-semibold text-slate-300 backdrop-blur-md max-w-full whitespace-normal break-words leading-tight">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
+          ⚪ Aguardando reenvio (3-15d)
+        </span>
+      );
     default:
       return (
         <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[10px] font-medium text-slate-400 max-w-full whitespace-normal break-words leading-tight">

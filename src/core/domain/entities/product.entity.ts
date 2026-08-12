@@ -15,9 +15,10 @@ export interface DispatchRecord {
 
 export type DispatchStatus =
   | 'NUNCA_ENVIADA'       // 🟢 Total envios = 0 (Prioridade Alta)
-  | 'ENVIADA_HOJE'        // 🔵 Enviada nas últimas 24h
-  | 'ENVIADA_RECENTEMENTE' // 🔴 Enviada nos últimos 3 dias (Evitar novo envio!)
-  | 'CANDIDATA_REENVIO'   // 🟡 Enviada há mais de 15 dias (ou 3-15 dias)
+  | 'ENVIADA_HOJE'        // 🔵 Enviada no dia civil atual
+  | 'ENVIADA_RECENTEMENTE' // 🔴 Enviada nos últimos 3 dias (<3d, mas não hoje)
+  | 'CANDIDATA_REENVIO'   // 🟡 Reenvio recomendado (>15d)
+  | 'AGUARDANDO_REENVIO'  // ⚪ Enviada entre 3 e 15 dias atrás
   | 'ARQUIVADA';          // ⚪ Status arquivado
 
 export interface ProductProps {
@@ -202,14 +203,20 @@ export class Product {
     }
 
     const lastDate = new Date(this.lastDispatchedAt);
+    if (isNaN(lastDate.getTime())) {
+      return 'NUNCA_ENVIADA';
+    }
+
     const now = new Date();
-    const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
-    const diffDays = diffHours / 24;
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfSendDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
 
-    if (diffHours <= 24) return 'ENVIADA_HOJE';
-    if (diffDays <= 3) return 'ENVIADA_RECENTEMENTE';
-    if (diffDays >= 15) return 'CANDIDATA_REENVIO';
+    const diffCalendarDays = Math.floor((startOfToday.getTime() - startOfSendDay.getTime()) / (1000 * 60 * 60 * 24));
 
-    return 'ENVIADA_RECENTEMENTE';
+    if (diffCalendarDays <= 0) return 'ENVIADA_HOJE';
+    if (diffCalendarDays < 3) return 'ENVIADA_RECENTEMENTE';
+    if (diffCalendarDays > 15) return 'CANDIDATA_REENVIO';
+
+    return 'AGUARDANDO_REENVIO';
   }
 }
