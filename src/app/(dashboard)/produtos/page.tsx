@@ -101,35 +101,35 @@ function DispatchStatusBadge({ status }: { status: DispatchStatus }) {
   switch (status) {
     case 'NUNCA_ENVIADA':
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400 backdrop-blur-md shadow-sm">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[10px] font-extrabold text-emerald-400 backdrop-blur-md shadow-sm max-w-full whitespace-normal break-words leading-tight">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           🟢 Nunca enviada (Alta prioridade)
         </span>
       );
     case 'ENVIADA_HOJE':
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 text-[10px] font-extrabold text-blue-400 backdrop-blur-md">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+        <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-blue-500/15 border border-blue-500/30 px-2.5 py-1 text-[10px] font-extrabold text-blue-400 backdrop-blur-md max-w-full whitespace-normal break-words leading-tight">
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
           🔵 Enviada hoje
         </span>
       );
     case 'ENVIADA_RECENTEMENTE':
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[10px] font-extrabold text-red-400 backdrop-blur-md">
-          <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+        <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-red-500/15 border border-red-500/30 px-2.5 py-1 text-[10px] font-extrabold text-red-400 backdrop-blur-md max-w-full whitespace-normal break-words leading-tight">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-400 shrink-0" />
           🔴 Enviada recentemente (&lt;3d)
         </span>
       );
     case 'CANDIDATA_REENVIO':
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-extrabold text-amber-400 backdrop-blur-md">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+        <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-[10px] font-extrabold text-amber-400 backdrop-blur-md max-w-full whitespace-normal break-words leading-tight">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
           🟡 Reenvio recomendado (&gt;15d)
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+        <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[10px] font-medium text-slate-400 max-w-full whitespace-normal break-words leading-tight">
           ⚪ Arquivada
         </span>
       );
@@ -1147,34 +1147,33 @@ export default function ProdutosPage() {
                     : 'border-slate-800/80 bg-slate-900/90 hover:border-blue-500/40 hover:shadow-blue-500/10'
                 }`}
               >
-                {/* Image & Overlay Actions */}
-                <div className="relative mb-3">
-                  {/* Card Selection Checkbox */}
-                  <div className="absolute top-2 left-2 z-20">
+                {/* Top Control Bar: Checkbox + Marketplace Badge & Discount Badge */}
+                <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
                     <input
                       type="checkbox"
                       checked={selectedProductIds.includes(p.id)}
                       onChange={() => toggleSelectProduct(p.id)}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-blue-500 cursor-pointer shadow"
+                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-blue-500 cursor-pointer shrink-0 shadow"
                     />
-                  </div>
-
-                  <ProductImageThumbnail src={mainImg} title={p.title} />
-
-                  {/* Badges Overlay */}
-                  <div className="absolute top-2 left-8 flex flex-col gap-1 items-start">
                     <MarketplaceBadge marketplaceSlug={p.marketplaceSlug} />
-                    {hasDiscount && (
-                      <span className="rounded-md bg-amber-500/90 px-2 py-0.5 text-[10px] font-extrabold text-slate-950 shadow">
-                        🔥 {p.discountPercentage.value}% OFF
-                      </span>
-                    )}
                   </div>
 
-                  {/* Traffic Light Status Overlay */}
-                  <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-                    <DispatchStatusBadge status={dispatchStatus} />
-                  </div>
+                  {hasDiscount && (
+                    <span className="shrink-0 rounded-md bg-amber-500/90 px-2 py-0.5 text-[10px] font-extrabold text-slate-950 shadow">
+                      🔥 {p.discountPercentage.value}% OFF
+                    </span>
+                  )}
+                </div>
+
+                {/* Product Image Container */}
+                <div className="relative mb-3 w-full overflow-hidden rounded-xl">
+                  <ProductImageThumbnail src={mainImg} title={p.title} />
+                </div>
+
+                {/* Dedicated Marketplace Dispatch Status Row (In Flow, Flexible Container) */}
+                <div className="mb-2.5 flex flex-wrap items-center gap-1.5 min-w-0">
+                  <DispatchStatusBadge status={dispatchStatus} />
                 </div>
 
                 {/* Card Content */}
