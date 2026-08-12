@@ -43,14 +43,22 @@ export class FirestoreDispatchChannelRepository {
   }
 
   public async save(channel: DispatchChannel): Promise<void> {
-    const activeUid = auth.currentUser?.uid || channel.userId;
+    const activeUid = auth.currentUser?.uid || (channel.userId && channel.userId !== 'user_default' ? channel.userId : null);
     if (!activeUid) {
       const authErr: any = new Error('[FirestoreDispatchChannelRepository] Usuário não autenticado no Firebase Auth.');
       authErr.code = 'unauthenticated';
       throw authErr;
     }
 
-    const raw = this.toPersistence(channel);
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken();
+      } catch (tErr) {
+        console.warn('[FirestoreDispatchChannelRepository] Alerta ao renovar token do usuário:', tErr);
+      }
+    }
+
+    const raw = this.toPersistence(channel, activeUid);
 
     console.log('[FirestoreDispatchChannelRepository.save] Gravando Canal no Firestore:', {
       collection: this.collectionName,
@@ -77,9 +85,10 @@ export class FirestoreDispatchChannelRepository {
 
   public async saveBatch(channels: DispatchChannel[]): Promise<void> {
     if (channels.length === 0) return;
+    const activeUid = auth.currentUser?.uid;
     const batch = writeBatch(db);
     for (const item of channels) {
-      const raw = this.toPersistence(item);
+      const raw = this.toPersistence(item, activeUid || item.userId);
       const ref = doc(db, this.collectionName, item.id);
       batch.set(ref, raw, { merge: true });
     }
@@ -112,7 +121,12 @@ export class FirestoreDispatchChannelRepository {
   }
 
   public async seedDefaultsIfEmpty(userId: string): Promise<DispatchChannel[]> {
-    const activeUid = auth.currentUser?.uid || userId || 'user_default';
+    const activeUid = auth.currentUser?.uid || (userId && userId !== 'user_default' ? userId : null);
+    if (!activeUid) {
+      console.warn('[FirestoreDispatchChannelRepository] Semente de canais ignorada: usuário não autenticado.');
+      return [];
+    }
+
     const defaults = [
       'WhatsApp Promoções 01',
       'WhatsApp Achadinhos VIP',
@@ -155,8 +169,8 @@ export class FirestoreDispatchChannelRepository {
     });
   }
 
-  private toPersistence(entity: DispatchChannel): FirestoreDispatchChannelDoc {
-    const activeUid = auth.currentUser?.uid || entity.userId;
+  private toPersistence(entity: DispatchChannel, explicitUid?: string): FirestoreDispatchChannelDoc {
+    const activeUid = auth.currentUser?.uid || explicitUid || entity.userId;
     return {
       id: entity.id,
       userId: activeUid,

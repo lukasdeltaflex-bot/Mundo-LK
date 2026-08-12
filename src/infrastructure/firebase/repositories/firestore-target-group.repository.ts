@@ -44,14 +44,22 @@ export class FirestoreTargetGroupRepository {
   }
 
   public async save(group: TargetGroup): Promise<void> {
-    const activeUid = auth.currentUser?.uid || group.userId;
+    const activeUid = auth.currentUser?.uid || (group.userId && group.userId !== 'user_default' ? group.userId : null);
     if (!activeUid) {
       const authErr: any = new Error('[FirestoreTargetGroupRepository] Usuário não autenticado no Firebase Auth.');
       authErr.code = 'unauthenticated';
       throw authErr;
     }
 
-    const raw = this.toPersistence(group);
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken();
+      } catch (tErr) {
+        console.warn('[FirestoreTargetGroupRepository] Alerta ao renovar token do usuário:', tErr);
+      }
+    }
+
+    const raw = this.toPersistence(group, activeUid);
 
     console.log('[FirestoreTargetGroupRepository.save] Gravando Grupo/Lista no Firestore:', {
       collection: this.collectionName,
@@ -78,9 +86,10 @@ export class FirestoreTargetGroupRepository {
 
   public async saveBatch(groups: TargetGroup[]): Promise<void> {
     if (groups.length === 0) return;
+    const activeUid = auth.currentUser?.uid;
     const batch = writeBatch(db);
     for (const item of groups) {
-      const raw = this.toPersistence(item);
+      const raw = this.toPersistence(item, activeUid || item.userId);
       const ref = doc(db, this.collectionName, item.id);
       batch.set(ref, raw, { merge: true });
     }
@@ -113,7 +122,12 @@ export class FirestoreTargetGroupRepository {
   }
 
   public async seedDefaultsIfEmpty(userId: string): Promise<TargetGroup[]> {
-    const activeUid = auth.currentUser?.uid || userId || 'user_default';
+    const activeUid = auth.currentUser?.uid || (userId && userId !== 'user_default' ? userId : null);
+    if (!activeUid) {
+      console.warn('[FirestoreTargetGroupRepository] Semente de grupos ignorada: usuário não autenticado.');
+      return [];
+    }
+
     const defaults = [
       { name: 'Grupo VIP #01', description: 'Clientes de alta conversão' },
       { name: 'Canal Geral de Ofertas', description: 'Público amplo' },
@@ -155,8 +169,8 @@ export class FirestoreTargetGroupRepository {
     });
   }
 
-  private toPersistence(entity: TargetGroup): FirestoreTargetGroupDoc {
-    const activeUid = auth.currentUser?.uid || entity.userId;
+  private toPersistence(entity: TargetGroup, explicitUid?: string): FirestoreTargetGroupDoc {
+    const activeUid = auth.currentUser?.uid || explicitUid || entity.userId;
     return {
       id: entity.id,
       userId: activeUid,
