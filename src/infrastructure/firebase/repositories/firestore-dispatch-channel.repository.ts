@@ -43,9 +43,36 @@ export class FirestoreDispatchChannelRepository {
   }
 
   public async save(channel: DispatchChannel): Promise<void> {
+    const activeUid = auth.currentUser?.uid || channel.userId;
+    if (!activeUid) {
+      const authErr: any = new Error('[FirestoreDispatchChannelRepository] Usuário não autenticado no Firebase Auth.');
+      authErr.code = 'unauthenticated';
+      throw authErr;
+    }
+
     const raw = this.toPersistence(channel);
-    const ref = doc(db, this.collectionName, channel.id);
-    await setDoc(ref, raw, { merge: true });
+
+    console.log('[FirestoreDispatchChannelRepository.save] Gravando Canal no Firestore:', {
+      collection: this.collectionName,
+      docId: channel.id,
+      authUid: activeUid,
+      payload: raw,
+    });
+
+    try {
+      const ref = doc(db, this.collectionName, channel.id);
+      await setDoc(ref, raw, { merge: true });
+      console.log('[FirestoreDispatchChannelRepository.save] Canal salvo com sucesso:', channel.id);
+    } catch (err: any) {
+      console.error('[FirestoreDispatchChannelRepository.save] FALHA AO GRAVAR CANAL NO FIRESTORE:', {
+        docId: channel.id,
+        code: err?.code,
+        message: err?.message,
+        name: err?.name,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async saveBatch(channels: DispatchChannel[]): Promise<void> {
@@ -56,12 +83,32 @@ export class FirestoreDispatchChannelRepository {
       const ref = doc(db, this.collectionName, item.id);
       batch.set(ref, raw, { merge: true });
     }
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err: any) {
+      console.error('[FirestoreDispatchChannelRepository.saveBatch] FALHA NO BATCH DE CANAIS:', {
+        code: err?.code,
+        message: err?.message,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async delete(id: string): Promise<void> {
-    const ref = doc(db, this.collectionName, id);
-    await deleteDoc(ref);
+    try {
+      const ref = doc(db, this.collectionName, id);
+      await deleteDoc(ref);
+      console.log('[FirestoreDispatchChannelRepository.delete] Canal removido:', id);
+    } catch (err: any) {
+      console.error('[FirestoreDispatchChannelRepository.delete] Erro ao remover canal:', {
+        docId: id,
+        code: err?.code,
+        message: err?.message,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async seedDefaultsIfEmpty(userId: string): Promise<DispatchChannel[]> {

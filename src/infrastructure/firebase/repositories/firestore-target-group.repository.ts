@@ -44,9 +44,36 @@ export class FirestoreTargetGroupRepository {
   }
 
   public async save(group: TargetGroup): Promise<void> {
+    const activeUid = auth.currentUser?.uid || group.userId;
+    if (!activeUid) {
+      const authErr: any = new Error('[FirestoreTargetGroupRepository] Usuário não autenticado no Firebase Auth.');
+      authErr.code = 'unauthenticated';
+      throw authErr;
+    }
+
     const raw = this.toPersistence(group);
-    const ref = doc(db, this.collectionName, group.id);
-    await setDoc(ref, raw, { merge: true });
+
+    console.log('[FirestoreTargetGroupRepository.save] Gravando Grupo/Lista no Firestore:', {
+      collection: this.collectionName,
+      docId: group.id,
+      authUid: activeUid,
+      payload: raw,
+    });
+
+    try {
+      const ref = doc(db, this.collectionName, group.id);
+      await setDoc(ref, raw, { merge: true });
+      console.log('[FirestoreTargetGroupRepository.save] Grupo salvo com sucesso:', group.id);
+    } catch (err: any) {
+      console.error('[FirestoreTargetGroupRepository.save] FALHA AO GRAVAR GRUPO NO FIRESTORE:', {
+        docId: group.id,
+        code: err?.code,
+        message: err?.message,
+        name: err?.name,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async saveBatch(groups: TargetGroup[]): Promise<void> {
@@ -57,12 +84,32 @@ export class FirestoreTargetGroupRepository {
       const ref = doc(db, this.collectionName, item.id);
       batch.set(ref, raw, { merge: true });
     }
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err: any) {
+      console.error('[FirestoreTargetGroupRepository.saveBatch] FALHA NO BATCH DE GRUPOS:', {
+        code: err?.code,
+        message: err?.message,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async delete(id: string): Promise<void> {
-    const ref = doc(db, this.collectionName, id);
-    await deleteDoc(ref);
+    try {
+      const ref = doc(db, this.collectionName, id);
+      await deleteDoc(ref);
+      console.log('[FirestoreTargetGroupRepository.delete] Grupo removido:', id);
+    } catch (err: any) {
+      console.error('[FirestoreTargetGroupRepository.delete] Erro ao remover grupo:', {
+        docId: id,
+        code: err?.code,
+        message: err?.message,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async seedDefaultsIfEmpty(userId: string): Promise<TargetGroup[]> {

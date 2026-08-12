@@ -138,9 +138,17 @@ export function DispatchOptionsManagerModal({
 
       setIsFormOpen(false);
       onRefresh();
-    } catch (err) {
-      console.error('Erro ao salvar opção de envio:', err);
-      alert('Erro ao salvar no Firestore. Por favor, tente novamente.');
+    } catch (err: any) {
+      console.error('[DispatchOptionsManagerModal] Erro ao salvar opção:', {
+        tab: activeTab,
+        code: err?.code,
+        message: err?.message,
+        name: err?.name,
+        err,
+      });
+      const errCode = err?.code ? `[${err.code}] ` : '';
+      const errMsg = err?.message || String(err);
+      alert(`Erro ao salvar no Firestore: ${errCode}${errMsg}`);
     } finally {
       setProcessing(false);
     }
@@ -161,9 +169,17 @@ export function DispatchOptionsManagerModal({
 
       setDeletingItem(null);
       onRefresh();
-    } catch (err) {
-      console.error('Erro ao excluir opção:', err);
-      alert('Erro ao excluir do Firestore. Por favor, tente novamente.');
+    } catch (err: any) {
+      console.error('[DispatchOptionsManagerModal] Erro ao excluir opção:', {
+        deletingItem,
+        code: err?.code,
+        message: err?.message,
+        name: err?.name,
+        err,
+      });
+      const errCode = err?.code ? `[${err.code}] ` : '';
+      const errMsg = err?.message || String(err);
+      alert(`Erro ao excluir do Firestore: ${errCode}${errMsg}`);
     } finally {
       setProcessing(false);
     }
