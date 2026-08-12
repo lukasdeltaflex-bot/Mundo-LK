@@ -1,6 +1,5 @@
 import {
   doc,
-  getDoc,
   setDoc,
   deleteDoc,
   collection,
@@ -70,14 +69,8 @@ export class FirestoreTargetGroupRepository {
 
     try {
       const ref = doc(db, this.collectionName, group.id);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        await setDoc(ref, raw, { merge: true });
-        console.log('[FirestoreTargetGroupRepository.save] Grupo atualizado com sucesso:', group.id);
-      } else {
-        await setDoc(ref, raw);
-        console.log('[FirestoreTargetGroupRepository.save] Grupo criado com sucesso:', group.id);
-      }
+      await setDoc(ref, raw, { merge: true });
+      console.log('[FirestoreTargetGroupRepository.save] Grupo/Lista salvo no Firestore com sucesso:', group.id);
     } catch (err: any) {
       console.error('[FirestoreTargetGroupRepository.save] FALHA AO GRAVAR GRUPO NO FIRESTORE:', {
         docId: group.id,

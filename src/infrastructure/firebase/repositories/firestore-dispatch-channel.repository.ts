@@ -1,6 +1,5 @@
 import {
   doc,
-  getDoc,
   setDoc,
   deleteDoc,
   collection,
@@ -69,14 +68,8 @@ export class FirestoreDispatchChannelRepository {
 
     try {
       const ref = doc(db, this.collectionName, channel.id);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        await setDoc(ref, raw, { merge: true });
-        console.log('[FirestoreDispatchChannelRepository.save] Canal atualizado com sucesso:', channel.id);
-      } else {
-        await setDoc(ref, raw);
-        console.log('[FirestoreDispatchChannelRepository.save] Canal criado com sucesso:', channel.id);
-      }
+      await setDoc(ref, raw, { merge: true });
+      console.log('[FirestoreDispatchChannelRepository.save] Canal salvo no Firestore com sucesso:', channel.id);
     } catch (err: any) {
       console.error('[FirestoreDispatchChannelRepository.save] FALHA AO GRAVAR CANAL NO FIRESTORE:', {
         docId: channel.id,
