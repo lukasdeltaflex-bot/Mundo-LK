@@ -10,7 +10,7 @@ import {
   ShoppingBag, Plus, Layers, Sparkles, Trash2, X, AlertTriangle, CheckCircle2,
   Search, LayoutGrid, List, Filter, Copy, ExternalLink, RefreshCw, ChevronLeft, ChevronRight,
   TrendingDown, Tag, Clock, ArrowUpDown, Image as ImageIcon, Check, Send, History, AlertCircle,
-  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2, ChevronDown, Lock, Unlock, Settings
+  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2, ChevronDown, Lock, Unlock, Settings, Edit2
 } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
@@ -30,6 +30,7 @@ import { BulkCategoryModal } from '@/presentation/components/business/BulkCatego
 import { BulkDeleteModal } from '@/presentation/components/business/BulkDeleteModal';
 import { DispatchOptionsManagerModal } from '@/presentation/components/business/DispatchOptionsManagerModal';
 import { CategoryManagementTab } from '@/presentation/components/business/CategoryManagementTab';
+import { EditProductModal } from '@/presentation/components/business/EditProductModal';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
 import { SocialShareModal, SocialShareData } from '@/presentation/components/business/SocialShareModal';
@@ -449,6 +450,7 @@ export default function ProdutosPage() {
   const [dispatchChannels, setDispatchChannels] = useState<DispatchChannel[]>([]);
   const [targetGroups, setTargetGroups] = useState<TargetGroup[]>([]);
   const [isOptionsManagerOpen, setIsOptionsManagerOpen] = useState<boolean>(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   const loadDispatchOptions = async () => {
     if (!user?.uid) return;
@@ -1275,8 +1277,19 @@ export default function ProdutosPage() {
                     </Button>
                   </div>
 
-                  {/* Linha 2: Ações Complementares — Histórico, Copiar, Ver, Excluir */}
-                  <div className="grid grid-cols-4 gap-1">
+                  {/* Linha 2: Ações Complementares — Editar, Histórico, Copiar, Ver, Excluir */}
+                  <div className="grid grid-cols-5 gap-1">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-[10px] px-1 py-1 h-7 font-medium border border-blue-500/30 text-blue-300 hover:bg-blue-950/40"
+                      leftIcon={<Edit2 className="h-3 w-3 text-blue-400" />}
+                      onClick={() => setEditingProduct(p)}
+                      title="Editar Informações do Produto"
+                    >
+                      Editar
+                    </Button>
+
                     <Button
                       size="sm"
                       variant="secondary"
@@ -1436,6 +1449,16 @@ export default function ProdutosPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="text-xs border border-blue-500/30 text-blue-300 hover:bg-blue-950/40"
+                            leftIcon={<Edit2 className="h-3 w-3 text-blue-400" />}
+                            onClick={() => setEditingProduct(p)}
+                            title="Editar Informações do Produto"
+                          >
+                            Editar
+                          </Button>
                           <Button
                             size="sm"
                             className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
@@ -1852,6 +1875,17 @@ export default function ProdutosPage() {
         isOpen={isOptionsManagerOpen}
         onClose={() => setIsOptionsManagerOpen(false)}
         onRefresh={loadDispatchOptions}
+      />
+
+      <EditProductModal
+        product={editingProduct}
+        isOpen={!!editingProduct}
+        onClose={() => setEditingProduct(null)}
+        onSuccess={() => {
+          setSuccessMsg('Produto atualizado com sucesso no catálogo!');
+          loadProducts();
+          setTimeout(() => setSuccessMsg(null), 3000);
+        }}
       />
     </div>
   );

@@ -205,6 +205,51 @@ export class FirestoreProductRepository implements IProductRepository {
     }
   }
 
+  public async update(id: string, productChanges: Partial<Product>): Promise<void> {
+    const activeUid = auth.currentUser?.uid;
+    if (!activeUid) {
+      throw new Error('[FirestoreProductRepository] Usuário não autenticado ao atualizar produto.');
+    }
+    if (!id) {
+      throw new Error('[FirestoreProductRepository] ID do produto é obrigatório para atualização.');
+    }
+
+    try {
+      const ref = doc(db, this.collectionName, id);
+      const rawChanges: Record<string, any> = {};
+
+      if (productChanges.title !== undefined) rawChanges.title = productChanges.title;
+      if (productChanges.description !== undefined) rawChanges.description = productChanges.description;
+      if (productChanges.brand !== undefined) rawChanges.brand = productChanges.brand;
+      if (productChanges.categoryId !== undefined) rawChanges.categoryId = productChanges.categoryId;
+      if (productChanges.subcategoryId !== undefined) rawChanges.subcategoryId = productChanges.subcategoryId;
+      if (productChanges.images !== undefined) rawChanges.images = productChanges.images;
+      if (productChanges.currentPrice !== undefined) {
+        rawChanges.currentPrice = {
+          amount: productChanges.currentPrice.amount,
+          currency: productChanges.currentPrice.currency,
+          formatted: productChanges.currentPrice.formatBRL(),
+        };
+      }
+      if (productChanges.previousPrice !== undefined) {
+        rawChanges.previousPrice = productChanges.previousPrice ? {
+          amount: productChanges.previousPrice.amount,
+          currency: productChanges.previousPrice.currency,
+          formatted: productChanges.previousPrice.formatBRL(),
+        } : null;
+      }
+      if (productChanges.status !== undefined) rawChanges.status = productChanges.status;
+
+      rawChanges.updatedAt = new Date().toISOString();
+
+      await updateDoc(ref, rawChanges);
+      console.log('[FirestoreProductRepository] Produto atualizado com sucesso:', id);
+    } catch (error) {
+      console.error('[FirestoreProductRepository] Erro ao atualizar produto:', error);
+      throw error;
+    }
+  }
+
   public async updateDispatchHistory(product: Product): Promise<void> {
     const ref = doc(db, this.collectionName, product.id);
     const raw = ProductMapper.toPersistence(product);

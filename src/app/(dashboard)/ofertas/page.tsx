@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Tag, Search, Sparkles, Filter, ShieldCheck, Flame, Star,
-  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2, Loader2
+  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2, Loader2, Edit2
 } from 'lucide-react';
 import { SmartCategoryBadge } from './components/SmartCategoryBadge';
 import { AffiliateMobileShareSheet } from '../operacao/components/AffiliateMobileShareSheet';
+import { EditOfferModal } from '@/presentation/components/business/EditOfferModal';
 import { AffiliateOffer } from '@/core/domain/entities/affiliate-offer.entity';
 import { AffiliateLink } from '@/core/domain/value-objects/affiliate-link.vo';
 import { Price } from '@/core/domain/value-objects/price.vo';
@@ -42,6 +43,7 @@ export default function OfertasLibraryPage() {
   const [quickFilter, setQuickFilter] = useState<string>('TODOS');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOfferForMobile, setSelectedOfferForMobile] = useState<AffiliateOffer | null>(null);
+  const [editingOfferData, setEditingOfferData] = useState<{ offer: Offer; productTitle?: string } | null>(null);
 
   const smartOrganizer = AffiliateSmartOrganizer.getInstance();
 
@@ -343,17 +345,35 @@ export default function OfertasLibraryPage() {
               />
             </div>
 
-            {/* Ação Mobile One-Handed Share */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedOfferForMobile(offer)}
-              leftIcon={<Share2 className="h-3.5 w-3.5 text-blue-400" />}
-              className="w-full border-blue-500/20 text-blue-300 hover:bg-blue-600/10 text-xs py-2 mt-2"
-            >
-              Compartilhar no Celular
-            </Button>
+            {/* Ações de Oferta: Compartilhar & Editar */}
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const rawOffer = pagination.items.find((o) => o.id === offer.id);
+                  if (rawOffer) {
+                    setEditingOfferData({ offer: rawOffer, productTitle: offer.productData.title });
+                  }
+                }}
+                leftIcon={<Edit2 className="h-3.5 w-3.5 text-amber-400" />}
+                className="border-amber-500/20 text-amber-300 hover:bg-amber-600/10 text-xs py-2"
+              >
+                Editar Oferta
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedOfferForMobile(offer)}
+                leftIcon={<Share2 className="h-3.5 w-3.5 text-blue-400" />}
+                className="border-blue-500/20 text-blue-300 hover:bg-blue-600/10 text-xs py-2"
+              >
+                Compartilhar
+              </Button>
+            </div>
           </div>
         ))}
       </div>
@@ -377,6 +397,19 @@ export default function OfertasLibraryPage() {
           offer={selectedOfferForMobile}
           isOpen={Boolean(selectedOfferForMobile)}
           onClose={() => setSelectedOfferForMobile(null)}
+        />
+      )}
+
+      {/* Modal Editar Oferta */}
+      {editingOfferData && (
+        <EditOfferModal
+          offer={editingOfferData.offer}
+          productTitle={editingOfferData.productTitle}
+          isOpen={Boolean(editingOfferData)}
+          onClose={() => setEditingOfferData(null)}
+          onSuccess={() => {
+            pagination.resetPagination();
+          }}
         />
       )}
     </div>
