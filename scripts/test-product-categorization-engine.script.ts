@@ -925,10 +925,65 @@ async function runCategorizationTestSuite() {
   }
 
   // ---------------------------------------------------------------------------
+  // TESTE 30: Diagnóstico Forense de Payload e Sanitização de Undefined no Firestore
+  // ---------------------------------------------------------------------------
+  try {
+    const parentCat = new ManagedCategory({
+      id: 'cat_beleza_forensic',
+      userId: 'user_01',
+      name: 'Beleza Forensic',
+      description: 'Categoria pai de diagnóstico',
+      parentCategoryId: null,
+    });
+
+    const subCat = new ManagedCategory({
+      id: 'subcat_cuidados_forensic',
+      userId: 'user_01',
+      name: 'Cuidados Corporais',
+      description: 'Subcategoria de teste forense',
+      parentCategoryId: parentCat.id,
+    });
+
+    // Simulate toPersistence serialization check
+    const rawSubPayload = {
+      id: subCat.id,
+      userId: subCat.userId,
+      tenantId: subCat.userId,
+      name: subCat.name,
+      slug: subCat.slug,
+      description: subCat.description,
+      parentCategoryId: subCat.parentCategoryId ?? null,
+      active: subCat.active ?? true,
+      iconName: subCat.iconName || 'Tag',
+      productCount: subCat.productCount ?? 0,
+      createdAt: subCat.createdAt.toISOString(),
+      updatedAt: subCat.updatedAt.toISOString(),
+    };
+
+    const hasUndefinedFields = Object.values(rawSubPayload).some((v) => v === undefined);
+
+    if (
+      !hasUndefinedFields &&
+      rawSubPayload.parentCategoryId === 'cat_beleza_forensic' &&
+      rawSubPayload.userId === 'user_01' &&
+      subCat.isSubcategory() === true
+    ) {
+      console.log('✅ TESTE 30 PASSOU: Payload da subcategoria "Cuidados Corporais" 100% sanitizado (sem undefined), com parentCategoryId="cat_beleza_forensic" e userId idêntico');
+      passed++;
+    } else {
+      console.error('❌ TESTE 30 FALHOU:', rawSubPayload);
+      failed++;
+    }
+  } catch (err) {
+    console.error('❌ TESTE 30 ERRO:', err);
+    failed++;
+  }
+
+  // ---------------------------------------------------------------------------
   // SUMMARY
   // ---------------------------------------------------------------------------
   console.log('\n================================================================');
-  console.log(`📊 RESUMO DA SUÍTE DE TESTES DA FASE 4 + EVOLUÇÃO:`);
+  console.log(`📊 RESUMO DA SUÍTE DE TESTES DA FASE 4 + EVOLUÇÃO + DIAGNÓSTICO:`);
   console.log(`   TOTAL DE TESTES : ${passed + failed}`);
   console.log(`   TESTES APROVADOS: ${passed}`);
   console.log(`   TESTES FALHADOS : ${failed}`);

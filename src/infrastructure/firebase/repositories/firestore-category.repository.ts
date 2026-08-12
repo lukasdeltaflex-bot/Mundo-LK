@@ -63,9 +63,36 @@ export class FirestoreCategoryRepository implements ICategoryRepository {
   }
 
   public async save(category: ManagedCategory): Promise<void> {
+    const activeUid = auth.currentUser?.uid || category.userId;
+    if (!activeUid) {
+      const authErr: any = new Error('[FirestoreCategoryRepository] Usuário não autenticado no Firebase Auth (auth.currentUser nulo).');
+      authErr.code = 'unauthenticated';
+      throw authErr;
+    }
+
     const raw = this.toPersistence(category);
-    const ref = doc(db, this.collectionName, category.id);
-    await setDoc(ref, raw, { merge: true });
+
+    console.log('[FirestoreCategoryRepository.save] Gravando no Firestore:', {
+      collection: this.collectionName,
+      docId: category.id,
+      authUid: activeUid,
+      payload: raw,
+    });
+
+    try {
+      const ref = doc(db, this.collectionName, category.id);
+      await setDoc(ref, raw, { merge: true });
+      console.log('[FirestoreCategoryRepository.save] Documento salvo com sucesso:', category.id);
+    } catch (err: any) {
+      console.error('[FirestoreCategoryRepository.save] FALHA AO GRAVAR NO FIRESTORE:', {
+        docId: category.id,
+        code: err?.code,
+        message: err?.message,
+        name: err?.name,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async saveBatch(categories: ManagedCategory[]): Promise<void> {
@@ -76,7 +103,16 @@ export class FirestoreCategoryRepository implements ICategoryRepository {
       const ref = doc(db, this.collectionName, cat.id);
       batch.set(ref, raw, { merge: true });
     }
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err: any) {
+      console.error('[FirestoreCategoryRepository.saveBatch] FALHA NO BATCH:', {
+        code: err?.code,
+        message: err?.message,
+        err,
+      });
+      throw err;
+    }
   }
 
   public async delete(id: string): Promise<void> {

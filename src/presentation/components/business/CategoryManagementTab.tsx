@@ -68,9 +68,9 @@ export function CategoryManagementTab({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !user?.uid || saving) return;
-
     const trimmedName = name.trim();
+    if (!trimmedName || !user?.uid || saving) return;
+
     const targetParentId = parentCategoryId || null;
 
     // Check for duplicate category/subcategory name under the same parent
@@ -98,6 +98,7 @@ export function CategoryManagementTab({
           parentCategoryId: targetParentId,
           active,
         });
+        console.log('[CategoryManagementTab.handleSave] Atualizando categoria existente:', editingCategory);
         await repo.save(editingCategory);
       } else {
         const newCat = new ManagedCategory({
@@ -108,14 +109,22 @@ export function CategoryManagementTab({
           parentCategoryId: targetParentId,
           active,
         });
+        console.log('[CategoryManagementTab.handleSave] Criando nova categoria/subcategoria:', newCat);
         await repo.save(newCat);
       }
 
       setModalOpen(false);
       onRefresh();
-    } catch (err) {
-      console.error('[CategoryManagementTab] Erro ao salvar categoria/subcategoria:', err);
-      alert('Ocorreu um erro ao salvar a categoria no Firestore. Por favor, tente novamente.');
+    } catch (err: any) {
+      console.error('[CategoryManagementTab] Erro ao salvar categoria/subcategoria:', {
+        code: err?.code,
+        message: err?.message,
+        name: err?.name,
+        err,
+      });
+      const errCode = err?.code ? `[${err.code}] ` : '';
+      const errMsg = err?.message || String(err);
+      alert(`Erro ao salvar categoria no Firestore: ${errCode}${errMsg}`);
     } finally {
       setSaving(false);
     }
