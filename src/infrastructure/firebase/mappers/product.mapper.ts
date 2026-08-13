@@ -40,8 +40,15 @@ export interface FirestoreProductDoc {
 
 export class ProductMapper {
   public static toDomain(doc: FirestoreProductDoc): Product {
-    const currentPrice = Price.create(doc.currentPrice);
-    const previousPrice = doc.previousPrice ? Price.create(doc.previousPrice) : null;
+    const parsePriceNumber = (raw: any): number => {
+      if (typeof raw === 'number') return raw;
+      if (typeof raw === 'string') return parseFloat(raw) || 0;
+      if (raw && typeof raw === 'object' && typeof raw.amount === 'number') return raw.amount;
+      return 0;
+    };
+
+    const currentPrice = Price.create(parsePriceNumber(doc.currentPrice));
+    const previousPrice = doc.previousPrice ? Price.create(parsePriceNumber(doc.previousPrice)) : null;
     const discountPercentage = DiscountPercentage.calculate(currentPrice, previousPrice);
     const affiliateUrl = AffiliateLink.create(doc.affiliateUrl);
 

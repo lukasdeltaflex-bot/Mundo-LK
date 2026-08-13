@@ -147,10 +147,22 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
     try {
       const ref = doc(db, this.collectionName, id);
-      const updatePayload: Record<string, any> = {
-        ...offerChanges,
-        updatedAt: new Date().toISOString(),
-      };
+      const updatePayload: Record<string, any> = {};
+
+      if (offerChanges.scoreValue !== undefined) updatePayload.scoreValue = offerChanges.scoreValue;
+      if (offerChanges.scoreLabel !== undefined) updatePayload.scoreLabel = offerChanges.scoreLabel;
+      if (offerChanges.scoreJustification !== undefined) updatePayload.scoreJustification = offerChanges.scoreJustification;
+      if (offerChanges.cta !== undefined) updatePayload.cta = offerChanges.cta;
+      if (offerChanges.hashtags !== undefined) updatePayload.hashtags = offerChanges.hashtags;
+      if (offerChanges.marketplaceName !== undefined) updatePayload.marketplaceName = offerChanges.marketplaceName;
+      if (offerChanges.copies !== undefined) {
+        const rawCopies = typeof (offerChanges.copies as any).copies === 'object'
+          ? (offerChanges.copies as any).copies
+          : offerChanges.copies;
+        updatePayload.copies = { copies: rawCopies };
+      }
+
+      updatePayload.updatedAt = new Date().toISOString();
       await updateDoc(ref, updatePayload);
       console.log('[FirestoreOfferRepository] Oferta atualizada com sucesso:', id);
     } catch (error) {

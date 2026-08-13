@@ -225,18 +225,14 @@ export class FirestoreProductRepository implements IProductRepository {
       if (productChanges.subcategoryId !== undefined) rawChanges.subcategoryId = productChanges.subcategoryId;
       if (productChanges.images !== undefined) rawChanges.images = productChanges.images;
       if (productChanges.currentPrice !== undefined) {
-        rawChanges.currentPrice = {
-          amount: productChanges.currentPrice.amount,
-          currency: productChanges.currentPrice.currency,
-          formatted: productChanges.currentPrice.formatBRL(),
-        };
+        rawChanges.currentPrice = typeof productChanges.currentPrice === 'number'
+          ? productChanges.currentPrice
+          : productChanges.currentPrice?.amount || 0;
       }
       if (productChanges.previousPrice !== undefined) {
-        rawChanges.previousPrice = productChanges.previousPrice ? {
-          amount: productChanges.previousPrice.amount,
-          currency: productChanges.previousPrice.currency,
-          formatted: productChanges.previousPrice.formatBRL(),
-        } : null;
+        rawChanges.previousPrice = productChanges.previousPrice
+          ? (typeof productChanges.previousPrice === 'number' ? productChanges.previousPrice : productChanges.previousPrice.amount)
+          : null;
       }
       if (productChanges.status !== undefined) rawChanges.status = productChanges.status;
 

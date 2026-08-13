@@ -109,13 +109,100 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
     setTimeout(() => setCopiedChannel(null), 2500);
   };
 
+  const [isSharingFile, setIsSharingFile] = useState(false);
+  const [copiedImageNotice, setCopiedImageNotice] = useState<string | null>(null);
+
+  const handleShareImageWithNative = async () => {
+    if (!data.imageUrl) {
+      handleNativeShare();
+      return;
+    }
+
+    setIsSharingFile(true);
+    try {
+      const res = await fetch(data.imageUrl);
+      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+      const blob = await res.blob();
+
+      const mimeType = blob.type || 'image/jpeg';
+      const extension = mimeType.includes('png') ? 'png' : 'jpg';
+      const file = new File([blob], `oferta-${data.offerId || Date.now()}.${extension}`, { type: mimeType });
+
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: data.title,
+          text: whatsAppCopy,
+          files: [file],
+        });
+        return;
+      }
+
+      // Fallback nativo simples
+      await handleNativeShare();
+    } catch (err) {
+      console.warn('[SocialShareModal] Erro ao compartilhar imagem anexada:', err);
+      // Fallback seguro em texto
+      await handleNativeShare();
+    } finally {
+      setIsSharingFile(false);
+    }
+  };
+
+  const handleCopyImageToClipboard = async () => {
+    if (!data.imageUrl) {
+      handleCopy(whatsAppCopy, 'geral');
+      return;
+    }
+
+    setIsSharingFile(true);
+    try {
+      const res = await fetch(data.imageUrl);
+      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+      const blob = await res.blob();
+
+      // Transforma para PNG se necessário para compatibilidade com a Clipboard API
+      let pngBlob = blob;
+      if (!blob.type.includes('png')) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const url = URL.createObjectURL(blob);
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = url;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+        pngBlob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+        URL.revokeObjectURL(url);
+      }
+
+      if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+        setCopiedImageNotice('📷 Foto copiada para a memória! Abra o WhatsApp Web e pressione Ctrl+V para colar a imagem.');
+        setTimeout(() => setCopiedImageNotice(null), 5000);
+      }
+
+      // Copia também o texto promocional
+      await navigator.clipboard.writeText(whatsAppCopy);
+    } catch (err) {
+      console.warn('[SocialShareModal] Erro ao copiar imagem para clipboard:', err);
+      handleCopy(whatsAppCopy, 'geral');
+    } finally {
+      setIsSharingFile(false);
+    }
+  };
+
   const handleNativeShare = async () => {
     if (typeof window !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
           title: data.title,
-          text: `🔥 ${data.title} por ${data.price}!`,
-          url: data.affiliateUrl,
+          text: whatsAppCopy,
+          url: shareUrl,
         });
       } catch (err) {
         console.log('Compartilhamento nativo cancelado ou não suportado:', err);
@@ -207,6 +294,37 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
             </div>
           </div>
 
+          {/* Aviso de Foto Copiada para Clipboard */}
+          {copiedImageNotice && (
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-xs font-semibold text-emerald-300 flex items-center gap-2 animate-in fade-in duration-200">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{copiedImageNotice}</span>
+            </div>
+          )}
+
+          {/* Destaque de Ações de Mídia Integrada */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={handleShareImageWithNative}
+              disabled={isSharingFile}
+              className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/20 active:scale-95 transition"
+            >
+              <ImageIcon className="h-4 w-4" />
+              <span>{isSharingFile ? 'Preparando Imagem...' : '📱 Compartilhar Foto + Copy (WhatsApp)'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyImageToClipboard}
+              disabled={isSharingFile}
+              className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs shadow-lg shadow-purple-600/20 active:scale-95 transition"
+            >
+              <Copy className="h-4 w-4" />
+              <span>📷 Copiar Foto + Copy (Ctrl+V)</span>
+            </button>
+          </div>
+
           {/* Quick Actions Toolbar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
@@ -215,7 +333,7 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border border-blue-500/30 bg-blue-600/10 text-xs font-bold text-blue-300 hover:bg-blue-600/20 transition"
             >
               <Share2 className="h-4 w-4" />
-              <span>Nativo Mobile</span>
+              <span>Link Nativo</span>
             </button>
 
             <button
