@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Tag, Search, Sparkles, Filter, ShieldCheck, Flame, Star,
-  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2, Loader2, Edit2
+  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2, Loader2, Edit2, CheckSquare
 } from 'lucide-react';
 import { SmartCategoryBadge } from './components/SmartCategoryBadge';
 import { AffiliateMobileShareSheet } from '../operacao/components/AffiliateMobileShareSheet';
 import { EditOfferModal } from '@/presentation/components/business/EditOfferModal';
+import { BulkEditOffersModal } from '@/presentation/components/business/BulkEditOffersModal';
 import { AffiliateOffer } from '@/core/domain/entities/affiliate-offer.entity';
 import { AffiliateLink } from '@/core/domain/value-objects/affiliate-link.vo';
 import { Price } from '@/core/domain/value-objects/price.vo';
@@ -44,6 +45,8 @@ export default function OfertasLibraryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOfferForMobile, setSelectedOfferForMobile] = useState<AffiliateOffer | null>(null);
   const [editingOfferData, setEditingOfferData] = useState<{ offer: Offer; productTitle?: string } | null>(null);
+  const [selectedOfferIds, setSelectedOfferIds] = useState<string[]>([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   const smartOrganizer = AffiliateSmartOrganizer.getInstance();
 
@@ -298,12 +301,54 @@ export default function OfertasLibraryPage() {
         ))}
       </div>
 
+      {/* ─── BARRA FLUTUANTE DE AÇÕES EM MASSA ─────────────────────────────── */}
+      {selectedOfferIds.length > 0 && (
+        <div className="sticky top-4 z-40 bg-purple-950/90 border border-purple-500/40 p-3 rounded-2xl backdrop-blur-md flex items-center justify-between shadow-2xl animate-fadeIn">
+          <div className="flex items-center gap-2 text-xs font-bold text-purple-200">
+            <CheckSquare className="h-4 w-4 text-purple-400" />
+            <span>{selectedOfferIds.length} oferta(s) selecionada(s)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setSelectedOfferIds([])}
+              variant="outline"
+              className="text-xs border-purple-500/30 text-purple-300"
+            >
+              Desmarcar Todas
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setIsBulkModalOpen(true)}
+              leftIcon={<Layers className="h-4 w-4" />}
+              className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold"
+            >
+              Editar em Massa ({selectedOfferIds.length})
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ─── LISTA / GRID DE OFERTAS ORGANIZADAS ────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredOffers.map(({ offer, organization }) => (
-          <div key={offer.id} className="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3 flex flex-col justify-between shadow-xl">
+          <div key={offer.id} className={`rounded-2xl border ${selectedOfferIds.includes(offer.id) ? 'border-purple-500/60 bg-purple-950/10' : 'border-slate-800 bg-slate-900'} p-4 space-y-3 flex flex-col justify-between shadow-xl transition`}>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedOfferIds.includes(offer.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedOfferIds((prev) => [...prev, offer.id]);
+                    } else {
+                      setSelectedOfferIds((prev) => prev.filter((id) => id !== offer.id));
+                    }
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
+                />
                 <img
                   src={offer.productData.images.main}
                   alt={offer.productData.title}
@@ -408,6 +453,19 @@ export default function OfertasLibraryPage() {
           isOpen={Boolean(editingOfferData)}
           onClose={() => setEditingOfferData(null)}
           onSuccess={() => {
+            pagination.resetPagination();
+          }}
+        />
+      )}
+
+      {/* Modal Editar em Massa */}
+      {isBulkModalOpen && (
+        <BulkEditOffersModal
+          isOpen={isBulkModalOpen}
+          selectedOffers={pagination.items.filter((o) => selectedOfferIds.includes(o.id))}
+          onClose={() => setIsBulkModalOpen(false)}
+          onSuccess={() => {
+            setSelectedOfferIds([]);
             pagination.resetPagination();
           }}
         />

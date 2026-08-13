@@ -154,6 +154,7 @@ export class FirestoreOfferRepository implements IOfferRepository {
       if (offerChanges.scoreJustification !== undefined) updatePayload.scoreJustification = offerChanges.scoreJustification;
       if (offerChanges.cta !== undefined) updatePayload.cta = offerChanges.cta;
       if (offerChanges.hashtags !== undefined) updatePayload.hashtags = offerChanges.hashtags;
+      if (offerChanges.marketplaceId !== undefined) updatePayload.marketplaceId = offerChanges.marketplaceId;
       if (offerChanges.marketplaceName !== undefined) updatePayload.marketplaceName = offerChanges.marketplaceName;
       if (offerChanges.copies !== undefined) {
         const rawCopies = typeof (offerChanges.copies as any).copies === 'object'

@@ -17,6 +17,15 @@ interface EditOfferModalProps {
   onSuccess: () => void;
 }
 
+const MARKETPLACE_OPTIONS = [
+  { slug: 'shopee', name: 'Shopee' },
+  { slug: 'magalu', name: 'Magazine Luiza (Magalu)' },
+  { slug: 'mercadolivre', name: 'Mercado Livre' },
+  { slug: 'amazon', name: 'Amazon' },
+  { slug: 'shein', name: 'SHEIN' },
+  { slug: 'geral', name: 'Geral / Outro' },
+];
+
 export function EditOfferModal({
   offer,
   productTitle,
@@ -25,6 +34,7 @@ export function EditOfferModal({
   onSuccess,
 }: EditOfferModalProps) {
   const { user } = useAuth();
+  const [marketplaceSlug, setMarketplaceSlug] = useState('shopee');
   const [marketplaceName, setMarketplaceName] = useState('');
   const [whatsAppCopy, setWhatsAppCopy] = useState('');
   const [scoreValue, setScoreValue] = useState('90');
@@ -36,7 +46,9 @@ export function EditOfferModal({
 
   useEffect(() => {
     if (offer) {
-      setMarketplaceName(offer.marketplaceName || offer.marketplaceId || 'Geral');
+      const slug = offer.marketplaceId || (offer as any).marketplace || 'shopee';
+      setMarketplaceSlug(slug);
+      setMarketplaceName(offer.marketplaceName || MARKETPLACE_OPTIONS.find(m => m.slug === slug)?.name || 'Shopee');
       const existingText = offer.copies?.copies?.whatsAppText ||
         offer.copies?.copies?.shortText ||
         (typeof offer.copies === 'string' ? offer.copies : '');
@@ -62,11 +74,24 @@ export function EditOfferModal({
     }
 
     const scoreNum = parseInt(scoreValue, 10);
+    const selectedMarketplaceObj = MARKETPLACE_OPTIONS.find(m => m.slug === marketplaceSlug);
+    const finalMarketplaceName = selectedMarketplaceObj ? selectedMarketplaceObj.name : marketplaceName.trim();
 
     setProcessing(true);
     try {
       const repo = new FirestoreOfferRepository();
       const useCase = new UpdateOfferUseCase(repo);
+
+      // Verificação de duplicidade se o marketplace mudou
+      if (offer.productId && marketplaceSlug !== (offer.marketplaceId || (offer as any).marketplace)) {
+        const existingOffers = await repo.findByProductId(offer.productId, user.uid);
+        const duplicate = existingOffers.find(o => (o.marketplaceId || (o as any).marketplace) === marketplaceSlug && o.id !== offer.id);
+        if (duplicate) {
+          alert(`Este produto já possui uma oferta cadastrada no marketplace ${finalMarketplaceName}. A alteração foi cancelada para evitar duplicidade.`);
+          setProcessing(false);
+          return;
+        }
+      }
 
       const hashtagList = hashtags
         .split(',')
@@ -76,7 +101,8 @@ export function EditOfferModal({
       const existingCopies = offer.copies?.copies || {};
 
       const changes: Partial<Offer> = {
-        marketplaceName: marketplaceName.trim(),
+        marketplaceId: marketplaceSlug,
+        marketplaceName: finalMarketplaceName,
         scoreValue: !isNaN(scoreNum) ? scoreNum : offer.scoreValue,
         scoreLabel,
         scoreJustification: scoreJustification.trim(),
@@ -148,18 +174,27 @@ export function EditOfferModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          {/* Marketplace Name */}
+          {/* Marketplace Select */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Marketplace / Canal de Origem
+              Marketplace Canal / Origem Comercial
             </label>
-            <input
-              type="text"
-              value={marketplaceName}
-              onChange={(e) => setMarketplaceName(e.target.value)}
-              placeholder="Ex: Shopee, Mercado Livre, Amazon"
+            <select
+              value={marketplaceSlug}
+              onChange={(e) => {
+                const slug = e.target.value;
+                setMarketplaceSlug(slug);
+                const opt = MARKETPLACE_OPTIONS.find((m) => m.slug === slug);
+                if (opt) setMarketplaceName(opt.name);
+              }}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition"
-            />
+            >
+              {MARKETPLACE_OPTIONS.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Copy Texto de Envio (WhatsApp / Redes) */}
