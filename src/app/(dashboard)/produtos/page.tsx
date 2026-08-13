@@ -34,6 +34,7 @@ import { EditProductModal } from '@/presentation/components/business/EditProduct
 import { useAuth } from '@/presentation/context/AuthContext';
 import { DeletionReason, SmartTrashService } from '@/core/domain/services/smart-trash.service';
 import { SocialShareModal, SocialShareData } from '@/presentation/components/business/SocialShareModal';
+import { MagaluDiscoveryModal } from '@/presentation/components/business/MagaluDiscoveryModal';
 import { PaginationControls } from '@/presentation/components/ui/PaginationControls';
 import { useFirestorePagination } from '@/presentation/hooks/useFirestorePagination';
 import { QueryDocumentSnapshot } from 'firebase/firestore';
@@ -246,6 +247,7 @@ export default function ProdutosPage() {
     const rawFacebook = savedFacebook || savedWhatsApp || fallbackCopy;
 
     setShareModalData({
+      offerId: savedOffer?.id,
       title: p.title,
       price: formattedPrice,
       previousPrice: formattedOldPrice,
@@ -454,6 +456,7 @@ export default function ProdutosPage() {
   const [targetGroups, setTargetGroups] = useState<TargetGroup[]>([]);
   const [isOptionsManagerOpen, setIsOptionsManagerOpen] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isMagaluDiscoveryOpen, setIsMagaluDiscoveryOpen] = useState<boolean>(false);
 
   const loadDispatchOptions = async () => {
     if (!user?.uid) return;
@@ -755,6 +758,15 @@ export default function ProdutosPage() {
               Importar Lote
             </Button>
           </Link>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="text-xs border-blue-500/30 text-blue-300 hover:bg-blue-500/10"
+            leftIcon={<Sparkles className="h-3.5 w-3.5 text-blue-400" />}
+            onClick={() => setIsMagaluDiscoveryOpen(true)}
+          >
+            Descoberta Magalu
+          </Button>
         </div>
       </div>
 
@@ -1886,6 +1898,16 @@ export default function ProdutosPage() {
         onClose={() => setEditingProduct(null)}
         onSuccess={() => {
           setSuccessMsg('Produto atualizado com sucesso no catálogo!');
+          loadProducts();
+          setTimeout(() => setSuccessMsg(null), 3000);
+        }}
+      />
+
+      <MagaluDiscoveryModal
+        isOpen={isMagaluDiscoveryOpen}
+        onClose={() => setIsMagaluDiscoveryOpen(false)}
+        onSuccess={() => {
+          setSuccessMsg('Ofertas do Magalu descobertas e importadas com sucesso!');
           loadProducts();
           setTimeout(() => setSuccessMsg(null), 3000);
         }}

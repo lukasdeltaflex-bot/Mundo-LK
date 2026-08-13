@@ -41,6 +41,7 @@ const LinkedInIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export interface SocialShareData {
+  offerId?: string;
   title: string;
   price: string;
   previousPrice?: string;
@@ -64,6 +65,9 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
   const [showQrCode, setShowQrCode] = useState<boolean>(false);
   const [activeChannels, setActiveChannels] = useState<Array<{ slug: string; name: string; isConnected: boolean }>>([]);
 
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://mundo-lk.app');
+  const shareUrl = data.offerId ? `${baseUrl}/l/${data.offerId}` : data.affiliateUrl;
+
   React.useEffect(() => {
     async function loadChannels() {
       if (!user) return;
@@ -78,15 +82,16 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
   }, [user]);
 
   const prepareShareText = (text?: string): string => {
-    const raw = text || `🔥 Oferta imperdível encontrada!\n\nProduto: ${data.title}\nPreço: ${data.price}${data.previousPrice ? ` (De: ${data.previousPrice})` : ''}\n\nConfira agora: ${data.affiliateUrl}`;
+    const raw = text || `🔥 Oferta imperdível encontrada!\n\nProduto: ${data.title}\nPreço: ${data.price}${data.previousPrice ? ` (De: ${data.previousPrice})` : ''}\n\nConfira agora: ${shareUrl}`;
     
     // 1. Limpeza estrita de caracteres de substituição corrompidos (\uFFFD)
     let cleaned = raw.replace(/\uFFFD/g, '').trim();
 
     // 2. Garante a substituição de URLs longas expandidas pelo link curto oficial de afiliado
     if (data.affiliateUrl) {
-      cleaned = cleaned.replace(/https:\/\/(www\.)?shopee\.com\.br\/[^\s\n]+/g, data.affiliateUrl);
-      cleaned = cleaned.replace(/https:\/\/(www\.)?mercadolivre\.com\.br\/[^\s\n]+/g, data.affiliateUrl);
+      cleaned = cleaned.replace(/https:\/\/(www\.)?shopee\.com\.br\/[^\s\n]+/g, shareUrl);
+      cleaned = cleaned.replace(/https:\/\/(www\.)?mercadolivre\.com\.br\/[^\s\n]+/g, shareUrl);
+      cleaned = cleaned.replace(/https:\/\/(www\.)?magazineluiza\.com\.br\/[^\s\n]+/g, shareUrl);
     }
 
     return cleaned;
@@ -96,7 +101,7 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({ data, onClos
   const telegramCopy = prepareShareText(data.telegramText);
   const instagramCopy = prepareShareText(data.instagramText);
 
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.affiliateUrl)}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(shareUrl)}`;
 
   const handleCopy = (text: string, channelName: string) => {
     navigator.clipboard.writeText(text);

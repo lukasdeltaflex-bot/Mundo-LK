@@ -77,7 +77,9 @@ export class AffiliateDistributionService {
       throw new Error('[AffiliateDistributionService] BLOQUEIO DE SEGURANÇA: A integridade do link de afiliado foi violada.');
     }
 
-    const encodedUrl = encodeURIComponent(offer.affiliateLink.affiliateUrl);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://mundo-lk.app');
+    const shareUrl = `${baseUrl}/l/${offer.id}`;
+    const encodedUrl = encodeURIComponent(shareUrl);
     const encodedText = encodeURIComponent(copyText);
     const intentUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`;
 
