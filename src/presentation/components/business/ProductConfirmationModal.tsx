@@ -30,9 +30,14 @@ const CATEGORY_OPTIONS = [
 const MARKETPLACE_OPTIONS = [
   { slug: 'mercadolivre', label: 'Mercado Livre' },
   { slug: 'shopee', label: 'Shopee' },
-  { slug: 'shein', label: 'SHEIN' },
   { slug: 'amazon', label: 'Amazon' },
-  { slug: 'outros', label: 'Outro' },
+  { slug: 'magalu', label: 'Magalu' },
+  { slug: 'shein', label: 'SHEIN' },
+  { slug: 'aliexpress', label: 'AliExpress' },
+  { slug: 'tiktok', label: 'TikTok Shop' },
+  { slug: 'casasbahia', label: 'Casas Bahia' },
+  { slug: 'kabum', label: 'KabuM!' },
+  { slug: 'outros', label: 'Outro (Personalizado)' },
 ];
 
 export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> = ({
@@ -50,10 +55,16 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   };
 
   const initialMkt = (marketplaceSlug || data.marketplace || '').toLowerCase();
-  const isMktAutoDetected = ['shopee', 'mercadolivre', 'amazon', 'shein', 'magalu', 'aliexpress', 'tiktokshop'].includes(initialMkt);
+  const knownSlugs = ['shopee', 'mercadolivre', 'amazon', 'shein', 'magalu', 'magazine luiza', 'aliexpress', 'tiktok', 'tiktokshop', 'casasbahia', 'via', 'kabum', 'temu', 'americanas'];
+  const isMktAutoDetected = knownSlugs.includes(initialMkt);
 
   const [selectedMarketplace, setSelectedMarketplace] = useState<string>(
-    isMktAutoDetected ? initialMkt : 'shopee'
+    isMktAutoDetected
+      ? (initialMkt.includes('magazine') ? 'magalu' : initialMkt)
+      : 'outros'
+  );
+  const [customMarketplace, setCustomMarketplace] = useState<string>(
+    !isMktAutoDetected && initialMkt && initialMkt !== 'desconhecido' && initialMkt !== 'outros' ? initialMkt : ''
   );
 
   const [title, setTitle] = useState(isValidTitle(data.title) ? data.title : '');
@@ -94,7 +105,10 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
     const numericPrevPrice = parseFloat(prevPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
     const numericRating = parseFloat(rating);
 
-    const finalMarketplace = isMktAutoDetected ? initialMkt : selectedMarketplace;
+    let finalMarketplace = selectedMarketplace;
+    if (selectedMarketplace === 'outros' && customMarketplace.trim()) {
+      finalMarketplace = customMarketplace.trim();
+    }
 
     const confirmed: ProductExtractionResult = {
       ...data,
@@ -182,30 +196,45 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
 
             {/* Inputs */}
             <div className="md:col-span-2 space-y-3">
-              {/* Fallback Manual de Marketplace quando não identificado automaticamente */}
-              {!isMktAutoDetected && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-                  <label className="text-xs font-bold text-amber-300 block mb-1.5">
-                    ⚠️ Marketplace não identificado. Selecione uma opção:
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {MARKETPLACE_OPTIONS.map((mkt) => (
-                      <button
-                        key={mkt.slug}
-                        type="button"
-                        onClick={() => setSelectedMarketplace(mkt.slug)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition-all ${
-                          selectedMarketplace === mkt.slug
-                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow'
-                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-amber-500/50'
-                        }`}
-                      >
-                        {mkt.label}
-                      </button>
-                    ))}
-                  </div>
+              {/* Seleção e Ajuste de Marketplace */}
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                <label className="text-xs font-bold text-amber-300 block mb-1.5 flex items-center justify-between">
+                  <span>🏪 {isMktAutoDetected ? 'Marketplace Identificado' : 'Selecione ou confirme o Marketplace'}:</span>
+                  <span className="text-[10px] text-amber-400/80 font-normal">Opção de marketplace personalizada</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MARKETPLACE_OPTIONS.map((mkt) => (
+                    <button
+                      key={mkt.slug}
+                      type="button"
+                      onClick={() => setSelectedMarketplace(mkt.slug)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold border transition-all ${
+                        selectedMarketplace === mkt.slug
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow'
+                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-amber-500/50'
+                      }`}
+                    >
+                      {mkt.label}
+                    </button>
+                  ))}
                 </div>
-              )}
+
+                {selectedMarketplace === 'outros' && (
+                  <div className="mt-2.5 pt-2 border-t border-amber-500/20 space-y-1">
+                    <label className="text-[11px] font-semibold text-amber-200 block">
+                      📝 Digite o nome do Marketplace Personalizado:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={customMarketplace}
+                      onChange={(e) => setCustomMarketplace(e.target.value)}
+                      placeholder="Ex: Magazine Luiza, Kiwify, Natura, Submarino..."
+                      className="w-full rounded-lg border border-amber-500/50 bg-slate-950 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Title */}
               <div>

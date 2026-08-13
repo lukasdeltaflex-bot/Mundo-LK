@@ -1,7 +1,7 @@
 import { AffiliateLink } from './affiliate-link.entity';
 
 export type SourceStatus = 'CONFIRMED' | 'NOT_AVAILABLE' | 'EXPIRED';
-export type MarketplaceSlug = 'shopee' | 'mercadolivre' | 'amazon' | 'tiktok' | 'magalu';
+export type MarketplaceSlug = 'shopee' | 'mercadolivre' | 'amazon' | 'tiktok' | 'magalu' | 'shein' | 'aliexpress' | 'casasbahia' | 'kabum' | 'outros' | (string & {});
 
 export interface ProductImages {
   main: string;

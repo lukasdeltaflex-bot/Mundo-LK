@@ -168,9 +168,12 @@ const MARKETPLACES_LIST = [
   { slug: 'shopee', name: 'Shopee' },
   { slug: 'mercadolivre', name: 'Mercado Livre' },
   { slug: 'amazon', name: 'Amazon' },
-  { slug: 'magalu', name: 'Magalu' },
+  { slug: 'magalu', name: 'Magalu (Magaz. Luiza)' },
+  { slug: 'shein', name: 'SHEIN' },
   { slug: 'aliexpress', name: 'AliExpress' },
   { slug: 'tiktok', name: 'TikTok Shop' },
+  { slug: 'casasbahia', name: 'Casas Bahia' },
+  { slug: 'kabum', name: 'KabuM!' },
 ];
 
 export default function ProdutosPage() {

@@ -11,9 +11,11 @@ export const MarketplaceBadge: React.FC<MarketplaceBadgeProps> = ({
 }) => {
   const slug = marketplaceSlug.toLowerCase();
 
-  let colorDot = 'bg-slate-400';
-  let label = 'Marketplace';
-  let borderStyle = 'border-slate-800 bg-slate-900 text-slate-300';
+  let colorDot = 'bg-purple-400';
+  let label = marketplaceSlug
+    ? marketplaceSlug.charAt(0).toUpperCase() + marketplaceSlug.slice(1)
+    : 'Marketplace';
+  let borderStyle = 'border-purple-500/30 bg-purple-500/10 text-purple-300';
 
   if (slug.includes('mercadolivre') || slug.includes('mercado livre')) {
     colorDot = 'bg-yellow-400';
@@ -35,6 +37,22 @@ export const MarketplaceBadge: React.FC<MarketplaceBadgeProps> = ({
     colorDot = 'bg-sky-400';
     label = 'Magalu';
     borderStyle = 'border-sky-500/30 bg-sky-500/10 text-sky-300';
+  } else if (slug.includes('shein')) {
+    colorDot = 'bg-pink-400';
+    label = 'SHEIN';
+    borderStyle = 'border-pink-500/30 bg-pink-500/10 text-pink-300';
+  } else if (slug.includes('tiktok')) {
+    colorDot = 'bg-cyan-400';
+    label = 'TikTok Shop';
+    borderStyle = 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300';
+  } else if (slug.includes('casasbahia') || slug.includes('via')) {
+    colorDot = 'bg-blue-500';
+    label = 'Casas Bahia';
+    borderStyle = 'border-blue-600/30 bg-blue-600/10 text-blue-300';
+  } else if (slug.includes('kabum')) {
+    colorDot = 'bg-amber-500';
+    label = 'KabuM!';
+    borderStyle = 'border-amber-500/30 bg-amber-500/10 text-amber-300';
   }
 
   return (
