@@ -152,17 +152,33 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
       : null;
     const images = (data['images'] as string[] | undefined) || [];
     const mainImage = images[0] ? `https://cf.shopee.com.br/file/${images[0]}` : '';
-    const description = String(data['description'] || '').slice(0, 300);
-    const categoryName = String(data['category'] || 'Geral');
+    const description = String(data['description'] || '').slice(0, 2000);
+    const categoryName = String(data['category'] || '');
     const rating = typeof data['item_rating'] === 'object' && data['item_rating'] !== null
       ? Number((data['item_rating'] as Record<string, unknown>)['rating_star']) || 0
       : 0;
+
+    // Extração inteligente de atributos da Shopee
+    const rawAttrs = Array.isArray(data['attributes']) ? (data['attributes'] as Array<Record<string, unknown>>) : [];
+    const extractedAttributes: Record<string, string> = {};
+    let extractedBrand = '';
+
+    for (const attr of rawAttrs) {
+      const attrName = String(attr['name'] || '').trim();
+      const attrVal = String(attr['value'] || '').trim();
+      if (attrName && attrVal) {
+        extractedAttributes[attrName] = attrVal;
+        if (attrName.toLowerCase().includes('marca') || attrName.toLowerCase().includes('brand')) {
+          extractedBrand = attrVal;
+        }
+      }
+    }
 
     const checkItems: Array<{ label: string; found: boolean; weight: number }> = [
       { label: 'Título oficial do anúncio', found: name.length > 5, weight: 30 },
       { label: 'Preço atual', found: price !== null && price > 0, weight: 25 },
       { label: 'Imagem principal do produto', found: !!mainImage, weight: 20 },
-      { label: 'Categoria ou Marca', found: !!categoryName, weight: 15 },
+      { label: 'Categoria ou Marca', found: !!categoryName || !!extractedBrand, weight: 15 },
       { label: 'Descrição / Detalhes', found: description.length > 10, weight: 10 },
     ];
     const score = checkItems.reduce((a, i) => a + (i.found ? i.weight : 0), 0);
@@ -171,8 +187,8 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     return {
       title:           name,
       description,
-      brand:           'Shopee',
-      categoryName,
+      brand:           extractedBrand,
+      categoryName:    categoryName || 'Geral',
       mainImage,
       gallery:         images.slice(0, 5).map((img) => `https://cf.shopee.com.br/file/${img}`),
       currentPrice:    price ?? 0,
@@ -185,6 +201,7 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
       confidenceScore: score,
       confidenceMode:  mode,
       confidenceItems: checkItems,
+      attributes:      Object.keys(extractedAttributes).length > 0 ? extractedAttributes : undefined,
     };
   }
 

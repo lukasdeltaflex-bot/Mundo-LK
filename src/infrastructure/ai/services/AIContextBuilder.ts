@@ -12,6 +12,7 @@ import { MarketplaceIntelligenceScore } from '../../../core/domain/value-objects
 
 export interface AIProductContext {
   nome: string;
+  descricao?: string;
   precoAtual: string;
   precoAntigo?: string;
   desconto: string;
@@ -23,6 +24,8 @@ export interface AIProductContext {
   avaliacao?: string;
   imagemUrl: string;
   linkOriginal: string;
+  atributos?: Record<string, string>;
+  especificacoes?: string[];
 }
 
 export class AIContextBuilder {
@@ -35,6 +38,7 @@ export class AIContextBuilder {
 
     return {
       nome: product.title.slice(0, 150).trim(),
+      descricao: product.description,
       precoAtual,
       precoAntigo,
       desconto,
@@ -46,6 +50,8 @@ export class AIContextBuilder {
       avaliacao: product.rating > 0 ? `${product.rating} / 5 (${product.reviewCount} avaliações)` : undefined,
       imagemUrl: product.image,
       linkOriginal: product.originalUrl || product.canonicalUrl,
+      atributos: product.attributes,
+      especificacoes: product.specifications,
     };
   }
 
@@ -62,14 +68,28 @@ export class AIContextBuilder {
 
     const blocks: string[] = [];
 
-    // 1. DADOS DE CATÁLOGO DA OFERTA (OfferContext)
-    blocks.push(`DADOS DA OFERTA (OFFER CONTEXT):
+    // 1. DADOS DE CATÁLOGO DA OFERTA (OfferContext + Detalhes do Produto)
+    let productDetailsStr = `DADOS DA OFERTA (OFFER CONTEXT):
 - Produto: ${offerContext.title}
+- Marca: ${product.brand || 'Não especificada'}
+- Categoria: ${product.category || 'Geral'}
 - Preço Atual: ${offerContext.currentPrice}
 ${offerContext.previousPrice ? `- Preço Anterior: ${offerContext.previousPrice}` : ''}
 ${offerContext.discountPercentage ? `- Desconto Confirmado: ${offerContext.discountPercentage}` : ''}
-- Marca: ${product.brand || 'Não especificada'}
-- Categoria: ${product.category || 'Geral'}`);
+- Descrição Oficial: ${product.description || 'Nenhuma descrição estendida fornecida'}`;
+
+    if (product.attributes && Object.keys(product.attributes).length > 0) {
+      const attrsFormatted = Object.entries(product.attributes)
+        .map(([k, v]) => `  • ${k}: ${v}`)
+        .join('\n');
+      productDetailsStr += `\n- Atributos Confirmados:\n${attrsFormatted}`;
+    }
+
+    if (product.specifications && product.specifications.length > 0) {
+      productDetailsStr += `\n- Especificações Técnicas:\n${product.specifications.map(s => `  • ${s}`).join('\n')}`;
+    }
+
+    blocks.push(productDetailsStr);
 
     // 2. DADOS DO MARKETPLACE E ESTRATÉGIA COMERCIAL (MarketplaceContext)
     blocks.push(`INTELIGÊNCIA DO CANAL (MARKETPLACE CONTEXT):
@@ -102,6 +122,7 @@ ${offerContext.discountPercentage ? `- Desconto Confirmado: ${offerContext.disco
     return `
 DADOS CONFIRMADOS DO PRODUTO:
 - Nome: ${context.nome}
+${context.descricao ? `- Descrição Oficial: ${context.descricao}` : ''}
 - Preço Atual: ${context.precoAtual}
 ${context.precoAntigo ? `- Preço Anterior: ${context.precoAntigo}` : ''}
 - Desconto: ${context.desconto}
@@ -193,12 +214,26 @@ Utilize o mesmo ângulo comercial recomendado, mas varie a estrutura de frases e
     blocks.push(`[META INFO: contextVersion=${AIContextBuilder.CONTEXT_VERSION} | engine=GeminiBrain-Phase2.5]`);
 
     // ── BLOCO 1: PRODUTO ──
-    blocks.push(`━━━ 📦 PRODUTO ━━━
+    let productBlock = `━━━ 📦 PRODUTO (FATOS REAIS INEGOCIÁVEIS) ━━━
 • Nome: ${offerCtx.title}
+• Marca: ${product.brand || 'Não especificada'}
+• Categoria: ${product.category || 'Geral'}
 • Preço Atual: ${offerCtx.currentPrice}${offerCtx.previousPrice ? ` (anterior: ${offerCtx.previousPrice})` : ''}
 ${offerCtx.discountPercentage ? `• Desconto Confirmado: ${offerCtx.discountPercentage}` : ''}
-• Marca: ${product.brand || 'Não especificada'}
-• Categoria: ${product.category || 'Geral'}`);
+• Descrição Oficial do Produto: "${product.description || 'Descrição indisponível'}"`;
+
+    if (product.attributes && Object.keys(product.attributes).length > 0) {
+      const attrsStr = Object.entries(product.attributes)
+        .map(([k, v]) => `  - ${k}: ${v}`)
+        .join('\n');
+      productBlock += `\n• Atributos Confirmados:\n${attrsStr}`;
+    }
+
+    if (product.specifications && product.specifications.length > 0) {
+      productBlock += `\n• Especificações Técnicas:\n${product.specifications.map(s => `  - ${s}`).join('\n')}`;
+    }
+
+    blocks.push(productBlock);
 
     // ── BLOCO 2: MARKETPLACE (Perfil + Scores + Menção) ──
     blocks.push(`━━━ 🏪 MARKETPLACE ━━━

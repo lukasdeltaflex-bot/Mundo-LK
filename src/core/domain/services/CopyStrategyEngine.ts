@@ -109,6 +109,7 @@ export class CopyStrategyEngine {
     const blocks: string[] = [];
 
     blocks.push(`━━━ 🧠 PLANO ESTRATÉGICO COMERCIAL DO COPYSTRATEGYENGINE ━━━`);
+    blocks.push(`• Diretriz Suprema: O estilo comercial é a LENTE DE VENDA. A copy DEVE ser fundamentada nos fatos e atributos reais do produto.`);
     blocks.push(`• Objetivo Comercial: ${strategy.objetivoComercial}`);
     blocks.push(`• Tom de Voz Selecionado: ${strategy.tomDeVoz}`);
     blocks.push(`• Estratégia de Gancho (Hook): ${strategy.estrategiaGancho}`);

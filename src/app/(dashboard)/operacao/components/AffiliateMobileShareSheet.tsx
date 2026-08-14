@@ -69,6 +69,10 @@ export const AffiliateMobileShareSheet: React.FC<AffiliateMobileShareSheetProps>
     try {
       const newCopy = await AIService.generateOfferCopy({
         title: offer.productData.title,
+        description: offer.productData.description,
+        brand: offer.productData.brand,
+        category: offer.productData.category,
+        marketplaceSlug: offer.marketplace,
         price: offer.pricing.currentPrice,
         previousPrice: offer.pricing.originalPrice ?? undefined,
         affiliateUrl: offer.affiliateLink.affiliateUrl,

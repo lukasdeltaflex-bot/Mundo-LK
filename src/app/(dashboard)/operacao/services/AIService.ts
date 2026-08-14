@@ -18,6 +18,12 @@ export interface AIEnrichmentResult {
 
 export interface AIOfferCopyParams {
   title: string;
+  description?: string;
+  brand?: string;
+  category?: string;
+  marketplaceSlug?: string;
+  attributes?: Record<string, string>;
+  specifications?: string[];
   price: number;
   previousPrice?: number;
   affiliateUrl: string;
@@ -52,16 +58,16 @@ export class AIService {
           id: `prod_copy_${Date.now()}`,
           userId: 'user_default',
           title: params.title,
-          description: params.title,
-          brand: 'Marca Oficial',
-          categoryId: 'cat_geral',
-          marketplaceSlug: 'mercadolivre',
+          description: params.description || params.title,
+          brand: params.brand || '',
+          categoryId: params.category || 'Geral',
+          marketplaceSlug: params.marketplaceSlug || 'desconhecido',
           originalUrl: url,
           affiliateUrl: AffiliateLink.create(url),
           currentPrice: currPrice,
           previousPrice: prevPrice,
           discountPercentage: DiscountPercentage.calculate(currPrice, prevPrice),
-          images: ['https://http2.mlstatic.com/D_NQ_NP_2X_612255-F.webp'],
+          images: [],
           status: 'ACTIVE',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -103,38 +109,25 @@ export class AIService {
 
     const affiliateUrl = product.originalUrl || product.canonicalUrl;
     const formattedPrice = product.currentPrice ? product.currentPrice : 0;
+    const mktSlug = product.marketplace ? product.marketplace.toLowerCase() : undefined;
 
-    const whatsAppText = await AIService.generateOfferCopy({
+    const copyParamsBase = {
       title: product.title,
+      description: product.description,
+      brand: product.brand,
+      category: product.category,
+      marketplaceSlug: mktSlug,
+      attributes: product.attributes,
+      specifications: product.specifications,
       price: formattedPrice,
       previousPrice: product.originalPrice ?? undefined,
       affiliateUrl,
-      style: 'whatsapp',
-    });
+    };
 
-    const telegramText = await AIService.generateOfferCopy({
-      title: product.title,
-      price: formattedPrice,
-      previousPrice: product.originalPrice ?? undefined,
-      affiliateUrl,
-      style: 'telegram',
-    });
-
-    const instagramText = await AIService.generateOfferCopy({
-      title: product.title,
-      price: formattedPrice,
-      previousPrice: product.originalPrice ?? undefined,
-      affiliateUrl,
-      style: 'instagram',
-    });
-
-    const facebookText = await AIService.generateOfferCopy({
-      title: product.title,
-      price: formattedPrice,
-      previousPrice: product.originalPrice ?? undefined,
-      affiliateUrl,
-      style: 'facebook',
-    });
+    const whatsAppText = await AIService.generateOfferCopy({ ...copyParamsBase, style: 'whatsapp' });
+    const telegramText = await AIService.generateOfferCopy({ ...copyParamsBase, style: 'telegram' });
+    const instagramText = await AIService.generateOfferCopy({ ...copyParamsBase, style: 'instagram' });
+    const facebookText = await AIService.generateOfferCopy({ ...copyParamsBase, style: 'facebook' });
 
     const channelContent = new ChannelContent({
       whatsAppText,

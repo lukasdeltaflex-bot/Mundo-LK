@@ -27,6 +27,8 @@ export interface ExtractedProductData {
   confidenceScore: number; // 0 to 100
   confidenceMode?: 'automatic' | 'assisted' | 'manual';
   confidenceItems: ConfidenceCheckItem[];
+  attributes?: Record<string, string>;
+  specifications?: string[];
 }
 
 export interface IMarketplaceAdapter {

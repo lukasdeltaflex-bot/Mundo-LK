@@ -22,6 +22,12 @@ export interface OfferContentGenerationInput {
   tenantId?: string;
   offerId: string;
   title: string;
+  description?: string;
+  brand?: string;
+  category?: string;
+  marketplaceSlug?: string;
+  attributes?: Record<string, string>;
+  specifications?: string[];
   price: number;
   previousPrice?: number;
   affiliateUrl: string;
@@ -92,6 +98,12 @@ export class OfferContentEngine {
       // Disparo real via AIService
       const resText = await AIService.generateOfferCopy({
         title: input.title,
+        description: input.description,
+        brand: input.brand,
+        category: input.category,
+        marketplaceSlug: input.marketplaceSlug,
+        attributes: input.attributes,
+        specifications: input.specifications,
         price: input.price,
         previousPrice: input.previousPrice,
         affiliateUrl: preservedAffiliateUrl,

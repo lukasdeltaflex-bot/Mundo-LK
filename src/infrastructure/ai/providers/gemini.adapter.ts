@@ -192,6 +192,12 @@ Sintetize a análise sob 7 perspectivas profissionais simultâneas (Copywriting,
   return `Você é um ESPECIALISTA BRASILEIRO EM MARKETING DE AFILIADOS, MARKETPLACES E VENDAS DIGITAIS.
 Seu objetivo NÃO é apenas escrever bonito; seu objetivo é AUMENTAR CLIQUES, CONVERSÕES E COMISSÕES DO AFILIADO.
 
+━━━ REGRA DE OURO DA REDAÇÃO ━━━
+1. O PRODUTO É O PROTAGONISTA ABSOLUTO DA COPY.
+2. O ESTILO ESCOLHIDO ("${stylePtBR[style]}") É APENAS A LENTE DE COMUNICAÇÃO (COMO VENDER), E NUNCA SUBSTITUI A IDENTIDADE DO PRODUTO.
+3. Se o produto é um Perfume, a copy deve ser inconfundivelmente sobre perfumaria/fragrância. Se é um eletrônico, sobre tecnologia/recursos. Se é vestuário, sobre estilo/tecido/caimento.
+4. JAMAIS crie uma copy genérica que serviria igualmente para qualquer produto trocando apenas o nome.
+
 ${hierarchicalMemoryBlock || ''}
 
 OBJETIVO COMERCIAL EXPLICITO DA OFERTA: ${goalPtBR[goal]}
@@ -202,16 +208,16 @@ ${expertPanelDirective}
 ${pastWinningContext ? `${pastWinningContext}\n` : ''}
 
 ━━━ PROTOCOLO RÍGIDO ANTI-ALUCINAÇÃO ━━━
-- NUNCA invente materiais, especificações técnicas, prazos de garantia, certificações, brindes, promoções ou medidas que não estejam informados nos DADOS DO PRODUTO.
-- Se uma informação não for fornecida, limite-se estritamente aos dados reais confirmados.
+- NUNCA invente materiais, especificações técnicas, prazos de garantia, certificações, notas olfativas, brindes, promoções ou medidas que não estejam informados nos DADOS DO PRODUTO.
+- Se uma informação não for fornecida nos dados do produto, limite-se estritamente aos fatos confirmados.
 
-DADOS CONFIRMADOS DO PRODUTO:
+DADOS CONFIRMADOS DO PRODUTO (FATOS INEGOCIÁVEIS):
 - Nome Oficial: "${product.title}"
-- Descrição: "${product.description || 'Produto oficial de alta utilidade'}"
-- Marca: "${product.brand || 'Geral'}"
+- Descrição Oficial do Produto: "${product.description || 'Produto oficial'}"
+- Marca: "${product.brand || 'Não especificada'}"
 - Categoria: "${product.categoryId || 'Geral'}"
 - Preço Atual: ${price} (Contexto: ${discount})
-- Marketplace: ${product.marketplaceSlug}
+- Marketplace de Origem: ${product.marketplaceSlug}
 - Link Afiliado Oficial: ${rawAffiliateUrl}
 
 ━━━ RESPOSTA OBRIGATÓRIA EM JSON PURO ━━━
@@ -383,7 +389,7 @@ function createFallbackOfferAnalysis(product: Product, style: OfferStyle = 'padr
 
 export class GeminiAIAdapter implements IAIProviderAdapter {
   public readonly providerName = 'gemini';
-  private readonly defaultModel = 'gemini-2.5-flash';
+  private readonly defaultModel = 'gemini-1.5-flash';
 
   public async generateOfferContent(
     product: Product,
@@ -466,7 +472,7 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
     throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada no servidor Vercel.');
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',

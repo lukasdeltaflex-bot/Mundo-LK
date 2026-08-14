@@ -28,4 +28,6 @@ export interface ProductExtractionResult {
   productId: string;
   canonicalUrl: string;
   originalUrl: string;
+  attributes?: Record<string, string>;
+  specifications?: string[];
 }

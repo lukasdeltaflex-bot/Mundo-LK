@@ -10,6 +10,8 @@ export interface ProductImages {
 
 export interface OfferProductData {
   title: string;
+  description?: string;
+  brand?: string;
   images: ProductImages;
   category: string;
   seller: string;
