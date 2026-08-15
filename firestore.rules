@@ -46,6 +46,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /user_ai_preferences/{userId} {
+      allow read, create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    match /user_text_edit_events/{eventId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isPayloadValid(request.auth.uid);
+      allow update: if isOwner(resource.data.userId) && areCriticalFieldsUnchanged();
+      allow delete: if isOwner(resource.data.userId);
+    }
+
     match /ai_memory/{userId} {
       allow read, create, update: if isOwner(userId);
       allow delete: if false;
