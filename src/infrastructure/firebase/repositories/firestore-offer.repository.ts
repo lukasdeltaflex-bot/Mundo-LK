@@ -105,14 +105,14 @@ export class FirestoreOfferRepository implements IOfferRepository {
   }
 
   public async create(offer: Offer): Promise<void> {
-    const activeUid = auth.currentUser?.uid || offer.userId;
+    const activeUid = offer.userId || auth.currentUser?.uid;
     if (!activeUid) {
       throw new Error(
         '[FirestoreOfferRepository] Usuário não autenticado ao criar oferta.'
       );
     }
 
-    const uniqueOfferId = offer.id && offer.id.startsWith('off_')
+    const uniqueOfferId = offer.id && offer.id.trim().length > 3
       ? offer.id
       : `off_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -131,7 +131,7 @@ export class FirestoreOfferRepository implements IOfferRepository {
       await setDoc(ref, cleanRaw);
       console.log('[FirestoreOfferRepository] Nova oferta criada com sucesso. OfferID:', uniqueOfferId);
     } catch (error) {
-      console.error('[FirestoreOfferRepository] Erro ao criar oferta:', error);
+      console.error('[FirestoreOfferRepository] Erro ao criar oferta no Firestore:', error);
       throw error;
     }
   }

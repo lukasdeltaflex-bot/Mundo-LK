@@ -1,3 +1,5 @@
+'use server';
+
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { Product } from '@/core/domain/entities/product.entity';
@@ -35,8 +37,6 @@ export async function saveApprovedOfferAction(
       await UserAIPreferencesService.recordUserEdit(userId, preview.offer.whatsAppText, editedCopy);
     }
 
-    console.log('[SAVE] Tentando salvar oferta para usuário:', userId);
-
     if (!preview.product.title) throw new Error('Campo obrigatório vazio: Título');
     if (!preview.product.originalUrl) throw new Error('Campo obrigatório vazio: URL Original');
 
@@ -52,7 +52,7 @@ export async function saveApprovedOfferAction(
       id:                 productId,
       userId,
       title:              editedTitle || preview.product.title,
-      description:        preview.product.description || 'Produto oficial',
+      description:        preview.product.description || editedCopy || 'Produto oficial',
       brand:              preview.product.brand || 'Desconhecida',
       categoryId:         preview.product.categoryId || 'Geral',
       marketplaceSlug:    preview.product.marketplaceSlug || 'shopee',
@@ -104,7 +104,7 @@ export async function saveApprovedOfferAction(
       hashtags: preview.offer.hashtags,
       emojis: preview.offer.emojis,
       cta: editedCta || preview.offer.cta,
-      aiProviderUsed: 'gemini-2.5-flash',
+      aiProviderUsed: 'gemini-1.5-flash',
       marketplaceId: mktSlug,
       marketplaceName: mktName,
       marketplaceDetectedBy: (preview.product as any).marketplaceDetectedBy || 'url_parser',

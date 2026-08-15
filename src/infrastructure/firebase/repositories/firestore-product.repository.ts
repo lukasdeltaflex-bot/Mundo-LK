@@ -183,7 +183,10 @@ export class FirestoreProductRepository implements IProductRepository {
   }
   public async save(product: Product): Promise<void> {
     const raw = ProductMapper.toPersistence(product);
-    const activeUid = auth.currentUser?.uid || product.userId;
+    const activeUid = product.userId || auth.currentUser?.uid;
+    if (!activeUid) {
+      throw new Error('[FirestoreProductRepository] Usuário não autenticado ao salvar produto.');
+    }
     const cleanRaw = {
       ...raw,
       userId: activeUid,
@@ -191,12 +194,6 @@ export class FirestoreProductRepository implements IProductRepository {
       status: 'ACTIVE' as const,
     };
     try {
-      console.log('[FirestoreProductRepository AUDIT] setDoc Product:', {
-        id: product.id,
-        title: product.title,
-        marketplace: product.marketplaceSlug,
-        userId: activeUid,
-      });
       const ref = doc(db, this.collectionName, product.id);
       await setDoc(ref, cleanRaw, { merge: true });
     } catch (error) {

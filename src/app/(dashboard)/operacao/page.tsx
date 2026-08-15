@@ -177,29 +177,40 @@ export default function AffiliateOperationsHubPage() {
     }
     setIsGeneratingAI(true);
     setAiNotice(null);
+    const activeUserId = user?.uid || 'user_default';
     try {
       const aiService = new AIService();
-      const res = await aiService.generateEnrichment(reviewData.data, style, user?.uid || 'user_default');
+      const res = await aiService.generateEnrichment(reviewData.data, style, activeUserId);
 
       if (!res.success) {
         setAiNotice(res.error || 'Falha ao acionar IA.');
         return;
       }
 
+      // Persistir automaticamente a Offer gerada no Firestore
+      const pubService = new PublishingService();
+      const saved = await pubService.saveProductAndOffer(
+        reviewData.data,
+        res.offerProps || {},
+        activeUserId
+      );
+
+      await loadProducts();
+
       // Gera mídias vinculadas à Offer
       const mediaService = new MediaService();
       const mediaList = mediaService.generateMediaForOffer(
-        res.offerProps?.productId || `offer_${Date.now()}`,
+        saved.offer.id,
         reviewData.data.title,
         reviewData.data.image,
         reviewData.data.currentPrice
       );
       setGeneratedMedia(mediaList);
 
-      alert(`🟢 Anúncio enriquecido com sucesso usando ${res.providerUsed}! Mídias geradas.`);
+      alert(`🟢 Oferta gerada, aprovada e salva no Firestore com sucesso (${res.providerUsed})!`);
     } catch (err) {
-      console.error('[Hub] Erro na IA:', err);
-      setAiNotice('Ocorreu um erro ao processar os modelos de IA.');
+      console.error('[Hub] Erro na IA/Persistência:', err);
+      setAiNotice('Ocorreu um erro ao processar e salvar os modelos de IA.');
     } finally {
       setIsGeneratingAI(false);
     }
