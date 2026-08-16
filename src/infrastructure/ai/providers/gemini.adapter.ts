@@ -379,8 +379,8 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
       analysis.providerUsed = this.defaultModel;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      console.warn('[GeminiAIAdapter] ⚠️ Falha na chamada da API Gemini. Motivo:', reason);
-      analysis = createFallbackOfferAnalysis(product, style, reason);
+      console.error('[GeminiAIAdapter] 🚨 FALHA REAL NA API GEMINI:', reason);
+      throw new Error(`Falha na API do Gemini: ${reason}`);
     }
 
     // Injeta dados limpos para auditoria admin Modo Debug

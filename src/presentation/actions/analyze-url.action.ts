@@ -302,6 +302,14 @@ export async function analyzeProductUrlAction(input: {
       generationMode: mode,
     });
 
+    if (orchestratorResult.errors && orchestratorResult.errors.length > 0 && (!orchestratorResult.analysis || !orchestratorResult.analysis.whatsAppText)) {
+      const mainErr = orchestratorResult.errors[0];
+      console.error('[analyzeProductUrlAction] ❌ Falha no pipeline de IA:', mainErr);
+      return {
+        success: false,
+        error: `Não foi possível gerar a oferta com a IA: ${mainErr}`,
+      };
+    }
     const rawAnalysis = orchestratorResult.analysis || ({} as any);
     const whatsAppText = String(rawAnalysis.whatsAppText || '');
     const telegramText = String(rawAnalysis.telegramText || whatsAppText);
