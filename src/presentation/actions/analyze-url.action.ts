@@ -122,8 +122,17 @@ export async function extractProductDetailsAction(input: {
 
     // 4. Consult 2-Tier Cache (L1 Memory ➔ L2 Firestore)
     const cached = await cacheService.getCachedProduct(productIdKey);
-    if (cached && !cached.isPriceStale) {
-      console.log(`[Cache] ⚡ Hit de Cache ${cached.tier} (<50ms) para ${productIdKey}`);
+    const isCorruptedCache = cached && (
+      !cached.product ||
+      !cached.product.title ||
+      cached.product.title.toLowerCase().trim() === 'amazon.com.br' ||
+      cached.product.title.toLowerCase().trim() === 'shopee brasil' ||
+      cached.product.title.toLowerCase().trim() === 'mercado livre' ||
+      (cached.product.currentPrice && cached.product.currentPrice >= 100000)
+    );
+
+    if (cached && !cached.isPriceStale && !isCorruptedCache) {
+      console.log(`[Cache] ⚡ Hit de Cache VÁLIDO ${cached.tier} (<50ms) para ${productIdKey}`);
 
       const affiliateUrl = rawUrl || expandedUrl;
 
@@ -151,6 +160,8 @@ export async function extractProductDetailsAction(input: {
         affiliateUrl,
         marketplaceSlug: plugin.slug,
       };
+    } else if (cached && isCorruptedCache) {
+      console.warn(`[Cache] ⚠️ Cache corrompido ou incompleto detectado para ${productIdKey}. Forçando re-extração via waterfall.`);
     }
 
     // 5. ProviderManager Waterfall Extraction
