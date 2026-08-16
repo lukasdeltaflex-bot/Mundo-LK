@@ -437,20 +437,68 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
   }
 }
 
-// ─── Direct HTTP Fetch ────────────────────────────────────────────────────────
+// ─── Official Model Resolution via ListModels ─────────────────────────────────
 
-export const CANDIDATE_GEMINI_MODELS = [
-  process.env.GEMINI_MODEL,
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3-flash-preview',
-  'gemini-flash-latest',
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-].filter(Boolean) as string[];
+export async function resolveAvailableGeminiModel(apiKey: string): Promise<string> {
+  console.log('[GeminiAdapter] 🔍 Consultando GET /v1beta/models para listar modelos disponíveis da API Key...');
 
-let workingModelCache: string | null = null;
+  const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+
+  if (!listRes.ok) {
+    const errText = await listRes.text();
+    console.error(`[GeminiAdapter] 🚨 Gemini ListModels HTTP ${listRes.status}: ${errText}`);
+    throw new Error(`Gemini ListModels HTTP ${listRes.status}: ${listRes.statusText} - Mensagem: ${errText}`);
+  }
+
+  const listData = await listRes.json();
+  const rawModels: any[] = listData.models || [];
+
+  const availableWithGenerateContent = rawModels.filter(
+    (m) => m.name && Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent')
+  );
+
+  if (availableWithGenerateContent.length === 0) {
+    const foundNames = rawModels.map((m) => m.name).join(', ');
+    throw new Error(`A API key está válida, porém nenhum modelo disponível para esta chave suporta generateContent. Modelos encontrados: [${foundNames}]`);
+  }
+
+  // Normaliza nomes (ex: "models/gemini-3.6-flash" ➔ "gemini-3.6-flash")
+  const normalizedNames = availableWithGenerateContent.map((m) => m.name.replace('models/', ''));
+  console.log('[GeminiAdapter] 📋 Modelos com suporte a generateContent:', normalizedNames.join(', '));
+
+  // 1. Se GEMINI_MODEL estiver configurado no .env e presente na lista com generateContent, prioriza
+  const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.replace('models/', '') : null;
+  if (envModel && normalizedNames.includes(envModel)) {
+    console.log(`[GeminiAdapter] 🎯 Modelo priorizado via env GEMINI_MODEL: ${envModel}`);
+    return envModel;
+  }
+
+  // 2. Ordem de preferência de modelos ativos recomendados pela Google AI
+  const preferredOrder = [
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite',
+  ];
+
+  for (const pref of preferredOrder) {
+    if (normalizedNames.includes(pref)) {
+      console.log(`[GeminiAdapter] 💡 Modelo selecionado via preferência oficial: ${pref}`);
+      return pref;
+    }
+  }
+
+  // 3. Fallback para o primeiro modelo válido da lista retornada pela API
+  const selectedFallback = normalizedNames[0];
+  console.log(`[GeminiAdapter] 💡 Modelo selecionado da lista ListModels: ${selectedFallback}`);
+  return selectedFallback;
+}
+
+// ─── Direct HTTP Fetch via Resolved Model ────────────────────────────────────
+
+let cachedResolvedModel: string | null = null;
 
 async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise<{ rawText: string; modelUsed: string }> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -459,103 +507,64 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
     throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada no servidor Vercel.');
   }
 
-  // Lista de modelos a testar em ordem de prioridade
-  const modelsToTry = workingModelCache
-    ? [workingModelCache, ...CANDIDATE_GEMINI_MODELS.filter((m) => m !== workingModelCache)]
-    : CANDIDATE_GEMINI_MODELS;
+  const modelToUse = cachedResolvedModel || (await resolveAvailableGeminiModel(apiKey));
 
-  let lastError: string = '';
+  // Executa teste mínimo se modelo não estiver em cache
+  if (!cachedResolvedModel) {
+    const pingEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
+    console.log(`[GeminiAdapter] 🧪 Executando teste mínimo em ${modelToUse}...`);
+    const pingRes = await fetch(pingEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'Responda apenas: OK' }] }] }),
+    });
 
-  for (const modelCandidate of modelsToTry) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelCandidate}:generateContent?key=${apiKey}`;
-
-    try {
-      console.log(`[GeminiAdapter] 📡 Tentando chamada com modelo: ${modelCandidate}...`);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: Math.min(1.2, Math.max(0.1, temperature)),
-            responseMimeType: 'application/json',
-            maxOutputTokens: 8192,
-          },
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawText) {
-          workingModelCache = modelCandidate;
-          console.log(`[GeminiAdapter] ✅ Sucesso HTTP 200 com o modelo: ${modelCandidate}`);
-          return { rawText, modelUsed: modelCandidate };
-        }
+    if (!pingRes.ok) {
+      const pingErrText = await pingRes.text();
+      if (pingRes.status === 429) {
+        throw new Error(`Falha na API do Gemini (HTTP 429): Créditos pré-pagos ou cota da sua chave GEMINI_API_KEY esgotados no Google AI Studio. Por favor, acesse https://ai.studio/projects para gerenciar o faturamento do projeto. Detalhes: ${pingErrText}`);
       }
-
-      const errText = await response.text();
-      lastError = `Model ${modelCandidate} (HTTP ${response.status}): ${errText}`;
-
-      // Se for erro de modelo não encontrado (404), tenta o próximo modelo candidato da lista
-      if (response.status === 404) {
-        console.warn(`[GeminiAdapter] ⚠️ Modelo ${modelCandidate} retornou 404. Tentando próximo modelo candidato...`);
-        continue;
+      if (pingRes.status === 401 || pingRes.status === 403) {
+        throw new Error(`Falha de Autenticação na API do Gemini (${pingRes.status}): Chave de API inválida ou sem permissão. Detalhes: ${pingErrText}`);
       }
-
-      // Se for erro de autenticação (401/403), falha imediatamente sem tentar outros modelos
-      if (response.status === 401 || response.status === 403) {
-        throw new Error(`Falha de Autenticação na API do Gemini (${response.status}): ${errText}`);
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('Autenticação')) {
-        throw err;
-      }
-      lastError = err instanceof Error ? err.message : String(err);
+      throw new Error(`Falha no teste mínimo do modelo ${modelToUse} (HTTP ${pingRes.status}): ${pingErrText}`);
     }
+
+    cachedResolvedModel = modelToUse;
+    console.log(`[GeminiAdapter] ✅ Teste mínimo bem-sucedido no modelo ${modelToUse}`);
   }
 
-  // Tenta descoberta dinâmica se a lista estática falhar
-  try {
-    console.log('[GeminiAdapter] 🔍 Consultando modelos disponíveis diretamente da API do Google...');
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    if (listRes.ok) {
-      const listData = await listRes.json();
-      const availableModels: any[] = listData.models || [];
-      const flashModel = availableModels.find((m) =>
-        m.name && m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('flash')
-      );
-      if (flashModel) {
-        const discoveredName = flashModel.name.replace('models/', '');
-        console.log(`[GeminiAdapter] 💡 Modelo descoberto via API: ${discoveredName}. Executando chamada...`);
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${discoveredName}:generateContent?key=${apiKey}`;
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: Math.min(1.2, Math.max(0.1, temperature)),
-              responseMimeType: 'application/json',
-              maxOutputTokens: 8192,
-            },
-          }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (rawText) {
-            workingModelCache = discoveredName;
-            return { rawText, modelUsed: discoveredName };
-          }
-        }
-      }
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: Math.min(1.2, Math.max(0.1, temperature)),
+        responseMimeType: 'application/json',
+        maxOutputTokens: 8192,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    if (response.status === 429) {
+      throw new Error(`Falha na API do Gemini (HTTP 429): Cota ou créditos pré-pagos esgotados no Google AI Studio. Acesse https://ai.studio/projects. Detalhes: ${errText}`);
     }
-  } catch (discErr) {
-    console.warn('[GeminiAdapter] ⚠️ Falha na descoberta dinâmica de modelos:', discErr);
+    throw new Error(`Gemini API error ${response.status}: ${errText}`);
   }
 
-  throw new Error(`Nenhum modelo Gemini suportado respondeu com sucesso. Último erro: ${lastError}`);
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!rawText) {
+    throw new Error('Resposta vazia da API do Gemini.');
+  }
+
+  return { rawText, modelUsed: modelToUse };
 }
 
 function parseGeminiJSON(rawText: string, product: Product): GeminiOfferAnalysis {
