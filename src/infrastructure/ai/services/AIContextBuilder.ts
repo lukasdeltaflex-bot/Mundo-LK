@@ -213,14 +213,17 @@ Utilize o mesmo ângulo comercial recomendado, mas varie a estrutura de frases e
 
     blocks.push(`[META INFO: contextVersion=${AIContextBuilder.CONTEXT_VERSION} | engine=GeminiBrain-Phase2.5]`);
 
-    // ── BLOCO 1: PRODUTO (DESCRIÇÃO / DETALHES COMO FONTE PRIMÁRIA) ──
-    let productBlock = `━━━ 📦 PRODUTO (DESCRIÇÃO / DETALHES = FONTE PRIMÁRIA DE CONTEÚDO) ━━━
-⚠️ REGRA IMPERATIVA DE CONTEÚDO:
-O campo "Descrição / Detalhes" abaixo é a PRINCIPAL FONTE DE CONHECIMENTO sobre este produto.
-Você DEVE ler, compreender e extrair as características reais, benefícios específicos, perfil de uso e diferenciais diretamente desse texto.
-NÃO ignore a Descrição! A Copy de WhatsApp deve transformar esses detalhes reais em comunicação comercial persuasiva e natural.
+    // ── BLOCO 1: PRODUTO (BRIEFING E MATÉRIA-PRIMA DE CONTEÚDO) ──
+    let productBlock = `━━━ 📦 PRODUTO (DESCRIÇÃO / DETALHES = BRIEFING E MATÉRIA-PRIMA) ━━━
+⚠️ REGRA IMPERATIVA DE TRANSFORMAÇÃO EDITORIAL:
+O campo "Descrição / Detalhes" é o BRIEFING DE INFORMAÇÕES (matéria-prima) e NUNCA o texto de saída.
+- NUNCA copie a descrição literalmente.
+- NUNCA cole "📝 Detalhes:" seguido do texto da fonte.
+- NUNCA reproduza tópicos ou especificações linha por linha.
+- SELECIONE de 2 a 5 diferenciais principais e REESCREVA em português humano, dinâmico e natural para grupo de achadinhos.
+- O gancho inicial DEVE nascer do tipo de produto (ex: "⌚ Pra quem procura um smartwatch completo...").
 
-• 📝 DESCRIÇÃO / DETALHES DO PRODUTO (FONTE PRINCIPAL):
+• 📝 DESCRIÇÃO / DETALHES DO PRODUTO (BRIEFING DE CONHECIMENTO):
 "${product.description && product.description.trim().length > 0 ? product.description.trim() : 'Descrição detalhada não fornecida pelo usuário'}"
 
 • 📌 Nome Oficial do Produto: ${offerCtx.title}

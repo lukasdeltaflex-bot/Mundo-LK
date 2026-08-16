@@ -209,14 +209,20 @@ ${expertPanelDirective}
 
 ${pastWinningContext ? `${pastWinningContext}\n` : ''}
 
-━━━ PROTOCOLO RÍGIDO ANTI-ALUCINAÇÃO & FONTE PRIMÁRIA DE CONTEÚDO ━━━
-- O CAMPO "DESCRIÇÃO / DETALHES" É A FONTE PRINCIPAL DE CONHECIMENTO DO PRODUTO. A copy DEVE ler, entender e transformar esse texto em argumentos comerciais naturais específicos deste produto.
-- NUNCA invente tempo de fixação (ex: "12h de duração"), materiais, especificações técnicas, prazos de garantia, certificações, brindes ou características não presentes na Descrição / Detalhes.
-- Se a Descrição / Detalhes for concisa, limite-se rigorosamente aos fatos confirmados sem inventar dados falsos.
-- PROIBIDO gerar templates genéricos repetitivos (ex: "🔥 OFERTA IMPERDÍVEL... Garanta o seu!"). Cada produto deve gerar uma copy com ritmo e vocabulário únicos!
+━━━ PROTOCOLO RÍGIDO DE TRANSFORMAÇÃO EDITORIAL & CONTEÚDO FACTUAL ━━━
+1. A "DESCRIÇÃO / DETALHES DO PRODUTO" É O BRIEFING DE INFORMAÇÕES (MATÉRIA-PRIMA), E NÃO O TEXTO DE SAÍDA.
+2. VOCÊ É UM REDATOR HUMANO DE GRUPOS DE ACHADINHOS NO WHATSAPP:
+   - NUNCA copie a descrição literalmente.
+   - NUNCA cole "📝 Detalhes:" seguido do texto da fonte.
+   - NUNCA reproduza os tópicos ou a ordem original da descrição.
+   - NUNCA transforme cada especificação técnica em uma linha separada de tópicos robóticos.
+   - SELECIONE apenas os 2 a 5 diferenciais mais atraentes para o comprador no WhatsApp.
+   - CONDENSE e REESCREVA em português brasileiro natural, fluido, dinâmico e comercial (50 a 100 palavras de texto comercial).
+3. O GANCHO INICIAL DEVE NASCER DO PRODUTO (ex: "⌚ Pra quem procura um smartwatch completo..." ou "🌸 Fragrância delicada para o dia a dia..."). JAMAIS use ganchos genéricos repetitivos como "🔥 OFERTA IMPERDÍVEL!" para todos os produtos.
+4. REGRA ANTI-INVENÇÃO: Use apenas os fatos confirmados na Descrição / Detalhes. NUNCA invente características, tempo de fixação, frete grátis, descontos não confirmados, prazos, estoques, escassez ou certificações.
 
-DADOS CONFIRMADOS DO PRODUTO (FATOS INEGOCIÁVEIS):
-- 📝 DESCRIÇÃO / DETALHES DO PRODUTO (FONTE PRINCIPAL): "${product.description || 'Nenhuma descrição estendida fornecida'}"
+DADOS CONFIRMADOS DO PRODUTO (BRIEFING INEGOCIÁVEL):
+- 📝 DESCRIÇÃO / DETALHES DO PRODUTO (FONTE DE CONHECIMENTO): "${product.description || 'Nenhuma descrição estendida fornecida'}"
 - Nome Oficial: "${product.title}"
 - Marca: "${product.brand || 'Não especificada'}"
 - Categoria Confirmada (Contexto Comercial): "${product.categoryId || 'Geral'}"
