@@ -28,6 +28,8 @@ export interface ProductExtractionResult {
   productId: string;
   canonicalUrl: string;
   originalUrl: string;
+  categorySource?: 'AI' | 'MANUAL' | 'IMPORT' | 'SYSTEM' | 'LEARNED';
+  categoryLocked?: boolean;
   attributes?: Record<string, string>;
   specifications?: string[];
 }

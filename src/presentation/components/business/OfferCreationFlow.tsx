@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, ArrowRight,
   MessageCircle, Send, Brain, Target, Heart,
   TrendingUp, Zap, Crown, ShoppingCart, Minimize2, AlertCircle,
-  History, Star, Layers, HelpCircle, Share2
+  History, Star, Layers, HelpCircle, Share2, Package
 } from 'lucide-react';
 import { extractProductDetailsAction, analyzeProductUrlAction, type OfferPreview } from '@/presentation/actions/analyze-url.action';
 import { saveApprovedOfferAction } from '@/presentation/actions/save-offer.action';
@@ -19,7 +19,7 @@ import { ProductConfirmationModal } from './ProductConfirmationModal';
 import { SmartDuplicationDetectorService } from '@/core/domain/services/smart-duplication-detector.service';
 import { DuplicateProductModal } from './DuplicateProductModal';
 import { SocialShareModal } from './SocialShareModal';
-import { Product, ProductMedia } from '@/core/domain/entities/product.entity';
+import { Product, ProductMedia, CategorySource, OFFICIAL_TAXONOMY_CATEGORIES } from '@/core/domain/entities/product.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { Price } from '@/core/domain/value-objects';
 import { ProductMediaGalleryManager } from './ProductMediaGalleryManager';
@@ -94,10 +94,13 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const [copied,        setCopied]        = useState(false);
 
   // Editable overrides
-  const [editTitle,     setEditTitle]     = useState('');
-  const [editCta,       setEditCta]       = useState('');
-  const [editWhatsapp,  setEditWhatsapp]  = useState('');
-  const [mediaList,     setMediaList]     = useState<ProductMedia[]>([]);
+  const [editTitle,            setEditTitle]            = useState('');
+  const [editCta,              setEditCta]              = useState('');
+  const [editWhatsapp,         setEditWhatsapp]         = useState('');
+  const [mediaList,            setMediaList]            = useState<ProductMedia[]>([]);
+  const [editCategory,         setEditCategory]         = useState<string>('Geral');
+  const [editCategorySource,   setEditCategorySource]   = useState<CategorySource>('AI');
+  const [aiCategorySuggestion, setAiCategorySuggestion] = useState<string>('Geral');
 
   const [savedIds, setSavedIds] = useState<{ productId: string; offerId: string } | null>(null);
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
@@ -133,6 +136,14 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setEditWhatsapp(newPreview.offer.whatsAppText);
       setStyle(overrideStyle ?? style);
 
+      // Initialize Category state with AI suggestion or preserve manual override
+      const suggestedCat = confirmed.category || newPreview.product.categoryId || 'Geral';
+      const initialSource: CategorySource = confirmed.categorySource || 'AI';
+
+      setEditCategory((prevCat) => (confirmed.categorySource === 'MANUAL' ? confirmed.category : (prevCat !== 'Geral' && editCategorySource === 'MANUAL' ? prevCat : suggestedCat)));
+      setEditCategorySource((prevSrc) => (confirmed.categorySource === 'MANUAL' || prevSrc === 'MANUAL' ? 'MANUAL' : initialSource));
+      setAiCategorySuggestion(suggestedCat);
+
       // Initialize media gallery state from extracted product images & optional video
       const extractedImgUrls = confirmed.image
         ? [confirmed.image, ...(confirmed.gallery || [])]
@@ -166,7 +177,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setError(`Erro durante a geração da IA: ${msg}`);
       setStep('confirming');
     }
-  }, [url, tag, user, style]);
+  }, [url, tag, user, style, editCategorySource]);
 
   // Step 2: Extraction Waterfall Execution
   const handleStartExtraction = useCallback(async () => {
@@ -278,13 +289,15 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     const selectedStyle = newStyle ?? style;
     setStyle(selectedStyle);
 
-    // Preserva integralmente o contexto e dados estruturais do produto existente (título, preço, imagem, marca, marketplace, url)
+    // Preserva integralmente o contexto e dados estruturais do produto existente (título, preço, imagem, marca, categoria, marketplace, url)
     const preservedContext: ProductExtractionResult = {
       ...extractedData,
       title: editTitle.trim() || preview?.product.title || extractedData.title,
       image: preview?.product.imageUrl || extractedData.image,
       brand: preview?.product.brand || extractedData.brand,
-      category: preview?.product.categoryId || extractedData.category,
+      category: editCategory || preview?.product.categoryId || extractedData.category,
+      categorySource: editCategorySource,
+      categoryLocked: editCategorySource === 'MANUAL',
       marketplace: preview?.product.marketplaceSlug || extractedData.marketplace,
       originalUrl: preview?.product.originalUrl || extractedData.originalUrl,
       canonicalUrl: preview?.product.affiliateUrl || extractedData.canonicalUrl,
@@ -292,7 +305,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
     setExtractedData(preservedContext);
     handleGenerateAI(preservedContext, selectedStyle);
-  }, [extractedData, preview, editTitle, style, handleGenerateAI]);
+  }, [extractedData, preview, editTitle, editCategory, editCategorySource, style, handleGenerateAI]);
 
   // Switch version tab
   const handleSelectVersion = (idx: number) => {
@@ -321,11 +334,13 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     try {
       const result = await saveApprovedOfferAction({
         preview,
-        userId:      user.uid,
-        editedTitle: editTitle !== preview.product.title ? editTitle : undefined,
-        editedCta:   editCta   !== preview.offer.cta    ? editCta   : undefined,
-        editedCopy:  editWhatsapp,
-        editedMedia: mediaList,
+        userId:               user.uid,
+        editedTitle:          editTitle !== preview.product.title ? editTitle : undefined,
+        editedCta:            editCta   !== preview.offer.cta    ? editCta   : undefined,
+        editedCopy:           editWhatsapp,
+        editedMedia:          mediaList,
+        editedCategory:       editCategory,
+        editedCategorySource: editCategorySource,
       });
 
       if (!result.success) {
@@ -712,6 +727,62 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                       className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none"
                     />
                   </div>
+                </div>
+
+                {/* ── CATEGORIA DO PRODUTO (IA SUGERE, USUÁRIO DECIDE) ── */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 space-y-2 mt-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Package className="h-4 w-4 text-blue-400" /> Categoria do Produto
+                    </label>
+                    {editCategorySource === 'MANUAL' ? (
+                      <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-bold text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-blue-400" /> Categoria Alterada Manualmente
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-purple-500/10 px-2.5 py-0.5 text-[10px] font-bold text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                        <Brain className="h-3 w-3 text-purple-400" /> 🤖 Sugerida pela IA
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <select
+                      value={OFFICIAL_TAXONOMY_CATEGORIES.includes(editCategory) ? editCategory : 'Outra'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val !== 'Outra') {
+                          setEditCategory(val);
+                          setEditCategorySource('MANUAL');
+                        }
+                      }}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-blue-500"
+                    >
+                      {OFFICIAL_TAXONOMY_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      {!OFFICIAL_TAXONOMY_CATEGORIES.includes(editCategory) && (
+                        <option value="Outra">Outra ({editCategory})</option>
+                      )}
+                    </select>
+
+                    <input
+                      type="text"
+                      value={editCategory}
+                      onChange={(e) => {
+                        setEditCategory(e.target.value);
+                        setEditCategorySource('MANUAL');
+                      }}
+                      placeholder="Editar categoria..."
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  {editCategorySource === 'MANUAL' && aiCategorySuggestion && aiCategorySuggestion !== editCategory && (
+                    <p className="text-[11px] text-slate-400">
+                      🤖 IA havia sugerido: <strong className="text-purple-300">{aiCategorySuggestion}</strong> (Sua escolha manual tem prioridade).
+                    </p>
+                  )}
                 </div>
 
                 {/* Alternate Style Selector */}

@@ -12,20 +12,15 @@ interface ProductConfirmationModalProps {
   onCancel: () => void;
 }
 
-const CATEGORY_OPTIONS = [
-  'Casa e Cozinha',
-  'Eletrônicos & Celulares',
-  'Áudio & Fones',
-  'Beleza & Perfumaria',
-  'Moda & Acessórios',
-  'Ferramentas & Construção',
-  'Pet Shop',
-  'Infantil & Brinquedos',
-  'Automotivo',
-  'Esportes & Lazer',
-  'Games & Consoles',
-  'Geral',
-];
+import { OFFICIAL_TAXONOMY_CATEGORIES, CategorySource } from '@/core/domain/entities/product.entity';
+
+interface ProductConfirmationModalProps {
+  data: ProductExtractionResult;
+  marketplaceSlug: string;
+  affiliateUrl: string;
+  onConfirm: (confirmedData: ProductExtractionResult) => void;
+  onCancel: () => void;
+}
 
 const MARKETPLACE_OPTIONS = [
   { slug: 'mercadolivre', label: 'Mercado Livre' },
@@ -73,6 +68,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   const [image, setImage] = useState(data.image || '');
   const [brand, setBrand] = useState(data.brand && data.brand !== 'Shopee' && data.brand !== 'Desconhecida' ? data.brand : '');
   const [category, setCategory] = useState(data.category || 'Geral');
+  const [isCategoryManuallyEdited, setIsCategoryManuallyEdited] = useState(false);
   const [seller, setSeller] = useState(data.sellerName || '');
   const [rating, setRating] = useState(data.rating && data.rating > 0 ? String(data.rating) : '');
   const [shipping, setShipping] = useState(data.shippingType || '');
@@ -110,6 +106,8 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
       finalMarketplace = customMarketplace.trim();
     }
 
+    const finalCatSource: CategorySource = isCategoryManuallyEdited ? 'MANUAL' : (data.categorySource || 'AI');
+
     const confirmed: ProductExtractionResult = {
       ...data,
       marketplace: finalMarketplace,
@@ -123,6 +121,8 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
       image: image.trim(),
       brand: brand.trim() || 'Desconhecida',
       category: category.trim() || 'Geral',
+      categorySource: finalCatSource,
+      categoryLocked: isCategoryManuallyEdited || data.categoryLocked,
       sellerName: seller.trim(),
       coupon: coupon.trim(),
       cashback: cashback.trim(),
@@ -299,11 +299,14 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
                     📂 Categoria
                   </label>
                   <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    value={OFFICIAL_TAXONOMY_CATEGORIES.includes(category) ? category : 'Geral'}
+                    onChange={(e) => {
+                      setCategory(e.target.value);
+                      setIsCategoryManuallyEdited(true);
+                    }}
                     className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
                   >
-                    {CATEGORY_OPTIONS.map((cat) => (
+                    {OFFICIAL_TAXONOMY_CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>

@@ -3,6 +3,26 @@ import { Price, DiscountPercentage, AffiliateLink } from '../value-objects';
 export type ProductStatus = 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
 export type CategorySource = 'AI' | 'MANUAL' | 'IMPORT' | 'SYSTEM' | 'LEARNED';
 
+export const OFFICIAL_TAXONOMY_CATEGORIES = [
+  'Perfumes e Fragrâncias',
+  'Beleza & Perfumaria',
+  'Eletrônicos & Celulares',
+  'Áudio & Fones',
+  'Casa e Cozinha',
+  'Moda & Acessórios',
+  'Ferramentas & Construção',
+  'Pet Shop',
+  'Infantil & Brinquedos',
+  'Automotivo',
+  'Esportes & Lazer',
+  'Games & Consoles',
+  'Informática & Escritório',
+  'Saúde & Cuidados Pessoais',
+  'Livros & Papelaria',
+  'Alimentos & Bebidas',
+  'Geral',
+];
+
 export interface DispatchRecord {
   id: string;
   dispatchedAt: string; // ISO date string

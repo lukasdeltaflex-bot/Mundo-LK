@@ -9,7 +9,7 @@ import type { ScoreType } from '@/core/domain/value-objects/score-level.vo';
 
 import { UserAIPreferencesService } from '@/core/domain/services/UserAIPreferencesService';
 
-import { ProductMedia } from '@/core/domain/entities/product.entity';
+import { CategorySource, ProductMedia } from '@/core/domain/entities/product.entity';
 
 export interface SaveOfferInput {
   preview: OfferPreview;
@@ -19,6 +19,8 @@ export interface SaveOfferInput {
   editedCta?: string;
   editedCopy?: string;
   editedMedia?: ProductMedia[];
+  editedCategory?: string;
+  editedCategorySource?: CategorySource;
 }
 
 /**
@@ -29,7 +31,16 @@ export async function saveApprovedOfferAction(
   input: SaveOfferInput
 ): Promise<{ success: true; productId: string; offerId: string } | { success: false; error: string }> {
   try {
-    const { preview, userId, editedTitle, editedCta, editedCopy, editedMedia } = input;
+    const {
+      preview,
+      userId,
+      editedTitle,
+      editedCta,
+      editedCopy,
+      editedMedia,
+      editedCategory,
+      editedCategorySource,
+    } = input;
     const productRepo = new FirestoreProductRepository();
     const offerRepo   = new FirestoreOfferRepository();
 
@@ -45,35 +56,72 @@ export async function saveApprovedOfferAction(
     const currentPrice  = Price.create(preview.product.priceAmount || 0);
     const discountPct   = DiscountPercentage.calculate(currentPrice, null);
     const affiliateLink = AffiliateLink.create(preview.product.affiliateUrl || preview.product.originalUrl);
+    const rawUrl        = preview.product.originalUrl;
 
-    // Generates a unique product ID per offer creation to guarantee non-colliding catalog persistence
-    const productId = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    // 1. Product Matching Waterfall: Busca se o produto já existe no catálogo do usuário pela URL
+    let existingProduct: Product | null = null;
+    try {
+      if (rawUrl && rawUrl.length > 10) {
+        existingProduct = await productRepo.findByOriginalUrl(rawUrl, userId);
+      }
+    } catch (err) {
+      console.warn('[saveApprovedOfferAction] Erro ao buscar produto existente:', err);
+    }
 
-    const imagesArray = editedMedia && editedMedia.length > 0
-      ? editedMedia.filter(m => m.type === 'image').map(m => m.url)
-      : (preview.product.imageUrl ? [preview.product.imageUrl] : []);
+    const finalCat = editedCategory || preview.product.categoryId || 'Geral';
+    const finalCatSource: CategorySource = editedCategorySource || ((preview.product as any).categorySource as CategorySource) || 'AI';
+    const isCatLocked = finalCatSource === 'MANUAL';
 
-    const product = new Product({
-      id:                 productId,
-      userId,
-      title:              editedTitle || preview.product.title,
-      description:        preview.product.description || editedCopy || 'Produto oficial',
-      brand:              preview.product.brand || 'Desconhecida',
-      categoryId:         preview.product.categoryId || 'Geral',
-      marketplaceSlug:    preview.product.marketplaceSlug || 'shopee',
-      originalUrl:        preview.product.originalUrl,
-      affiliateUrl:       affiliateLink,
-      currentPrice,
-      previousPrice:      null,
-      discountPercentage: discountPct,
-      images:             imagesArray,
-      media:              editedMedia && editedMedia.length > 0 ? editedMedia : undefined,
-      status:             'ACTIVE',
-      createdAt:          new Date(),
-      updatedAt:          new Date(),
-    });
+    let product: Product;
+    if (existingProduct) {
+      product = existingProduct;
+      if (editedTitle) product.title = editedTitle;
 
-    await productRepo.save(product);
+      if (editedCategory || !product.categoryLocked) {
+        product.updateCategory({
+          categoryId: finalCat,
+          source: finalCatSource,
+          locked: isCatLocked || product.categoryLocked,
+          reasoning: isCatLocked ? 'Categoria definida manualmente pelo usuário na criação da oferta' : undefined,
+        });
+      }
+
+      if (editedMedia && editedMedia.length > 0) {
+        product.updateMedia(editedMedia);
+      }
+      await productRepo.save(product);
+    } else {
+      const productId = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const imagesArray = editedMedia && editedMedia.length > 0
+        ? editedMedia.filter(m => m.type === 'image').map(m => m.url)
+        : (preview.product.imageUrl ? [preview.product.imageUrl] : []);
+
+      product = new Product({
+        id:                 productId,
+        userId,
+        title:              editedTitle || preview.product.title,
+        description:        preview.product.description || editedCopy || 'Produto oficial',
+        brand:              preview.product.brand || 'Desconhecida',
+        categoryId:         finalCat,
+        categorySource:     finalCatSource,
+        categoryLocked:     isCatLocked,
+        categoryUpdatedAt:  new Date(),
+        categoryReasoning:  isCatLocked ? 'Categoria definida manualmente pelo usuário' : 'Sugestão da IA',
+        marketplaceSlug:    preview.product.marketplaceSlug || 'shopee',
+        originalUrl:        rawUrl,
+        affiliateUrl:       affiliateLink,
+        currentPrice,
+        previousPrice:      null,
+        discountPercentage: discountPct,
+        images:             imagesArray,
+        media:              editedMedia && editedMedia.length > 0 ? editedMedia : undefined,
+        status:             'ACTIVE',
+        createdAt:          new Date(),
+        updatedAt:          new Date(),
+      });
+
+      await productRepo.save(product);
+    }
 
     // ── Build Offer entity via CreateOfferUseCase ───────────────────────────
     const finalWhatsApp = editedCopy || preview.offer.whatsAppText;
