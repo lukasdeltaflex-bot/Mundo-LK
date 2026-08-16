@@ -1,4 +1,4 @@
-import { Product, ProductProps } from '@/core/domain/entities/product.entity';
+import { Product, ProductProps, ProductMedia } from '@/core/domain/entities/product.entity';
 import { Offer, OfferProps } from '@/core/domain/entities/offer.entity';
 import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
 import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-objects';
@@ -46,6 +46,31 @@ export class PublishingService {
       }
     } else {
       const uniqueProductId = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+      const extractedImages: string[] = extraction.image
+        ? [extraction.image, ...(extraction.gallery || [])]
+        : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500'];
+      const uniqueImages = Array.from(new Set(extractedImages.map((u) => u.trim()).filter(Boolean)));
+
+      const mediaList: ProductMedia[] = uniqueImages.map((imgUrl, idx) => ({
+        id: `med_img_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+        type: 'image' as const,
+        url: imgUrl,
+        order: idx,
+        isPrimary: idx === 0,
+      }));
+
+      if ((extraction as any).videoUrl) {
+        mediaList.push({
+          id: `med_vid_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          type: 'video' as const,
+          url: (extraction as any).videoUrl,
+          order: mediaList.length,
+          isPrimary: false,
+          thumbnailUrl: (extraction as any).videoThumbnail,
+        });
+      }
+
       const productProps: ProductProps = {
         id: uniqueProductId,
         userId,
@@ -59,7 +84,8 @@ export class PublishingService {
         currentPrice: Price.create(extraction.currentPrice || 0),
         previousPrice: extraction.originalPrice ? Price.create(extraction.originalPrice) : null,
         discountPercentage: DiscountPercentage.create(extraction.discountPercentage || 0),
-        images: extraction.image ? [extraction.image, ...(extraction.gallery || [])] : ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500'],
+        images: uniqueImages,
+        media: mediaList,
         status: 'ACTIVE',
         createdAt: new Date(),
         updatedAt: new Date(),

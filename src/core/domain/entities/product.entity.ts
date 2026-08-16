@@ -21,6 +21,18 @@ export type DispatchStatus =
   | 'AGUARDANDO_REENVIO'  // ⚪ Enviada entre 3 e 15 dias atrás
   | 'ARQUIVADA';          // ⚪ Status arquivado
 
+export type MediaType = 'image' | 'video';
+
+export interface ProductMedia {
+  id: string;
+  type: MediaType;
+  url: string;
+  order: number;
+  isPrimary: boolean;
+  thumbnailUrl?: string;
+  title?: string;
+}
+
 export interface ProductProps {
   id: string;
   userId: string;
@@ -35,6 +47,7 @@ export interface ProductProps {
   previousPrice?: Price | null;
   discountPercentage: DiscountPercentage;
   images: string[];
+  media?: ProductMedia[];
   status: ProductStatus;
 
   // Categorization Engine Fields
@@ -73,6 +86,7 @@ export class Product {
   public previousPrice?: Price | null;
   public discountPercentage: DiscountPercentage;
   public images: string[];
+  public media: ProductMedia[];
   public status: ProductStatus;
 
   // Categorization State
@@ -106,8 +120,32 @@ export class Product {
     this.currentPrice = props.currentPrice;
     this.previousPrice = props.previousPrice;
     this.discountPercentage = props.discountPercentage;
-    this.images = props.images;
     this.status = props.status;
+
+    // Build or normalize media array
+    if (props.media && props.media.length > 0) {
+      const sorted = [...props.media].sort((a, b) => a.order - b.order);
+      const hasPrimary = sorted.some((m) => m.isPrimary);
+      if (!hasPrimary && sorted.length > 0) {
+        sorted[0].isPrimary = true;
+      }
+      this.media = sorted;
+    } else if (props.images && props.images.length > 0) {
+      this.media = props.images.map((imgUrl, idx) => ({
+        id: `med_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+        type: 'image' as const,
+        url: imgUrl,
+        order: idx,
+        isPrimary: idx === 0,
+      }));
+    } else {
+      this.media = [];
+    }
+
+    this.images = this.media.filter((m) => m.type === 'image').map((m) => m.url);
+    if (this.images.length === 0 && props.images) {
+      this.images = props.images;
+    }
 
     this.subcategoryId = props.subcategoryId || null;
     this.categorySource = props.categorySource || null;
@@ -124,6 +162,44 @@ export class Product {
 
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
+  }
+
+  public updateMedia(mediaList: ProductMedia[]): void {
+    const updated = mediaList.map((item, idx) => ({
+      ...item,
+      id: item.id || `med_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+      order: idx,
+    }));
+
+    const primaryCount = updated.filter((m) => m.isPrimary).length;
+    if (primaryCount !== 1 && updated.length > 0) {
+      updated.forEach((m, idx) => {
+        m.isPrimary = idx === 0;
+      });
+    }
+
+    this.media = updated;
+    this.images = updated.filter((m) => m.type === 'image').map((m) => m.url);
+    this.updatedAt = new Date();
+  }
+
+  public setPrimaryMedia(mediaId: string): void {
+    let found = false;
+    this.media.forEach((m) => {
+      if (m.id === mediaId) {
+        m.isPrimary = true;
+        found = true;
+      } else {
+        m.isPrimary = false;
+      }
+    });
+
+    if (found) {
+      this.media.sort((a, b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : a.order - b.order));
+      this.media.forEach((m, idx) => (m.order = idx));
+      this.images = this.media.filter((m) => m.type === 'image').map((m) => m.url);
+      this.updatedAt = new Date();
+    }
   }
 
   public updateCategory(params: {

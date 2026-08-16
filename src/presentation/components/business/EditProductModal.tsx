@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/presentation/components/ui/Button';
-import { X, Edit3, Image as ImageIcon, Package, Tag, DollarSign, Layers } from 'lucide-react';
-import { Product } from '@/core/domain/entities/product.entity';
+import { X, Edit3, Package, Tag, DollarSign } from 'lucide-react';
+import { Product, ProductMedia } from '@/core/domain/entities/product.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { UpdateProductUseCase } from '@/core/application/use-cases/products/UpdateProductUseCase';
 import { Price } from '@/core/domain/value-objects/price.vo';
 import { useAuth } from '@/presentation/context/AuthContext';
+import { ProductMediaGalleryManager } from './ProductMediaGalleryManager';
 
 interface EditProductModalProps {
   product: Product | null;
@@ -29,8 +30,7 @@ export function EditProductModal({
   const [categoryId, setCategoryId] = useState('');
   const [currentPriceAmount, setCurrentPriceAmount] = useState('');
   const [previousPriceAmount, setPreviousPriceAmount] = useState('');
-  const [mainImageUrl, setMainImageUrl] = useState('');
-  const [galleryUrls, setGalleryUrls] = useState('');
+  const [media, setMedia] = useState<ProductMedia[]>([]);
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -41,8 +41,7 @@ export function EditProductModal({
       setCategoryId(product.categoryId || '');
       setCurrentPriceAmount(product.currentPrice?.amount ? String(product.currentPrice.amount) : '');
       setPreviousPriceAmount(product.previousPrice?.amount ? String(product.previousPrice.amount) : '');
-      setMainImageUrl(product.images && product.images.length > 0 ? product.images[0] : '');
-      setGalleryUrls(product.images && product.images.length > 1 ? product.images.slice(1).join('\n') : '');
+      setMedia(product.media || []);
     }
   }, [product, isOpen]);
 
@@ -71,15 +70,7 @@ export function EditProductModal({
       const repo = new FirestoreProductRepository();
       const useCase = new UpdateProductUseCase(repo);
 
-      // Agrupa a lista de imagens (principal + galeria)
-      const imagesList: string[] = [];
-      if (mainImageUrl.trim()) {
-        imagesList.push(mainImageUrl.trim());
-      }
-      if (galleryUrls.trim()) {
-        const lines = galleryUrls.split('\n').map((l) => l.trim()).filter(Boolean);
-        imagesList.push(...lines);
-      }
+      const imagesList = media.filter((m) => m.type === 'image').map((m) => m.url);
 
       const changes: Partial<Product> = {
         title: trimmedTitle,
@@ -89,6 +80,7 @@ export function EditProductModal({
         currentPrice: Price.create(priceNum),
         previousPrice: prevPriceNum && !isNaN(prevPriceNum) && prevPriceNum > 0 ? Price.create(prevPriceNum) : null,
         images: imagesList.length > 0 ? imagesList : product.images,
+        media,
       };
 
       await useCase.execute({
@@ -150,21 +142,19 @@ export function EditProductModal({
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Perfume Sauvage Dior Eau de Parfum 100ml"
+              placeholder="Ex: Fone de Ouvido Bluetooth Sem Fio"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition"
             />
           </div>
 
           {/* Descrição */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Descrição Catalográfica
-            </label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Descrição</label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrição detalhada do produto no catálogo..."
+              placeholder="Detalhes e especificações do produto..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition"
             />
           </div>
@@ -173,26 +163,26 @@ export function EditProductModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                <Package className="h-3.5 w-3.5 text-blue-400" /> Marca / Fabricante
+                <Tag className="h-3.5 w-3.5 text-blue-400" /> Marca
               </label>
               <input
                 type="text"
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
-                placeholder="Ex: Dior, Nike, Samsung"
+                placeholder="Ex: Xiaomi, Samsung, Eudora"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                <Tag className="h-3.5 w-3.5 text-blue-400" /> Categoria
+                <Package className="h-3.5 w-3.5 text-blue-400" /> Categoria
               </label>
               <input
                 type="text"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                placeholder="Ex: Perfumes Importados"
+                placeholder="Ex: Eletrônicos, Beleza"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition"
               />
             </div>
@@ -228,45 +218,8 @@ export function EditProductModal({
             </div>
           </div>
 
-          {/* Imagem Principal & Preview */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1">
-              <ImageIcon className="h-3.5 w-3.5 text-blue-400" /> URL da Imagem Principal
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="url"
-                value={mainImageUrl}
-                onChange={(e) => setMainImageUrl(e.target.value)}
-                placeholder="https://exemplo.com/imagem-principal.jpg"
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-              />
-              {mainImageUrl.trim() && (
-                <div className="h-10 w-10 shrink-0 rounded-lg border border-slate-800 bg-slate-950 overflow-hidden">
-                  <img
-                    src={mainImageUrl}
-                    alt="Preview"
-                    className="h-full w-full object-cover"
-                    onError={(e) => { (e.target as any).style.display = 'none'; }}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Galeria de Imagens Secundárias */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-              <Layers className="h-3.5 w-3.5 text-blue-400" /> Galeria de Imagens Adicionais (Uma URL por linha)
-            </label>
-            <textarea
-              rows={2}
-              value={galleryUrls}
-              onChange={(e) => setGalleryUrls(e.target.value)}
-              placeholder="https://exemplo.com/imagem-2.jpg&#10;https://exemplo.com/imagem-3.jpg"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-            />
-          </div>
+          {/* Galeria de Mídias (Imagens e Vídeos) */}
+          <ProductMediaGalleryManager media={media} onChange={setMedia} />
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">

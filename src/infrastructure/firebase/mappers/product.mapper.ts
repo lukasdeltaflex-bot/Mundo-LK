@@ -1,4 +1,4 @@
-import { Product, DispatchRecord, CategorySource } from '../../../core/domain/entities/product.entity';
+import { Product, DispatchRecord, CategorySource, ProductMedia } from '../../../core/domain/entities/product.entity';
 import { Price, DiscountPercentage, AffiliateLink } from '../../../core/domain/value-objects';
 
 export interface FirestoreProductDoc {
@@ -15,6 +15,7 @@ export interface FirestoreProductDoc {
   previousPrice?: number | null;
   discountPercentage: number;
   images: string[];
+  media?: ProductMedia[];
   status: 'ACTIVE' | 'ARCHIVED' | 'OUT_OF_STOCK' | 'TRASHED';
   publicationCount?: number;
   opportunityScore?: number;
@@ -66,6 +67,7 @@ export class ProductMapper {
       previousPrice,
       discountPercentage,
       images: doc.images || [],
+      media: doc.media || undefined,
       status: doc.status,
 
       subcategoryId: doc.subcategoryId || null,
@@ -101,6 +103,7 @@ export class ProductMapper {
       previousPrice: entity.previousPrice ? entity.previousPrice.amount : null,
       discountPercentage: entity.discountPercentage.value,
       images: entity.images,
+      media: entity.media || [],
       status: entity.status,
 
       subcategoryId: entity.subcategoryId || null,
