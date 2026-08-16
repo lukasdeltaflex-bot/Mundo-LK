@@ -298,8 +298,8 @@ function createFallbackOfferAnalysis(
     ? cleanDescription
     : `Produto oficial ${product.brand || ''}`.trim();
 
-  // Construção dinâmica baseada na descrição real do produto (sem templates de escassez inventada)
-  const defaultCopy = `📦 *${product.title}*\n\n📝 *Detalhes:* ${descSnippet}\n\n💰 *Preço:* ${price}\n\n🛒 *Confira no link oficial:*\n${url}`;
+  // Construção limpa de emergência (sem rótulos robóticos de 'Detalhes:' nem cópia bruta)
+  const defaultCopy = `📦 *${product.title}*\n\n💰 *Preço:* ${price}\n\n🛒 *Confira no link oficial:*\n${url}`;
 
   return {
     publicoAlvo: `Compradores interessados em ${product.categoryId || 'produtos em promoção'}`,
@@ -313,7 +313,7 @@ function createFallbackOfferAnalysis(
 
     whatsAppText: defaultCopy,
     telegramText: defaultCopy,
-    instagramText: `✨ ${product.title}\n\n${descSnippet.slice(0, 150)}\n\n🛒 Confira por ${price} no link da bio!`,
+    instagramText: `✨ ${product.title}\n\n🛒 Confira por ${price} no link da bio!`,
     facebookText: defaultCopy,
     threadsText: defaultCopy,
     pinterestText: defaultCopy,
@@ -335,7 +335,7 @@ function createFallbackOfferAnalysis(
     porQueGatilho: 'Incentivo à compra rápida',
     porQueHorario: 'Horário de maior conversão',
 
-    recomendacaoIA: 'Oferta recomendada para publicação imediata.',
+    recomendacaoIA: 'Oferta gerada via fallback seguro de sistema.',
     pontosFortes: ['Preço competitivo', 'Link verificado'],
     pontosFracos: ['Estoque sujeito a alteração'],
 
@@ -346,8 +346,11 @@ function createFallbackOfferAnalysis(
     scoreAvaliacoes: 4,
     scoreConcorrencia: 3,
 
-    scoreValue: 85,
-    scoreJustification: 'Oferta gerada com dados validados do produto.',
+    scoreValue: 75,
+    scoreJustification: 'Oferta gerada via fallback de segurança local.',
+    isFallback: true,
+    providerUsed: 'fallback-local',
+    fallbackReason,
   };
 }
 
