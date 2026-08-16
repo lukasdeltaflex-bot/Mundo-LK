@@ -126,12 +126,43 @@ export class FirestoreOfferRepository implements IOfferRepository {
       updatedAt: new Date().toISOString(),
     };
 
+    const documentPath = `${this.collectionName}/${uniqueOfferId}`;
+    const authUid = auth.currentUser?.uid || null;
+
+    console.log('[FS_WRITE_ATTEMPT]', {
+      operation: 'CREATE',
+      collection: this.collectionName,
+      documentPath,
+      documentId: uniqueOfferId,
+      authUid,
+      payloadUserId: activeUid,
+      productId: offer.productId,
+      offerId: uniqueOfferId,
+      marketplace: offer.marketplaceId,
+    });
+
     try {
       const ref = doc(db, this.collectionName, uniqueOfferId);
       await setDoc(ref, cleanRaw);
-      console.log('[FirestoreOfferRepository] Nova oferta criada com sucesso. OfferID:', uniqueOfferId);
-    } catch (error) {
-      console.error('[FirestoreOfferRepository] Erro ao criar oferta no Firestore:', error);
+      console.log('[FS_WRITE_SUCCESS]', {
+        operation: 'CREATE',
+        collection: this.collectionName,
+        documentPath,
+        documentId: uniqueOfferId,
+      });
+    } catch (error: any) {
+      console.error('[FS_WRITE_ERROR]', {
+        code: error?.code || 'unknown',
+        message: error?.message || String(error),
+        operation: 'CREATE',
+        collection: this.collectionName,
+        documentPath,
+        documentId: uniqueOfferId,
+        authUid,
+        payloadUserId: activeUid,
+        productId: offer.productId,
+        offerId: uniqueOfferId,
+      });
       throw error;
     }
   }

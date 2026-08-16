@@ -193,11 +193,41 @@ export class FirestoreProductRepository implements IProductRepository {
       tenantId: activeUid,
       status: 'ACTIVE' as const,
     };
+    const documentPath = `${this.collectionName}/${product.id}`;
+    const authUid = auth.currentUser?.uid || null;
+
+    console.log('[FS_WRITE_ATTEMPT]', {
+      operation: 'CREATE_OR_UPDATE',
+      collection: this.collectionName,
+      documentPath,
+      documentId: product.id,
+      authUid,
+      payloadUserId: activeUid,
+      productId: product.id,
+      marketplace: product.marketplaceSlug,
+    });
+
     try {
       const ref = doc(db, this.collectionName, product.id);
       await setDoc(ref, cleanRaw, { merge: true });
-    } catch (error) {
-      console.error('[FirestoreProductRepository] Erro ao salvar no Firestore:', error);
+      console.log('[FS_WRITE_SUCCESS]', {
+        operation: 'CREATE_OR_UPDATE',
+        collection: this.collectionName,
+        documentPath,
+        documentId: product.id,
+      });
+    } catch (error: any) {
+      console.error('[FS_WRITE_ERROR]', {
+        code: error?.code || 'unknown',
+        message: error?.message || String(error),
+        operation: 'CREATE_OR_UPDATE',
+        collection: this.collectionName,
+        documentPath,
+        documentId: product.id,
+        authUid,
+        payloadUserId: activeUid,
+        productId: product.id,
+      });
       throw error;
     }
   }
