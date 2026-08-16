@@ -6,6 +6,7 @@ import { Price, DiscountPercentage, AffiliateLink } from '@/core/domain/value-ob
 import { ChannelContent } from '@/core/domain/value-objects/channel-content.vo';
 import type { OfferPreview } from './analyze-url.action';
 import type { ScoreType } from '@/core/domain/value-objects/score-level.vo';
+import { GEMINI_MODEL } from '@/infrastructure/ai/providers/gemini.adapter';
 
 import { UserAIPreferencesService } from '@/core/domain/services/UserAIPreferencesService';
 
@@ -161,7 +162,7 @@ export async function saveApprovedOfferAction(
       hashtags: preview.offer.hashtags,
       emojis: preview.offer.emojis,
       cta: editedCta || preview.offer.cta,
-      aiProviderUsed: 'gemini-1.5-flash',
+      aiProviderUsed: GEMINI_MODEL,
       marketplaceId: mktSlug,
       marketplaceName: mktName,
       marketplaceDetectedBy: (preview.product as any).marketplaceDetectedBy || 'url_parser',

@@ -356,9 +356,11 @@ function createFallbackOfferAnalysis(
 
 // ─── Gemini Adapter Class ─────────────────────────────────────────────────────
 
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
 export class GeminiAIAdapter implements IAIProviderAdapter {
   public readonly providerName = 'gemini';
-  private readonly defaultModel = 'gemini-1.5-flash';
+  private readonly defaultModel = GEMINI_MODEL;
 
   public async generateOfferContent(
     product: Product,
@@ -444,7 +446,7 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
     throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada no servidor Vercel.');
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
