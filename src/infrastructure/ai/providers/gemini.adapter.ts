@@ -242,7 +242,7 @@ DADOS CONFIRMADOS DO PRODUTO (BRIEFING INEGOCIÁVEL):
   "categoria": "${product.categoryId || 'Geral'}",
   "subcategoria": "subcategoria analítica",
 
-  "whatsAppText": "Copy completa formatada para WhatsApp no estilo ${style} com o link: ${rawAffiliateUrl}",
+  "whatsAppText": "Escreva a Copy completa para WhatsApp como um redator de achadinhos em português brasileiro fluído e natural. O gancho deve nascer do tipo de produto. Sintetize apenas os 2 a 5 diferenciais mais atraentes do briefing da Descrição/Detalhes em linguagem de recomendação pessoal. Inclua o preço (${price}) e o link oficial (${rawAffiliateUrl}). É PROIBIDO copiar a descrição crua ou colar rótulos de 'Detalhes:'.",
   "telegramText": "Copy formatada para Telegram com negrito e o link: ${rawAffiliateUrl}",
   "instagramText": "Legenda engajadora para Instagram com hashtags",
   "facebookText": "Post persuasivo para grupos de Facebook com o link: ${rawAffiliateUrl}",
