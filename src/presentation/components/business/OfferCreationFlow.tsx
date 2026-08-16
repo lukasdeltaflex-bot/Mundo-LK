@@ -19,9 +19,10 @@ import { ProductConfirmationModal } from './ProductConfirmationModal';
 import { SmartDuplicationDetectorService } from '@/core/domain/services/smart-duplication-detector.service';
 import { DuplicateProductModal } from './DuplicateProductModal';
 import { SocialShareModal } from './SocialShareModal';
-import { Product } from '@/core/domain/entities/product.entity';
+import { Product, ProductMedia } from '@/core/domain/entities/product.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { Price } from '@/core/domain/value-objects';
+import { ProductMediaGalleryManager } from './ProductMediaGalleryManager';
 
 interface StyleOption {
   id:       OfferStyle;
@@ -96,6 +97,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const [editTitle,     setEditTitle]     = useState('');
   const [editCta,       setEditCta]       = useState('');
   const [editWhatsapp,  setEditWhatsapp]  = useState('');
+  const [mediaList,     setMediaList]     = useState<ProductMedia[]>([]);
 
   const [savedIds, setSavedIds] = useState<{ productId: string; offerId: string } | null>(null);
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
@@ -130,6 +132,34 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setEditCta(newPreview.offer.cta);
       setEditWhatsapp(newPreview.offer.whatsAppText);
       setStyle(overrideStyle ?? style);
+
+      // Initialize media gallery state from extracted product images & optional video
+      const extractedImgUrls = confirmed.image
+        ? [confirmed.image, ...(confirmed.gallery || [])]
+        : (newPreview.product.imageUrl ? [newPreview.product.imageUrl] : []);
+      const uniqueImgs = Array.from(new Set(extractedImgUrls.map((u) => u.trim()).filter(Boolean)));
+
+      const initialMedia: ProductMedia[] = uniqueImgs.map((imgUrl, idx) => ({
+        id: `med_img_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+        type: 'image' as const,
+        url: imgUrl,
+        order: idx,
+        isPrimary: idx === 0,
+      }));
+
+      if ((confirmed as any).videoUrl || (newPreview.product as any).videoUrl) {
+        const vidUrl = (confirmed as any).videoUrl || (newPreview.product as any).videoUrl;
+        initialMedia.push({
+          id: `med_vid_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          type: 'video' as const,
+          url: vidUrl,
+          order: initialMedia.length,
+          isPrimary: false,
+          thumbnailUrl: (confirmed as any).videoThumbnail,
+        });
+      }
+
+      setMediaList(initialMedia);
       setStep('preview');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -295,6 +325,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
         editedTitle: editTitle !== preview.product.title ? editTitle : undefined,
         editedCta:   editCta   !== preview.offer.cta    ? editCta   : undefined,
         editedCopy:  editWhatsapp,
+        editedMedia: mediaList,
       });
 
       if (!result.success) {
@@ -699,6 +730,21 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* ── MÍDIAS DO PRODUTO (Fotos e Vídeos Manuais + Automáticos) ── */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl space-y-3">
+            <ProductMediaGalleryManager media={mediaList} onChange={setMediaList} />
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                onClick={handleApprove}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-extrabold text-white shadow-xl shadow-emerald-600/30 hover:bg-emerald-500 active:scale-95 transition-all"
+              >
+                <CheckCircle2 className="h-5 w-5" />
+                <span>Confirmar Mídias e Aprovar/Salvar Oferta Oficial</span>
+              </button>
             </div>
           </div>
         </div>

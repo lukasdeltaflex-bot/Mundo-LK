@@ -9,6 +9,8 @@ import type { ScoreType } from '@/core/domain/value-objects/score-level.vo';
 
 import { UserAIPreferencesService } from '@/core/domain/services/UserAIPreferencesService';
 
+import { ProductMedia } from '@/core/domain/entities/product.entity';
+
 export interface SaveOfferInput {
   preview: OfferPreview;
   userId: string;
@@ -16,6 +18,7 @@ export interface SaveOfferInput {
   editedTitle?: string;
   editedCta?: string;
   editedCopy?: string;
+  editedMedia?: ProductMedia[];
 }
 
 /**
@@ -26,7 +29,7 @@ export async function saveApprovedOfferAction(
   input: SaveOfferInput
 ): Promise<{ success: true; productId: string; offerId: string } | { success: false; error: string }> {
   try {
-    const { preview, userId, editedTitle, editedCta, editedCopy } = input;
+    const { preview, userId, editedTitle, editedCta, editedCopy, editedMedia } = input;
     const productRepo = new FirestoreProductRepository();
     const offerRepo   = new FirestoreOfferRepository();
 
@@ -46,6 +49,10 @@ export async function saveApprovedOfferAction(
     // Generates a unique product ID per offer creation to guarantee non-colliding catalog persistence
     const productId = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+    const imagesArray = editedMedia && editedMedia.length > 0
+      ? editedMedia.filter(m => m.type === 'image').map(m => m.url)
+      : (preview.product.imageUrl ? [preview.product.imageUrl] : []);
+
     const product = new Product({
       id:                 productId,
       userId,
@@ -59,7 +66,8 @@ export async function saveApprovedOfferAction(
       currentPrice,
       previousPrice:      null,
       discountPercentage: discountPct,
-      images:             preview.product.imageUrl ? [preview.product.imageUrl] : [],
+      images:             imagesArray,
+      media:              editedMedia && editedMedia.length > 0 ? editedMedia : undefined,
       status:             'ACTIVE',
       createdAt:          new Date(),
       updatedAt:          new Date(),
