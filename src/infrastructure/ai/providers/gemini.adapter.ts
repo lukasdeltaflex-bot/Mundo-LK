@@ -104,10 +104,12 @@ export interface GeminiOfferAnalysis {
   scoreAvaliacoes?: number;
   scoreConcorrencia?: number;
 
-  // Hybrid Quality Auto-Evaluation & Debug Info
   autoAvaliacaoNota?: number;
   autoAvaliacaoJustificativa?: string;
   sanitizedPromptDebug?: string;
+  isFallback?: boolean;
+  providerUsed?: string;
+  fallbackReason?: string;
 
   scoreValue: number;
   scoreJustification: string;
@@ -141,21 +143,21 @@ function buildMarketingPrompt(
   hierarchicalMemoryBlock?: string
 ): string {
   const stylePtBR: Record<OfferStyle, string> = {
-    padrao:          'equilibrado e persuasivo, com apelo emocional e racional combinados',
-    explosiva:       'explosivo e bombástico — foco em achado imperdível que vai esgotar rápido',
-    premium:         'sofisticado e desejável — foco em status, qualidade superior e acabamento impecável',
-    urgencia:        'urgência extrema e escassez — foco em pouquíssimas unidades restantes e prazo acabando',
-    minimalista:     'ultra-conciso e direto ao ponto — máximo impacto em pouquíssimas palavras sem floreios',
-    emocional:       'apelo emocional profundo — foco na transformação pessoal, bem-estar e momento de vida',
-    promocao:        'foco total no percentual de desconto, economia real e preço imbatível',
-    custo_beneficio: 'demonstração racional de compra inteligente, durabilidade e utilidade',
-    familia:         'focado no bem-estar da família, praticidade do lar e facilidade da casa',
-    tecnologia:      'destaque em alta performance, inovação técnica, velocidade e recursos modernos',
-    casa:            'conforto do lar, praticidade na cozinha, organização e utilidade diária',
-    esporte:         'performance física, treino, superação, foco e saúde',
+    padrao:          'equilibrado e persuasivo — apresenta os benefícios reais e o apelo comercial de forma harmoniosa',
+    explosiva:       'energético e de alto impacto — destaque imediato no diferencial principal do produto e na oportunidade de compra',
+    premium:         'sofisticado e elegante — foco no valor percebido, acabamento superior, status e qualidade técnica',
+    urgencia:        'direto, dinâmico e focado em ação rápida — valoriza a oportunidade de compra utilizando exclusivamente os fatos reais informados',
+    minimalista:     'ultra-conciso e direto ao ponto — transmite a proposta de valor essencial com máxima clareza e poucas palavras',
+    emocional:       'apelo pessoal e empático — foco na experiência de uso, no bem-estar e no impacto no dia a dia do comprador',
+    promocao:        'foco na economia real, comparativo de preço e oportunidade promocional comprovada',
+    custo_beneficio: 'demonstração racional de compra inteligente, utilidade prática e durabilidade do produto',
+    familia:         'focado na praticidade para o lar, bem-estar da família e facilidade de uso na rotina',
+    tecnologia:      'destaque em recursos técnicos, conectividade, alta performance e inovação moderna',
+    casa:            'conforto do lar, praticidade no dia a dia, organização e utilidade doméstica',
+    esporte:         'foco em rotina ativa, modos de treino, resistência física, superação e saúde',
     presentes:       'ideia de presente inesquecível, momentos especiais e demonstração de carinho',
-    relampago:       'oferta relâmpago que acaba nos próximos minutos',
-    luxo:            'exclusividade total, sofisticação de alto padrão e distinção',
+    relampago:       'ritmo dinâmico de oportunidade comercial baseado nos fatos reais do produto',
+    luxo:            'exclusividade, sofisticação de alto padrão e refinamento em cada detalhe',
   };
 
   const goalPtBR: Record<CommercialGoal, string> = {
@@ -272,7 +274,11 @@ DADOS CONFIRMADOS DO PRODUTO (FATOS INEGOCIÁVEIS):
 
 // ─── Fallback Analysis Generator ──────────────────────────────────────────────
 
-function createFallbackOfferAnalysis(product: Product, style: OfferStyle = 'padrao'): GeminiOfferAnalysis {
+function createFallbackOfferAnalysis(
+  product: Product,
+  style: OfferStyle = 'padrao',
+  fallbackReason: string = 'Invocado fallback de segurança local'
+): GeminiOfferAnalysis {
   const pAny = product.currentPrice as any;
   const price = typeof pAny === 'number'
     ? `R$ ${pAny.toFixed(2)}`
@@ -281,75 +287,27 @@ function createFallbackOfferAnalysis(product: Product, style: OfferStyle = 'padr
       : (pAny && typeof pAny.amount === 'number' ? `R$ ${pAny.amount.toFixed(2)}` : 'Preço sob consulta'));
   const url = product.affiliateUrl?.url || product.originalUrl || '';
 
-  const titleLower = product.title.toLowerCase();
+  const cleanDescription = (product.description || '').trim();
+  const descSnippet = cleanDescription.length > 0
+    ? cleanDescription
+    : `Produto oficial ${product.brand || ''}`.trim();
 
-  // Análise semântica dinâmica por tipo de produto
-  let productCategorySemantic = 'Geral';
-  let painPoint = 'Encontrar produtos autênticos com o melhor preço';
-  let mainBenefit = 'Alta utilidade, excelente acabamento e garantia de qualidade';
-  let dynamicAngle = 'Excelente Custo-Benefício';
-  let keyArgument = 'Design moderno e alta aprovação dos compradores';
-
-  if (titleLower.includes('bolsa') || titleLower.includes('mochila') || titleLower.includes('vestido') || titleLower.includes('calçado') || titleLower.includes('sapato')) {
-    productCategorySemantic = 'Moda & Acessórios';
-    painPoint = 'Combinar elegância, durabilidade e versatilidade nos looks diários';
-    mainBenefit = 'Design sofisticado, espaço ideal e acabamento de alto padrão';
-    dynamicAngle = 'Estilo & Sofisticação';
-    keyArgument = 'Perfeito para elevar o seu visual com máximo conforto e elegância';
-  } else if (titleLower.includes('garrafa') || titleLower.includes('copo') || titleLower.includes('térmic') || titleLower.includes('stanley')) {
-    productCategorySemantic = 'Hidratação & Praticidade';
-    painPoint = 'Manter bebidas na temperatura ideal durante horas de trabalho ou treino';
-    mainBenefit = 'Isolamento térmico de alta performance, mantendo gelado ou quente por horas';
-    dynamicAngle = 'Praticidade & Performance Térmica';
-    keyArgument = 'Ideal para acompanhar sua rotina no trabalho, academia ou viagens';
-  } else if (titleLower.includes('skate') || titleLower.includes('patins') || titleLower.includes('bike') || titleLower.includes('capacete') || titleLower.includes('suplemento')) {
-    productCategorySemantic = 'Esporte & Lazer';
-    painPoint = 'Equipamento resistente para garantir estabilidade, segurança e manobras precisas';
-    mainBenefit = 'Estrutura reforçada, excelente aderência e rolamentos de alta precisão';
-    dynamicAngle = 'Velocidade & Liberdade';
-    keyArgument = 'Desenvolvido para máxima durabilidade, segurança e performance nas pistas';
-  } else if (titleLower.includes('tv') || titleLower.includes('fone') || titleLower.includes('smartphone') || titleLower.includes('notebook') || titleLower.includes('carregador') || titleLower.includes('amazfit')) {
-    productCategorySemantic = 'Tecnologia & Eletrônicos';
-    painPoint = 'Garantir alta velocidade, imagem cristalina e tecnologia moderna sem pagar caro';
-    mainBenefit = 'Alta performance, conectividade rápida e recursos de última geração';
-    dynamicAngle = 'Inovação & Alta Performance';
-    keyArgument = 'Tecnologia avançada com resposta rápida e máxima imersão';
-  }
-
-  // Estrutura e corpo dinâmicos por estilo
-  const styleBodies: Record<OfferStyle, string> = {
-    padrao:          `🔥 *${dynamicAngle.toUpperCase()}!*\n\n✨ *${product.title}*\n💰 *De: ${product.previousPrice?.formatBRL() || price} por ${price}*\n\n🚚 Frete Rápido & Compra Segura\n✅ *${mainBenefit}*\n⭐ ${keyArgument}\n\n🛒 *Garanta o seu no link oficial:*\n${url}`,
-    explosiva:       `💥 *ACHADINHO BOMBÁSTICO DE ALTO IMPACTO!*\n\n😱 *${product.title}*\n💰 *Apenas ${price}!*\n⚡ Preço baixo assim não vai durar!\n\n🛒 *Corra para garantir o seu antes que esgoste:*\n${url}`,
-    premium:         `👑 *SOFISTICAÇÃO & ALTO PADRÃO EXCLUSIVO*\n\n💎 *${product.title}*\n✨ *${mainBenefit}*\n💰 Valor Especial: ${price}\n\n🛒 *Adquira o seu no link oficial de garantia:*\n${url}`,
-    urgencia:        `⚠️ *ESTOQUE LIMITADO — CRONÔMETRO ATIVADO!*\n\n⏳ *${product.title}*\n💰 *Apenas: ${price}*\n🚨 Pouquíssimas unidades restantes no fornecedor!\n\n🛒 *Clique rápido para não ficar sem:*\n${url}`,
-    minimalista:     `⚡ *${product.title}* por ${price}.\n👉 ${url}`,
-    emocional:       `💖 *TRANSFORME SEU DIA A DIA COM MÁXIMO CONFORTO*\n\n🌸 *${product.title}*\n✨ ${mainBenefit}\n💰 Invista em você por apenas: ${price}\n\n🛒 *Garanta agora com carinho:*\n${url}`,
-    promocao:        `🏷️ *DESCONTO REAL & ECONOMIA IMBATÍVEL!*\n\n🤑 *${product.title}*\n💰 *De: ${product.previousPrice?.formatBRL() || price} por Apenas ${price}*\n\n🛒 *Aproveite o menor preço do ano:*\n${url}`,
-    custo_beneficio: `🎯 *COMPRA INTELIGENTE DE EXCELENTE VALOR*\n\n📊 *${product.title}*\n✅ ${keyArgument}\n💰 Investimento: ${price}\n\n🛒 *Confira todos os detalhes no link oficial:*\n${url}`,
-    familia:         `🏡 *PRATICIDADE & CONFORTO PARA O SEU LAR*\n\n👨‍👩‍👧 *${product.title}*\n✨ ${mainBenefit}\n💰 Preço especial para a família: ${price}\n\n🛒 *Garanta para a sua casa no link:*\n${url}`,
-    tecnologia:      `⚡ *INOVAÇÃO TÉCNICA & ALTA PERFORMANCE*\n\n🤖 *${product.title}*\n💻 ${mainBenefit}\n💰 Por apenas: ${price}\n\n🛒 *Acesse a tecnologia no link oficial:*\n${url}`,
-    casa:            `🛋️ *ORGANIZAÇÃO & CONFORTO DO LAR*\n\n🏠 *${product.title}*\n✨ ${keyArgument}\n💰 Apenas: ${price}\n\n🛒 *Deixe seu lar perfeito no link:*\n${url}`,
-    esporte:         `🏆 *SUPERAÇÃO, FOCO & ALTA PERFORMANCE*\n\n🥇 *${product.title}*\n⚡ ${mainBenefit}\n💰 Apenas: ${price}\n\n🛒 *Supere seus limites no link:*\n${url}`,
-    presentes:       `🎁 *O PRESENTE PERFEITO QUE VOCÊ PROCURAVA*\n\n🎉 *${product.title}*\n❤️ ${keyArgument}\n💰 Valor: ${price}\n\n🛒 *Surpreenda quem você ama no link:*\n${url}`,
-    relampago:       `🚨 *OFERTA RELÂMPAGO ACABA EM POUCOS MINUTOS!*\n\n⏰ *${product.title}*\n💰 *De: ${product.previousPrice?.formatBRL() || price} por ${price}*\n\n🛒 *Garanta no cronômetro agora:*\n${url}`,
-    luxo:            `💎 *EXCLUSIVIDADE TOTAL & REFINAMENTO DE ALTO PADRÃO*\n\n👑 *${product.title}*\n✨ ${mainBenefit}\n💰 Valor Exclusivo: ${price}\n\n🛒 *Acesse o atendimento exclusivo no link:*\n${url}`,
-  };
-
-  const defaultCopy = styleBodies[style] || styleBodies.padrao;
+  // Construção dinâmica baseada na descrição real do produto (sem templates de escassez inventada)
+  const defaultCopy = `📦 *${product.title}*\n\n📝 *Detalhes:* ${descSnippet}\n\n💰 *Preço:* ${price}\n\n🛒 *Confira no link oficial:*\n${url}`;
 
   return {
-    publicoAlvo: `Compradores interessados em ${productCategorySemantic}`,
-    dorQueResolve: painPoint,
-    beneficioPrincipal: mainBenefit,
-    argumentoComercial: keyArgument,
-    anguloDeVenda: dynamicAngle,
-    emocaoDeCompra: 'Satisfação & Confiança',
-    categoria: product.categoryId || productCategorySemantic,
-    subcategoria: productCategorySemantic,
+    publicoAlvo: `Compradores interessados em ${product.categoryId || 'produtos em promoção'}`,
+    dorQueResolve: 'Necessidade de compra inteligente com informações claras',
+    beneficioPrincipal: cleanDescription.slice(0, 100) || 'Qualidade e procedência garantidas',
+    argumentoComercial: `${product.title} com valor atrativo`,
+    anguloDeVenda: 'Custo-Benefício',
+    emocaoDeCompra: 'Confiança',
+    categoria: product.categoryId || 'Geral',
+    subcategoria: 'Geral',
 
     whatsAppText: defaultCopy,
     telegramText: defaultCopy,
-    instagramText: `✨ ${product.title}\n\n${mainBenefit}.\n\n🔥 Garanta o seu por apenas ${price} no link da bio!`,
+    instagramText: `✨ ${product.title}\n\n${descSnippet.slice(0, 150)}\n\n🛒 Confira por ${price} no link da bio!`,
     facebookText: defaultCopy,
     threadsText: defaultCopy,
     pinterestText: defaultCopy,
@@ -357,10 +315,10 @@ function createFallbackOfferAnalysis(product: Product, style: OfferStyle = 'padr
     youtubeShortsText: defaultCopy,
     statusWhatsAppText: `🔥 ${product.title} por ${price}!`,
 
-    cta: 'Garantir com Desconto',
-    hashtags: ['#oferta', '#promoção', '#desconto', '#achadinhos'],
-    emojis: ['🔥', '💰', '🛒', '⚡'],
-    gatilhosMentais: ['Urgência', 'Custo-Benefício'],
+    cta: 'Conferir Oferta Oficial',
+    hashtags: ['#oferta', '#promoção', '#achadinhos'],
+    emojis: ['📦', '💰', '🛒'],
+    gatilhosMentais: ['Custo-Benefício'],
 
     sugestaoImagem: 'Foto oficial do produto em destaque',
     sugestaoVideo: 'Vídeo rápido de apresentação do produto',
@@ -408,9 +366,12 @@ export class GeminiAIAdapter implements IAIProviderAdapter {
     try {
       const rawText = await callGeminiAPI(prompt, temp);
       analysis = parseGeminiJSON(rawText, product);
+      analysis.isFallback = false;
+      analysis.providerUsed = this.defaultModel;
     } catch (err) {
-      console.warn('[GeminiAIAdapter] ⚠️ Falha na chamada da API Gemini. Utilizando fallback seguro com dados do produto:', err);
-      analysis = createFallbackOfferAnalysis(product, style);
+      const reason = err instanceof Error ? err.message : String(err);
+      console.warn('[GeminiAIAdapter] ⚠️ Falha na chamada da API Gemini. Motivo:', reason);
+      analysis = createFallbackOfferAnalysis(product, style, reason);
     }
 
     // Injeta dados limpos para auditoria admin Modo Debug
@@ -535,8 +496,9 @@ function parseGeminiJSON(rawText: string, product: Product): GeminiOfferAnalysis
 
       return JSON.parse(cleaned) as GeminiOfferAnalysis;
     } catch (secondErr) {
-      console.warn('[GeminiAdapter] 🛡️ Ativando Fallback Seguro baseado nos dados do produto (JSON Parse inválido)...');
-      return createFallbackOfferAnalysis(product);
+      const errMessage = secondErr instanceof Error ? secondErr.message : String(secondErr);
+      console.error('[GeminiAdapter] ❌ Falha crítica no parsing do JSON da API do Gemini:', errMessage);
+      throw new Error(`Falha no parsing da resposta JSON do Gemini: ${errMessage}`);
     }
   }
 }
