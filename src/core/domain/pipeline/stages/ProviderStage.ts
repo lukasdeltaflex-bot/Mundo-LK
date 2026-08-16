@@ -12,7 +12,9 @@ export class ProviderStage implements AIStage {
       context.product.id,
       context.style,
       context.commercialGoal,
-      context.generationMode
+      context.generationMode,
+      context.product.description,
+      context.product.categoryId
     );
 
     const cached = await AICacheManagerService.getCachedAnalysis(cacheKey);

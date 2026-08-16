@@ -19,8 +19,27 @@ export class AICacheManagerService {
     return getFirestore(app);
   })();
 
-  public static generateCacheKey(productId: string, style: string, goal: string, mode: string): string {
-    return `cache_${productId.toLowerCase()}_${style}_${goal}_${mode}`;
+  public static generateCacheKey(
+    productId: string,
+    style: string,
+    goal: string,
+    mode: string,
+    description?: string,
+    category?: string
+  ): string {
+    const normDesc = (description || '').trim().toLowerCase();
+    let descHash = '';
+    if (normDesc.length > 0) {
+      let hash = 0;
+      for (let i = 0; i < normDesc.length; i++) {
+        const char = normDesc.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash |= 0;
+      }
+      descHash = Math.abs(hash).toString(36);
+    }
+    const normCat = (category || 'geral').trim().toLowerCase();
+    return `cache_${productId.toLowerCase()}_${style}_${goal}_${mode}_${normCat}_${descHash}`;
   }
 
   public static async getCachedAnalysis(cacheKey: string): Promise<GeminiOfferAnalysis | null> {
