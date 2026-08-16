@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   Link as LinkIcon, Sparkles, Loader2, CheckCircle2,
   RefreshCcw, X, Copy, Check,
@@ -66,6 +66,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
   const [tag,           setTag]           = useState('');
   const [style,         setStyle]         = useState<OfferStyle>('padrao');
   const [error,         setError]         = useState<string | null>(null);
+  const isGeneratingRef = useRef<boolean>(false);
 
   // Extracted Data & Confidence
   const [extractedData, setExtractedData] = useState<ProductExtractionResult | null>(null);
@@ -108,6 +109,12 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
   // Step 1: AI Generation from Confirmed Result
   const handleGenerateAI = useCallback(async (confirmed: ProductExtractionResult, overrideStyle?: OfferStyle) => {
+    if (isGeneratingRef.current) {
+      console.warn('[OfferCreationFlow] ⚠️ Chamada duplicada/loop ignorada.');
+      return;
+    }
+    isGeneratingRef.current = true;
+
     setError(null);
     setStep('analyzing');
     setExtractedData(confirmed);
@@ -178,6 +185,8 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Erro durante a geração da IA: ${msg}`);
       setStep('confirming');
+    } finally {
+      isGeneratingRef.current = false;
     }
   }, [url, tag, user, style, editCategorySource]);
 

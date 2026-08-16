@@ -94,8 +94,12 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleConfirmSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
     const numericPrice = parseFloat(price.replace(/[^\d.,]/g, '').replace(',', '.'));
     const numericPrevPrice = parseFloat(prevPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
@@ -364,7 +368,7 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
             </button>
             <button
               type="submit"
-              disabled={!title.trim() || title.length < 3}
+              disabled={isSubmitting || !title.trim() || title.length < 3}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" />
