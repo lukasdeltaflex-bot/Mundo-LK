@@ -80,6 +80,9 @@ export class MarketplaceDataValidator {
       rules.push('❌ AVALIAÇÕES INDISPONÍVEIS: Não invente pontuações de estrelas ou número de compradores.');
     }
 
+    rules.push('❌ PROIBIDO INVENTAR ATRIBUTOS: Nunca invente tempo de fixação (ex: "12h de fixação"), prazos de garantia, brindes, produto original garantido ou especificações técnicas que NÃO constem na Descrição / Detalhes do produto.');
+    rules.push('❌ PROIBIDO TEMPLATE GENÉRICO REPETITIVO: Evite aberturas mecânicas como "🔥 OFERTA IMPERDÍVEL" ou bordões clichês. A copy DEVE ser 100% personalizada e inspirada no produto real.');
+
     return rules.join('\n');
   }
 }

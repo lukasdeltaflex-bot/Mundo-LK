@@ -213,14 +213,21 @@ Utilize o mesmo ângulo comercial recomendado, mas varie a estrutura de frases e
 
     blocks.push(`[META INFO: contextVersion=${AIContextBuilder.CONTEXT_VERSION} | engine=GeminiBrain-Phase2.5]`);
 
-    // ── BLOCO 1: PRODUTO ──
-    let productBlock = `━━━ 📦 PRODUTO (FATOS REAIS INEGOCIÁVEIS) ━━━
-• Nome: ${offerCtx.title}
-• Marca: ${product.brand || 'Não especificada'}
-• Categoria: ${product.category || 'Geral'}
-• Preço Atual: ${offerCtx.currentPrice}${offerCtx.previousPrice ? ` (anterior: ${offerCtx.previousPrice})` : ''}
-${offerCtx.discountPercentage ? `• Desconto Confirmado: ${offerCtx.discountPercentage}` : ''}
-• Descrição Oficial do Produto: "${product.description || 'Descrição indisponível'}"`;
+    // ── BLOCO 1: PRODUTO (DESCRIÇÃO / DETALHES COMO FONTE PRIMÁRIA) ──
+    let productBlock = `━━━ 📦 PRODUTO (DESCRIÇÃO / DETALHES = FONTE PRIMÁRIA DE CONTEÚDO) ━━━
+⚠️ REGRA IMPERATIVA DE CONTEÚDO:
+O campo "Descrição / Detalhes" abaixo é a PRINCIPAL FONTE DE CONHECIMENTO sobre este produto.
+Você DEVE ler, compreender e extrair as características reais, benefícios específicos, perfil de uso e diferenciais diretamente desse texto.
+NÃO ignore a Descrição! A Copy de WhatsApp deve transformar esses detalhes reais em comunicação comercial persuasiva e natural.
+
+• 📝 DESCRIÇÃO / DETALHES DO PRODUTO (FONTE PRINCIPAL):
+"${product.description && product.description.trim().length > 0 ? product.description.trim() : 'Descrição detalhada não fornecida pelo usuário'}"
+
+• 📌 Nome Oficial do Produto: ${offerCtx.title}
+• 🏷️ Marca: ${product.brand || 'Não especificada'}
+• 📂 Categoria Confirmada (Apenas Contexto Comercial): ${product.category || 'Geral'}
+• 💰 Preço Atual: ${offerCtx.currentPrice}${offerCtx.previousPrice ? ` (anterior: ${offerCtx.previousPrice})` : ''}
+${offerCtx.discountPercentage ? `• 📉 Desconto Confirmado: ${offerCtx.discountPercentage}` : ''}`;
 
     if (product.attributes && Object.keys(product.attributes).length > 0) {
       const attrsStr = Object.entries(product.attributes)

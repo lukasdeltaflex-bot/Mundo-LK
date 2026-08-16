@@ -16,6 +16,7 @@ export interface SaveOfferInput {
   userId: string;
   /** Optional user-edited overrides */
   editedTitle?: string;
+  editedDescription?: string;
   editedCta?: string;
   editedCopy?: string;
   editedMedia?: ProductMedia[];
@@ -35,6 +36,7 @@ export async function saveApprovedOfferAction(
       preview,
       userId,
       editedTitle,
+      editedDescription,
       editedCta,
       editedCopy,
       editedMedia,
@@ -76,6 +78,7 @@ export async function saveApprovedOfferAction(
     if (existingProduct) {
       product = existingProduct;
       if (editedTitle) product.title = editedTitle;
+      if (editedDescription) product.description = editedDescription;
 
       if (editedCategory || !product.categoryLocked) {
         product.updateCategory({
@@ -100,7 +103,7 @@ export async function saveApprovedOfferAction(
         id:                 productId,
         userId,
         title:              editedTitle || preview.product.title,
-        description:        preview.product.description || editedCopy || 'Produto oficial',
+        description:        editedDescription || preview.product.description || editedCopy || 'Produto oficial',
         brand:              preview.product.brand || 'Desconhecida',
         categoryId:         finalCat,
         categorySource:     finalCatSource,

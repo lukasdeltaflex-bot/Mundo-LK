@@ -207,15 +207,17 @@ ${expertPanelDirective}
 
 ${pastWinningContext ? `${pastWinningContext}\n` : ''}
 
-━━━ PROTOCOLO RÍGIDO ANTI-ALUCINAÇÃO ━━━
-- NUNCA invente materiais, especificações técnicas, prazos de garantia, certificações, notas olfativas, brindes, promoções ou medidas que não estejam informados nos DADOS DO PRODUTO.
-- Se uma informação não for fornecida nos dados do produto, limite-se estritamente aos fatos confirmados.
+━━━ PROTOCOLO RÍGIDO ANTI-ALUCINAÇÃO & FONTE PRIMÁRIA DE CONTEÚDO ━━━
+- O CAMPO "DESCRIÇÃO / DETALHES" É A FONTE PRINCIPAL DE CONHECIMENTO DO PRODUTO. A copy DEVE ler, entender e transformar esse texto em argumentos comerciais naturais específicos deste produto.
+- NUNCA invente tempo de fixação (ex: "12h de duração"), materiais, especificações técnicas, prazos de garantia, certificações, brindes ou características não presentes na Descrição / Detalhes.
+- Se a Descrição / Detalhes for concisa, limite-se rigorosamente aos fatos confirmados sem inventar dados falsos.
+- PROIBIDO gerar templates genéricos repetitivos (ex: "🔥 OFERTA IMPERDÍVEL... Garanta o seu!"). Cada produto deve gerar uma copy com ritmo e vocabulário únicos!
 
 DADOS CONFIRMADOS DO PRODUTO (FATOS INEGOCIÁVEIS):
+- 📝 DESCRIÇÃO / DETALHES DO PRODUTO (FONTE PRINCIPAL): "${product.description || 'Nenhuma descrição estendida fornecida'}"
 - Nome Oficial: "${product.title}"
-- Descrição Oficial do Produto: "${product.description || 'Produto oficial'}"
 - Marca: "${product.brand || 'Não especificada'}"
-- Categoria: "${product.categoryId || 'Geral'}"
+- Categoria Confirmada (Contexto Comercial): "${product.categoryId || 'Geral'}"
 - Preço Atual: ${price} (Contexto: ${discount})
 - Marketplace de Origem: ${product.marketplaceSlug}
 - Link Afiliado Oficial: ${rawAffiliateUrl}

@@ -95,6 +95,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
   // Editable overrides
   const [editTitle,            setEditTitle]            = useState('');
+  const [editDescription,      setEditDescription]      = useState('');
   const [editCta,              setEditCta]              = useState('');
   const [editWhatsapp,         setEditWhatsapp]         = useState('');
   const [mediaList,            setMediaList]            = useState<ProductMedia[]>([]);
@@ -132,6 +133,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setActiveVerIdx(0);
 
       setEditTitle(newPreview.product.title);
+      setEditDescription(confirmed.description || newPreview.product.description || '');
       setEditCta(newPreview.offer.cta);
       setEditWhatsapp(newPreview.offer.whatsAppText);
       setStyle(overrideStyle ?? style);
@@ -289,10 +291,11 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
     const selectedStyle = newStyle ?? style;
     setStyle(selectedStyle);
 
-    // Preserva integralmente o contexto e dados estruturais do produto existente (título, preço, imagem, marca, categoria, marketplace, url)
+    // Preserva integralmente o contexto e dados estruturais do produto existente (título, descrição, preço, imagem, marca, categoria, marketplace, url)
     const preservedContext: ProductExtractionResult = {
       ...extractedData,
       title: editTitle.trim() || preview?.product.title || extractedData.title,
+      description: editDescription.trim() || preview?.product.description || extractedData.description,
       image: preview?.product.imageUrl || extractedData.image,
       brand: preview?.product.brand || extractedData.brand,
       category: editCategory || preview?.product.categoryId || extractedData.category,
@@ -305,7 +308,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
 
     setExtractedData(preservedContext);
     handleGenerateAI(preservedContext, selectedStyle);
-  }, [extractedData, preview, editTitle, editCategory, editCategorySource, style, handleGenerateAI]);
+  }, [extractedData, preview, editTitle, editDescription, editCategory, editCategorySource, style, handleGenerateAI]);
 
   // Switch version tab
   const handleSelectVersion = (idx: number) => {
@@ -336,6 +339,7 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
         preview,
         userId:               user.uid,
         editedTitle:          editTitle !== preview.product.title ? editTitle : undefined,
+        editedDescription:    editDescription !== preview.product.description ? editDescription : undefined,
         editedCta:            editCta   !== preview.offer.cta    ? editCta   : undefined,
         editedCopy:           editWhatsapp,
         editedMedia:          mediaList,
@@ -705,6 +709,22 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
                     value={editWhatsapp}
                     onChange={(e) => setEditWhatsapp(e.target.value)}
                     className="w-full rounded-xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-white leading-relaxed focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Descrição / Detalhes do Produto (Fonte Primária da Copy)
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">A IA usa este texto para gerar a Copy</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Digite detalhes reais do produto (ex: fragrância floral delicada, 100ml, uso diário, embalagem elegante)..."
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs text-slate-200 leading-relaxed focus:border-amber-500/50 focus:outline-none"
                   />
                 </div>
 
