@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/presentation/components/ui/Button';
-import { X, Settings, Plus, Edit2, Trash2, ShieldAlert, AlertTriangle, Radio, Users, Check } from 'lucide-react';
+import { X, Settings, Plus, Edit2, Trash2, ShieldAlert, AlertTriangle, Radio, Users, Check, GripVertical, Loader2 } from 'lucide-react';
 import { DispatchChannel } from '@/core/domain/entities/dispatch-channel.entity';
 import { TargetGroup } from '@/core/domain/entities/target-group.entity';
 import { Product } from '@/core/domain/entities/product.entity';
@@ -30,6 +30,16 @@ export function DispatchOptionsManagerModal({
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'channels' | 'groups'>('channels');
 
+  // Local reorderable list states
+  const [localChannels, setLocalChannels] = useState<DispatchChannel[]>([]);
+  const [localGroups, setLocalGroups] = useState<TargetGroup[]>([]);
+
+  // Dragging state
+  const draggedIndexRef = useRef<number | null>(null);
+
+  // Reorder Feedback Message
+  const [orderStatus, setOrderStatus] = useState<{ type: 'saving' | 'success' | 'error'; text: string } | null>(null);
+
   // Form states for Create/Edit
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -39,6 +49,17 @@ export function DispatchOptionsManagerModal({
 
   // Delete confirmation state
   const [deletingItem, setDeletingItem] = useState<{ id: string; name: string; type: 'channel' | 'group' } | null>(null);
+
+  // Sync local items sorted by order ASC
+  useEffect(() => {
+    const sortedChans = [...channels].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    setLocalChannels(sortedChans);
+  }, [channels]);
+
+  useEffect(() => {
+    const sortedGrps = [...groups].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    setLocalGroups(sortedGrps);
+  }, [groups]);
 
   if (!isOpen) return null;
 
@@ -71,6 +92,73 @@ export function DispatchOptionsManagerModal({
     setItemName(name);
     setItemDescription(description);
     setIsFormOpen(true);
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (index: number) => {
+    draggedIndexRef.current = index;
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDropChannel = async (targetIndex: number) => {
+    const fromIdx = draggedIndexRef.current;
+    if (fromIdx === null || fromIdx === targetIndex) return;
+
+    const listCopy = [...localChannels];
+    const [moved] = listCopy.splice(fromIdx, 1);
+    listCopy.splice(targetIndex, 0, moved);
+
+    // Update order property for all items based on new positions
+    listCopy.forEach((item, idx) => item.updateOrder(idx));
+    setLocalChannels([...listCopy]);
+
+    setOrderStatus({ type: 'saving', text: '⏳ Salvando nova ordem no Firestore...' });
+
+    try {
+      const repo = new FirestoreDispatchChannelRepository();
+      await repo.saveBatch(listCopy);
+      setOrderStatus({ type: 'success', text: '✓ Ordem salva no Firestore' });
+      onRefresh();
+      setTimeout(() => setOrderStatus(null), 3000);
+    } catch (err) {
+      console.error('[DispatchOptionsManagerModal] Erro ao salvar ordem dos canais:', err);
+      setOrderStatus({ type: 'error', text: '⚠ Não foi possível salvar a nova ordem.' });
+      // Revert UI to props state
+      setLocalChannels([...channels].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+      setTimeout(() => setOrderStatus(null), 4000);
+    }
+  };
+
+  const handleDropGroup = async (targetIndex: number) => {
+    const fromIdx = draggedIndexRef.current;
+    if (fromIdx === null || fromIdx === targetIndex) return;
+
+    const listCopy = [...localGroups];
+    const [moved] = listCopy.splice(fromIdx, 1);
+    listCopy.splice(targetIndex, 0, moved);
+
+    // Update order property for all items based on new positions
+    listCopy.forEach((item, idx) => item.updateOrder(idx));
+    setLocalGroups([...listCopy]);
+
+    setOrderStatus({ type: 'saving', text: '⏳ Salvando nova ordem no Firestore...' });
+
+    try {
+      const repo = new FirestoreTargetGroupRepository();
+      await repo.saveBatch(listCopy);
+      setOrderStatus({ type: 'success', text: '✓ Ordem salva no Firestore' });
+      onRefresh();
+      setTimeout(() => setOrderStatus(null), 3000);
+    } catch (err) {
+      console.error('[DispatchOptionsManagerModal] Erro ao salvar ordem dos grupos:', err);
+      setOrderStatus({ type: 'error', text: '⚠ Não foi possível salvar a nova ordem.' });
+      // Revert UI to props state
+      setLocalGroups([...groups].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+      setTimeout(() => setOrderStatus(null), 4000);
+    }
   };
 
   const handleSaveSubmit = async (e: React.FormEvent) => {
@@ -108,10 +196,12 @@ export function DispatchOptionsManagerModal({
             await repo.save(existing);
           }
         } else {
+          const nextOrder = localChannels.length;
           const newChan = new DispatchChannel({
             id: `chan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             userId: user.uid,
             name: trimmedName,
+            order: nextOrder,
             active: true,
           });
           await repo.save(newChan);
@@ -125,11 +215,13 @@ export function DispatchOptionsManagerModal({
             await repo.save(existing);
           }
         } else {
+          const nextOrder = localGroups.length;
           const newGroup = new TargetGroup({
             id: `grp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             userId: user.uid,
             name: trimmedName,
             description: itemDescription.trim(),
+            order: nextOrder,
             active: true,
           });
           await repo.save(newGroup);
@@ -206,7 +298,7 @@ export function DispatchOptionsManagerModal({
         <div className="flex items-center border-b border-slate-800 bg-slate-950/40 px-6 py-2 gap-2">
           <button
             type="button"
-            onClick={() => { setActiveTab('channels'); setIsFormOpen(false); }}
+            onClick={() => { setActiveTab('channels'); setIsFormOpen(false); setOrderStatus(null); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
               activeTab === 'channels'
                 ? 'bg-blue-600 text-white shadow'
@@ -214,12 +306,12 @@ export function DispatchOptionsManagerModal({
             }`}
           >
             <Radio className="h-3.5 w-3.5" />
-            Canais de Divulgação ({channels.length})
+            Canais de Divulgação ({localChannels.length})
           </button>
 
           <button
             type="button"
-            onClick={() => { setActiveTab('groups'); setIsFormOpen(false); }}
+            onClick={() => { setActiveTab('groups'); setIsFormOpen(false); setOrderStatus(null); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
               activeTab === 'groups'
                 ? 'bg-blue-600 text-white shadow'
@@ -227,18 +319,36 @@ export function DispatchOptionsManagerModal({
             }`}
           >
             <Users className="h-3.5 w-3.5" />
-            Grupos / Listas de Destino ({groups.length})
+            Grupos / Listas de Destino ({localGroups.length})
           </button>
         </div>
 
         {/* Content Body */}
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+          {/* Status Alert for Reordering */}
+          {orderStatus && (
+            <div
+              className={`flex items-center gap-2 p-2.5 rounded-xl text-xs font-semibold animate-in fade-in ${
+                orderStatus.type === 'saving'
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                  : orderStatus.type === 'success'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-red-500/10 text-red-300 border border-red-500/20'
+              }`}
+            >
+              {orderStatus.type === 'saving' && <Loader2 className="h-4 w-4 animate-spin text-blue-400 shrink-0" />}
+              {orderStatus.type === 'success' && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
+              {orderStatus.type === 'error' && <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />}
+              <span>{orderStatus.text}</span>
+            </div>
+          )}
+
           {/* Action Header */}
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-400">
               {activeTab === 'channels'
-                ? 'Cadastre e gerencie os canais de envio (ex: WhatsApp VIP, Telegram, Instagram).'
-                : 'Cadastre e gerencie as listas/grupos de destino para segmentação.'}
+                ? 'Arraste pelo ícone ☰ para reordenar a prioridade dos canais.'
+                : 'Arraste pelo ícone ☰ para reordenar os grupos de destino.'}
             </p>
             <Button
               size="sm"
@@ -347,24 +457,39 @@ export function DispatchOptionsManagerModal({
             </div>
           )}
 
-          {/* Items List */}
+          {/* Reorderable Items List */}
           <div className="space-y-2">
             {activeTab === 'channels' ? (
-              channels.length > 0 ? (
-                channels.map((chan) => {
+              localChannels.length > 0 ? (
+                localChannels.map((chan, idx) => {
                   const usage = getItemUsageCount(chan.name, 'channel');
                   return (
                     <div
                       key={chan.id}
-                      className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs"
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDropChannel(idx)}
+                      className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs hover:border-slate-700 transition cursor-grab active:cursor-grabbing group"
                     >
-                      <div>
-                        <p className="font-bold text-slate-200">{chan.name}</p>
-                        {usage > 0 && (
-                          <span className="text-[10px] text-blue-400 font-medium">
-                            Usado em {usage} {usage === 1 ? 'registro' : 'registros'}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="text-slate-600 group-hover:text-slate-300 transition cursor-grab"
+                          title="Arrastar para reordenar"
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-slate-200">{chan.name}</p>
+                            <span className="text-[10px] text-slate-500 font-mono">#{idx + 1}</span>
+                          </div>
+                          {usage > 0 && (
+                            <span className="text-[10px] text-blue-400 font-medium">
+                              Usado em {usage} {usage === 1 ? 'registro' : 'registros'}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -390,24 +515,39 @@ export function DispatchOptionsManagerModal({
               ) : (
                 <p className="text-xs text-slate-500 italic py-3 text-center">Nenhum canal cadastrado.</p>
               )
-            ) : groups.length > 0 ? (
-              groups.map((grp) => {
+            ) : localGroups.length > 0 ? (
+              localGroups.map((grp, idx) => {
                 const usage = getItemUsageCount(grp.name, 'group');
                 return (
                   <div
                     key={grp.id}
-                    className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs"
+                    draggable
+                    onDragStart={() => handleDragStart(idx)}
+                    onDragOver={handleDragOver}
+                    onDrop={() => handleDropGroup(idx)}
+                    className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs hover:border-slate-700 transition cursor-grab active:cursor-grabbing group"
                   >
-                    <div>
-                      <p className="font-bold text-slate-200">{grp.name}</p>
-                      {grp.description && (
-                        <p className="text-[11px] text-slate-400">{grp.description}</p>
-                      )}
-                      {usage > 0 && (
-                        <span className="text-[10px] text-blue-400 font-medium">
-                          Usado em {usage} {usage === 1 ? 'registro' : 'registros'}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="text-slate-600 group-hover:text-slate-300 transition cursor-grab"
+                        title="Arrastar para reordenar"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-200">{grp.name}</p>
+                          <span className="text-[10px] text-slate-500 font-mono">#{idx + 1}</span>
+                        </div>
+                        {grp.description && (
+                          <p className="text-[11px] text-slate-400">{grp.description}</p>
+                        )}
+                        {usage > 0 && (
+                          <span className="text-[10px] text-blue-400 font-medium">
+                            Usado em {usage} {usage === 1 ? 'registro' : 'registros'}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5">

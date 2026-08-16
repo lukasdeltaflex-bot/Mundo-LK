@@ -16,6 +16,7 @@ export interface FirestoreDispatchChannelDoc {
   userId: string;
   tenantId?: string;
   name: string;
+  order?: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -34,7 +35,8 @@ export class FirestoreDispatchChannelRepository {
       if (snap.empty) {
         return this.seedDefaultsIfEmpty(userId);
       }
-      return snap.docs.map((docSnap) => this.toDomain(docSnap.data() as FirestoreDispatchChannelDoc));
+      const items = snap.docs.map((docSnap) => this.toDomain(docSnap.data() as FirestoreDispatchChannelDoc));
+      return items.sort((a, b) => a.order - b.order);
     } catch (err) {
       console.warn('[FirestoreDispatchChannelRepository] findAll error:', err);
       return [];
@@ -137,12 +139,14 @@ export class FirestoreDispatchChannelRepository {
     ];
 
     const list: DispatchChannel[] = [];
+    let orderCounter = 0;
     for (const name of defaults) {
       const id = `chan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const channel = new DispatchChannel({
         id,
         userId: activeUid,
         name,
+        order: orderCounter++,
         active: true,
       });
       list.push(channel);
@@ -162,6 +166,7 @@ export class FirestoreDispatchChannelRepository {
       id: doc.id,
       userId: doc.userId,
       name: doc.name || 'Canal sem nome',
+      order: doc.order ?? 0,
       active: doc.active ?? true,
       createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
       updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date(),
@@ -175,6 +180,7 @@ export class FirestoreDispatchChannelRepository {
       userId: activeUid,
       tenantId: activeUid,
       name: entity.name || '',
+      order: entity.order ?? 0,
       active: entity.active ?? true,
       createdAt: (entity.createdAt || new Date()).toISOString(),
       updatedAt: (entity.updatedAt || new Date()).toISOString(),

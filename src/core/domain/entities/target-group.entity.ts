@@ -3,6 +3,7 @@ export interface TargetGroupProps {
   userId: string;
   name: string;
   description?: string;
+  order?: number;
   active?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -13,6 +14,7 @@ export class TargetGroup {
   public readonly userId: string;
   public name: string;
   public description: string;
+  public order: number;
   public active: boolean;
   public readonly createdAt: Date;
   public updatedAt: Date;
@@ -22,6 +24,7 @@ export class TargetGroup {
     this.userId = props.userId;
     this.name = props.name;
     this.description = props.description || '';
+    this.order = props.order ?? 0;
     this.active = props.active ?? true;
     this.createdAt = props.createdAt || new Date();
     this.updatedAt = props.updatedAt || new Date();
@@ -30,6 +33,11 @@ export class TargetGroup {
   public updateInfo(name: string, description?: string): void {
     this.name = name;
     if (description !== undefined) this.description = description;
+    this.updatedAt = new Date();
+  }
+
+  public updateOrder(order: number): void {
+    this.order = order;
     this.updatedAt = new Date();
   }
 

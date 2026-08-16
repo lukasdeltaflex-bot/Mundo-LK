@@ -17,6 +17,7 @@ export interface FirestoreTargetGroupDoc {
   tenantId?: string;
   name: string;
   description: string;
+  order?: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -35,7 +36,8 @@ export class FirestoreTargetGroupRepository {
       if (snap.empty) {
         return this.seedDefaultsIfEmpty(userId);
       }
-      return snap.docs.map((docSnap) => this.toDomain(docSnap.data() as FirestoreTargetGroupDoc));
+      const items = snap.docs.map((docSnap) => this.toDomain(docSnap.data() as FirestoreTargetGroupDoc));
+      return items.sort((a, b) => a.order - b.order);
     } catch (err) {
       console.warn('[FirestoreTargetGroupRepository] findAll error:', err);
       return [];
@@ -135,6 +137,7 @@ export class FirestoreTargetGroupRepository {
     ];
 
     const list: TargetGroup[] = [];
+    let orderCounter = 0;
     for (const item of defaults) {
       const id = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const group = new TargetGroup({
@@ -142,6 +145,7 @@ export class FirestoreTargetGroupRepository {
         userId: activeUid,
         name: item.name,
         description: item.description,
+        order: orderCounter++,
         active: true,
       });
       list.push(group);
@@ -162,6 +166,7 @@ export class FirestoreTargetGroupRepository {
       userId: doc.userId,
       name: doc.name || 'Grupo sem nome',
       description: doc.description || '',
+      order: doc.order ?? 0,
       active: doc.active ?? true,
       createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
       updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date(),
@@ -176,6 +181,7 @@ export class FirestoreTargetGroupRepository {
       tenantId: activeUid,
       name: entity.name || '',
       description: entity.description || '',
+      order: entity.order ?? 0,
       active: entity.active ?? true,
       createdAt: (entity.createdAt || new Date()).toISOString(),
       updatedAt: (entity.updatedAt || new Date()).toISOString(),
