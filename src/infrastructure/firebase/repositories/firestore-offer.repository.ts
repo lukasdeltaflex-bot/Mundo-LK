@@ -37,12 +37,13 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
   public async findByUserId(userId: string): Promise<Offer[]> {
     try {
-      const constraints = [where('userId', '==', userId), limit(50)];
+      const constraints = [where('userId', '==', userId), limit(500)];
       const q = query(collection(db, this.collectionName), ...constraints);
 
       const snap = await getDocs(q);
 
-      return snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
+      const items = snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
+      return items.sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
     } catch (err: any) {
 
       console.error('[AUDIT] Firestore Error', {
@@ -87,7 +88,9 @@ export class FirestoreOfferRepository implements IOfferRepository {
       });
       console.groupEnd();
 
-      const items = snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
+      const items = snap.docs
+        .map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc))
+        .sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
       const newLastSnap = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : undefined;
 
       return {

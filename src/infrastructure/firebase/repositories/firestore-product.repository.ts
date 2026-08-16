@@ -42,12 +42,14 @@ export class FirestoreProductRepository implements IProductRepository {
 
   public async findAll(userId: string): Promise<Product[]> {
     try {
-      const q = query(collection(db, this.collectionName), where('userId', '==', userId), limit(50));
+      const q = query(collection(db, this.collectionName), where('userId', '==', userId), limit(500));
       const snap = await getDocs(q);
-      return snap.docs
+      const items = snap.docs
         .map((docSnap) => docSnap.data() as FirestoreProductDoc)
         .filter((d) => !d.status || d.status === 'ACTIVE')
         .map((d) => ProductMapper.toDomain(d));
+
+      return items.sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
     } catch (err) {
       console.warn('[FirestoreProductRepository] findAll error:', err);
       return [];
@@ -69,7 +71,8 @@ export class FirestoreProductRepository implements IProductRepository {
       const items = snap.docs
         .map((docSnap) => docSnap.data() as FirestoreProductDoc)
         .filter((d) => !d.status || d.status === 'ACTIVE')
-        .map((d) => ProductMapper.toDomain(d));
+        .map((d) => ProductMapper.toDomain(d))
+        .sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
 
       const newLastSnap = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : undefined;
 
