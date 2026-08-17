@@ -22,9 +22,8 @@ export class OpenAIAdapter implements IAIProviderAdapter {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-      console.warn('[OpenAIAdapter] ⚠️ OPENAI_API_KEY não configurada no servidor Vercel.');
-      const fallbackAnalysis = this.createFallbackAnalysis(product, style, 'OPENAI_API_KEY não configurada');
-      return this.buildResultFromAnalysis(product, fallbackAnalysis);
+      console.error('[OpenAIAdapter] 🚨 OPENAI_API_KEY não configurada no servidor Vercel.');
+      throw new Error('A chave OPENAI_API_KEY não está configurada no servidor Vercel. Por favor, adicione a variável de ambiente OPENAI_API_KEY.');
     }
 
     const prompt = this.buildOpenAIPrompt(product, style, goal, mode, pastWinningContext, hierarchicalMemoryBlock);
@@ -57,6 +56,12 @@ export class OpenAIAdapter implements IAIProviderAdapter {
       if (!response.ok) {
         const errText = await response.text();
         console.error(`[OpenAIAdapter] 🚨 OpenAI API error ${response.status}:`, errText);
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(`Falha de Autenticação na API da OpenAI (HTTP ${response.status}): Sua chave OPENAI_API_KEY é inválida ou expirou.`);
+        }
+        if (response.status === 429) {
+          throw new Error(`Falha na API da OpenAI (HTTP 429): Limite de cota ou créditos esgotados na conta da OpenAI. Verifique o faturamento em https://platform.openai.com/account/billing.`);
+        }
         throw new Error(`OpenAI API HTTP ${response.status}: ${errText}`);
       }
 
@@ -75,9 +80,8 @@ export class OpenAIAdapter implements IAIProviderAdapter {
       return this.buildResultFromAnalysis(product, analysis);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      console.error('[OpenAIAdapter] 🚨 Falha na chamada da OpenAI:', reason);
-      const fallbackAnalysis = this.createFallbackAnalysis(product, style, reason);
-      return this.buildResultFromAnalysis(product, fallbackAnalysis);
+      console.error('[OpenAIAdapter] 🚨 Falha real na chamada da OpenAI:', reason);
+      throw new Error(`Falha na IA da OpenAI: ${reason}`);
     }
   }
 
