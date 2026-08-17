@@ -60,6 +60,7 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadStatusMsg, setUploadStatusMsg] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [failedImageIds, setFailedImageIds] = useState<string[]>([]);
 
   // Inputs para URL de Imagem e URL de Vídeo
   const [showImageUrlInput, setShowImageUrlInput] = useState(false);
@@ -235,6 +236,7 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
       }
       return filtered;
     });
+    setFailedImageIds((prev) => prev.filter((id) => id !== mediaId));
 
     await storageService.deleteStorageImage(url);
   };
@@ -598,47 +600,64 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
             {/* Grid de Mídias Carregadas (Preview em Tempo Real) */}
             {mediaList.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                {mediaList.map((m) => (
-                  <div key={m.id} className={`relative rounded-xl border p-2 bg-slate-950 flex flex-col gap-2 ${m.isPrimary ? 'border-amber-500 ring-1 ring-amber-500/40' : 'border-slate-800'}`}>
-                    <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
-                      {m.type === 'video' ? (
-                        <video src={m.url} controls className="w-full h-full object-cover" />
-                      ) : (
-                        <img src={m.url} alt="" className="w-full h-full object-cover" />
-                      )}
+                {mediaList.map((m) => {
+                  const hasFailed = failedImageIds.includes(m.id);
 
-                      {/* Badge Capa */}
-                      {m.isPrimary && (
-                        <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                          <Star className="h-3 w-3 fill-slate-950" /> Capa
+                  return (
+                    <div key={m.id} className={`relative rounded-xl border p-2 bg-slate-950 flex flex-col gap-2 ${m.isPrimary ? 'border-amber-500 ring-1 ring-amber-500/40' : 'border-slate-800'}`}>
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
+                        {m.type === 'video' ? (
+                          <video src={m.url} controls className="w-full h-full object-cover" />
+                        ) : hasFailed ? (
+                          <div className="flex flex-col items-center justify-center p-2 text-center text-amber-400">
+                            <AlertCircle className="h-5 w-5 mb-1" />
+                            <span className="text-[9px]">URL Externa Carregada</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={m.url}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                            onError={() => {
+                              setFailedImageIds((prev) => [...prev, m.id]);
+                            }}
+                          />
+                        )}
+
+                        {/* Badge Capa */}
+                        {m.isPrimary && (
+                          <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 z-10">
+                            <Star className="h-3 w-3 fill-slate-950" /> Capa
+                          </span>
+                        )}
+
+                        <span className="absolute bottom-1 right-1 bg-slate-950/80 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 z-10">
+                          {m.type === 'video' ? <Video className="h-3 w-3 text-blue-400" /> : <ImageIcon className="h-3 w-3 text-purple-400" />}
                         </span>
-                      )}
+                      </div>
 
-                      <span className="absolute bottom-1 right-1 bg-slate-950/80 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                        {m.type === 'video' ? <Video className="h-3 w-3 text-blue-400" /> : <ImageIcon className="h-3 w-3 text-purple-400" />}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-1">
-                      {!m.isPrimary && m.type === 'image' && (
+                      <div className="flex items-center justify-between gap-1">
+                        {!m.isPrimary && m.type === 'image' && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimaryMedia(m.id)}
+                            className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
+                          >
+                            <Star className="h-3 w-3" /> Marcar Capa
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => handleSetPrimaryMedia(m.id)}
-                          className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
+                          onClick={() => handleRemoveMedia(m.id, m.url)}
+                          className="text-red-400 hover:text-red-300 p-1 ml-auto"
                         >
-                          <Star className="h-3 w-3" /> Marcar Capa
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMedia(m.id, m.url)}
-                        className="text-red-400 hover:text-red-300 p-1 ml-auto"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

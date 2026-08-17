@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/presentation/components/ui/Button';
-import { X, Tag, Sparkles, MessageSquare, Flame, Check, Link as LinkIcon, Image as ImageIcon, FileText, Upload, Trash2, RefreshCw } from 'lucide-react';
+import { X, Tag, Sparkles, MessageSquare, Flame, Check, Link as LinkIcon, Image as ImageIcon, FileText, Upload, Trash2, RefreshCw, Video, AlertCircle, PlusCircle } from 'lucide-react';
 import { Offer } from '@/core/domain/entities/offer.entity';
 import { Product, ProductMedia, OFFICIAL_TAXONOMY_CATEGORIES } from '@/core/domain/entities/product.entity';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { FirebaseStorageService } from '@/infrastructure/firebase/storage/firebase-storage.service';
+import { CustomTaxonomyService, CustomMarketplace, CustomCategory } from '@/core/domain/services/CustomTaxonomyService';
 import { UpdateOfferUseCase } from '@/core/application/use-cases/offers/UpdateOfferUseCase';
 import { ScoreType } from '@/core/domain/value-objects/score-level.vo';
 import { Price, AffiliateLink } from '@/core/domain/value-objects';
@@ -22,7 +23,7 @@ interface EditOfferModalProps {
   onSuccess: () => void;
 }
 
-const MARKETPLACE_OPTIONS = [
+const DEFAULT_MARKETPLACE_OPTIONS = [
   { slug: 'shopee', name: 'Shopee' },
   { slug: 'magalu', name: 'Magazine Luiza (Magalu)' },
   { slug: 'mercadolivre', name: 'Mercado Livre' },
@@ -51,7 +52,26 @@ export function EditOfferModal({
   const [affiliateUrl, setAffiliateUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [mediaList, setMediaList] = useState<ProductMedia[]>([]);
+  const [failedImageIds, setFailedImageIds] = useState<string[]>([]);
   const [category, setCategory] = useState('Geral');
+
+  // Taxonomy & Options
+  const [marketplaceOptions, setMarketplaceOptions] = useState(DEFAULT_MARKETPLACE_OPTIONS);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(OFFICIAL_TAXONOMY_CATEGORIES);
+
+  // Modais Inline de Criação de Marketplace e Categoria
+  const [showNewMarketplaceModal, setShowNewMarketplaceModal] = useState(false);
+  const [newMarketplaceName, setNewMarketplaceName] = useState('');
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryParent, setNewCategoryParent] = useState('');
+  const [creatingTaxonomy, setCreatingTaxonomy] = useState(false);
+
+  // Inputs para Mídia por Link (URL Externa)
+  const [showImageUrlInput, setShowImageUrlInput] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [showVideoUrlInput, setShowVideoUrlInput] = useState(false);
+  const [videoUrlInput, setVideoUrlInput] = useState('');
 
   // Campos da Oferta Comercial
   const [marketplaceSlug, setMarketplaceSlug] = useState('shopee');
@@ -65,16 +85,41 @@ export function EditOfferModal({
   const [processing, setProcessing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
   const storageService = useRef(new FirebaseStorageService()).current;
+  const taxonomyService = useRef(new CustomTaxonomyService()).current;
   const identityResolver = useRef(new ProductIdentityResolver()).current;
+
+  // Carrega taxonomias customizadas salvas no Firestore para o usuário
+  useEffect(() => {
+    if (user?.uid) {
+      taxonomyService.getCustomMarketplaces(user.uid).then((customMkts) => {
+        if (customMkts && customMkts.length > 0) {
+          const formatted = customMkts.map((m) => ({ slug: m.slug, name: m.name }));
+          setMarketplaceOptions((prev) => {
+            const existingSlugs = prev.map((p) => p.slug);
+            const toAdd = formatted.filter((f) => !existingSlugs.includes(f.slug));
+            return [...prev, ...toAdd];
+          });
+        }
+      });
+
+      taxonomyService.getCustomCategories(user.uid).then((customCats) => {
+        if (customCats && customCats.length > 0) {
+          const names = customCats.map((c) => c.name);
+          setCategoryOptions((prev) => Array.from(new Set([...prev, ...names])));
+        }
+      });
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     if (offer && isOpen && user?.uid) {
       const slug = offer.marketplaceId || (offer as any).marketplace || 'shopee';
       setMarketplaceSlug(slug);
-      setMarketplaceName(offer.marketplaceName || MARKETPLACE_OPTIONS.find(m => m.slug === slug)?.name || 'Shopee');
-      
+      setMarketplaceName(offer.marketplaceName || marketplaceOptions.find(m => m.slug === slug)?.name || 'Shopee');
+
       const existingText = offer.copies?.copies?.whatsAppText ||
         offer.copies?.copies?.shortText ||
         (typeof offer.copies === 'string' ? offer.copies : '');
@@ -102,7 +147,7 @@ export function EditOfferModal({
             setOriginalUrl(p.originalUrl || '');
             setAffiliateUrl(p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl || '');
             setImageUrl(p.images && p.images.length > 0 ? p.images[0] : '');
-            if (!offer.media && p.media && p.media.length > 0) {
+            if ((!offer.media || offer.media.length === 0) && p.media && p.media.length > 0) {
               setMediaList(p.media);
             }
             setCategory(p.categoryId || 'Geral');
@@ -121,8 +166,8 @@ export function EditOfferModal({
 
   if (!isOpen || !offer) return null;
 
-  // Lógica de upload de imagem/vídeo para Firebase Storage com substituição segura
-  const handleMediaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Lógica de upload de imagem/vídeo local para Firebase Storage
+  const handleMediaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, acceptedType: 'image' | 'video') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -145,13 +190,13 @@ export function EditOfferModal({
 
       setMediaList((prev) => {
         const updated = [...prev, ...newItems];
-        if (!updated.some(m => m.isPrimary) && updated.length > 0) {
+        if (!updated.some((m) => m.isPrimary) && updated.length > 0) {
           updated[0].isPrimary = true;
         }
         return updated;
       });
 
-      const primary = newItems.find(m => m.isPrimary) || newItems[0];
+      const primary = newItems.find((m) => m.isPrimary) || newItems[0];
       if (primary && primary.type === 'image') {
         setImageUrl(primary.url);
       }
@@ -160,7 +205,41 @@ export function EditOfferModal({
       alert(`Falha ao fazer upload da mídia: ${err?.message || String(err)}`);
     } finally {
       setUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (imageFileInputRef.current) imageFileInputRef.current.value = '';
+      if (videoFileInputRef.current) videoFileInputRef.current.value = '';
+    }
+  };
+
+  // Adicionar Mídia por URL (Imagem ou Vídeo) na Edição
+  const handleAddUrlMedia = (mediaType: 'image' | 'video') => {
+    const rawUrl = mediaType === 'video' ? videoUrlInput : imageUrlInput;
+    if (!rawUrl.trim()) {
+      alert('Por favor, informe uma URL válida.');
+      return;
+    }
+
+    try {
+      const nextOrder = mediaList.length;
+      const isFirst = nextOrder === 0;
+      const mediaItem = storageService.buildUrlMedia(rawUrl, mediaType, nextOrder, isFirst);
+
+      setMediaList((prev) => {
+        const updated = [...prev, mediaItem];
+        if (!updated.some((m) => m.isPrimary) && updated.length > 0) {
+          updated[0].isPrimary = true;
+        }
+        return updated;
+      });
+
+      if (mediaType === 'video') {
+        setVideoUrlInput('');
+        setShowVideoUrlInput(false);
+      } else {
+        setImageUrlInput('');
+        setShowImageUrlInput(false);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'URL inválida.');
     }
   };
 
@@ -173,6 +252,7 @@ export function EditOfferModal({
         }
         return filtered;
       });
+      setFailedImageIds((prev) => prev.filter((id) => id !== mediaId));
 
       await storageService.deleteStorageImage(url);
     }
@@ -192,10 +272,10 @@ export function EditOfferModal({
     }
   };
 
-  // Alternância de Marketplace com auto-regeneração de link de afiliado oficial
+  // Alternância de Marketplace na Oferta com auto-regeneração oficial
   const handleMarketplaceChange = (newSlug: string) => {
     setMarketplaceSlug(newSlug);
-    const opt = MARKETPLACE_OPTIONS.find((m) => m.slug === newSlug);
+    const opt = marketplaceOptions.find((m) => m.slug === newSlug);
     if (opt) setMarketplaceName(opt.name);
 
     if (originalUrl.trim()) {
@@ -210,6 +290,66 @@ export function EditOfferModal({
     }
   };
 
+  // Criação Inline de Novo Marketplace
+  const handleCreateMarketplace = async () => {
+    if (!newMarketplaceName.trim() || !user?.uid || creatingTaxonomy) return;
+
+    setCreatingTaxonomy(true);
+    try {
+      const created = await taxonomyService.createCustomMarketplace(
+        newMarketplaceName,
+        newMarketplaceName,
+        user.uid
+      );
+
+      setMarketplaceOptions((prev) => {
+        if (!prev.some((m) => m.slug === created.slug)) {
+          return [...prev, { slug: created.slug, name: created.name }];
+        }
+        return prev;
+      });
+
+      setMarketplaceSlug(created.slug);
+      setMarketplaceName(created.name);
+      setNewMarketplaceName('');
+      setShowNewMarketplaceModal(false);
+    } catch (err: any) {
+      alert(`Não foi possível criar o marketplace: ${err?.message || String(err)}`);
+    } finally {
+      setCreatingTaxonomy(false);
+    }
+  };
+
+  // Criação Inline de Nova Categoria
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim() || !user?.uid || creatingTaxonomy) return;
+
+    setCreatingTaxonomy(true);
+    try {
+      const created = await taxonomyService.createCustomCategory(
+        newCategoryName,
+        newCategoryParent || null,
+        user.uid
+      );
+
+      setCategoryOptions((prev) => {
+        if (!prev.includes(created.name)) {
+          return [...prev, created.name];
+        }
+        return prev;
+      });
+
+      setCategory(created.name);
+      setNewCategoryName('');
+      setNewCategoryParent('');
+      setShowNewCategoryModal(false);
+    } catch (err: any) {
+      alert(`Não foi possível criar a categoria: ${err?.message || String(err)}`);
+    } finally {
+      setCreatingTaxonomy(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.uid || processing) return;
@@ -220,14 +360,17 @@ export function EditOfferModal({
       const productRepo = new FirestoreProductRepository();
       const useCase = new UpdateOfferUseCase(offerRepo);
 
-      // Parse BRL dos preços digitados (ex: "R$ 1.234,56" ou "1234,56" -> 1234.56)
+      // Parse BRL dos preços digitados (Garante valor numérico correto)
       const validPrice = Price.parseBRL(currentPriceStr);
       const validPrevPrice = previousPriceStr.trim() ? Price.parseBRL(previousPriceStr) : null;
 
       // 1. Atualiza o Product vinculado no Firestore se ele existir
       if (product) {
-        const updatedImages = imageUrl.trim()
-          ? [imageUrl.trim(), ...(product.images || []).filter(img => img !== imageUrl.trim())]
+        const primaryMedia = mediaList.find((m) => m.isPrimary) || mediaList[0];
+        const primaryUrl = primaryMedia ? primaryMedia.url : imageUrl.trim();
+
+        const updatedImages = primaryUrl
+          ? [primaryUrl, ...(product.images || []).filter((img) => img !== primaryUrl)]
           : product.images;
 
         product.title = title.trim() || product.title;
@@ -236,20 +379,21 @@ export function EditOfferModal({
         if (validPrevPrice !== null && validPrevPrice > 0) {
           product.previousPrice = Price.create(validPrevPrice);
         } else {
-          product.previousPrice = null;
+          product.previousPrice = null; // Preserva campo opcional se não houver preço anterior
         }
 
         (product as any).originalUrl = originalUrl.trim() || product.originalUrl;
         product.affiliateUrl = AffiliateLink.create(affiliateUrl.trim() || originalUrl.trim() || product.originalUrl);
         product.images = updatedImages;
         product.categoryId = category.trim() || product.categoryId;
+        product.media = mediaList;
 
         await productRepo.save(product);
       }
 
-      // 2. Atualiza a Offer no Firestore
+      // 2. Atualiza a Offer no Firestore com marketplaceId e media mantendo o offer.id original
       const scoreNum = parseInt(scoreValue, 10);
-      const selectedMarketplaceObj = MARKETPLACE_OPTIONS.find(m => m.slug === marketplaceSlug);
+      const selectedMarketplaceObj = marketplaceOptions.find((m) => m.slug === marketplaceSlug);
       const finalMarketplaceName = selectedMarketplaceObj ? selectedMarketplaceObj.name : marketplaceName.trim();
 
       const hashtagList = hashtags
@@ -296,201 +440,294 @@ export function EditOfferModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md animate-fadeIn text-xs">
       <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/40 shrink-0">
-          <div className="flex items-center gap-2">
-            <Tag className="h-5 w-5 text-amber-400" />
-            <h3 className="font-semibold text-slate-100 text-sm sm:text-base">Edição Completa da Oferta e Produto</h3>
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/50 p-4">
+          <div>
+            <h3 className="font-bold text-white text-base">Editar Oferta & Produto</h3>
+            <p className="text-xs text-slate-400">Edição integral dos dados da oferta e produto vinculado.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={processing || uploadingImage}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition"
-          >
+          <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Identity & Navigation Tabs */}
-        <div className="bg-slate-950/60 border-b border-slate-800 px-6 py-2 flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab('product')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition ${activeTab === 'product' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              📦 1. Produto & Links
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('offer')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition ${activeTab === 'offer' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              🔥 2. Copy Comercial & Score
-            </button>
-          </div>
-
-          <span className="text-[11px] font-mono text-slate-400">
-            ID: <strong className="text-amber-400">{offer.id}</strong>
-          </span>
+        {/* Tab Selector */}
+        <div className="flex border-b border-slate-800 bg-slate-950/30 text-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('product')}
+            className={`flex-1 py-3 font-semibold transition-colors flex items-center justify-center gap-2 ${
+              activeTab === 'product'
+                ? 'border-b-2 border-blue-500 text-blue-400 bg-blue-500/10'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Tag className="h-3.5 w-3.5" /> Produto (Catálogo & Mídias)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('offer')}
+            className={`flex-1 py-3 font-semibold transition-colors flex items-center justify-center gap-2 ${
+              activeTab === 'offer'
+                ? 'border-b-2 border-amber-500 text-amber-400 bg-amber-500/10'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Oferta Comercial & Marketplace
+          </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto grow text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
           {activeTab === 'product' && (
             <div className="space-y-4">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Título do Produto:</label>
                 <input
                   type="text"
-                  required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500 font-medium"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-medium focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Preços com Formatação Monetária BRL Automática */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Preço Atual (R$):</label>
                   <input
                     type="text"
-                    required
                     value={currentPriceStr}
                     onChange={(e) => setCurrentPriceStr(e.target.value)}
                     onBlur={() => setCurrentPriceStr(Price.formatBRL(Price.parseBRL(currentPriceStr)))}
-                    placeholder="R$ 1.004,00"
+                    placeholder="R$ 0,00"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-emerald-400 font-bold font-mono focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Preço Anterior (De):</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Preço Anterior (Opcional - R$):</label>
                   <input
                     type="text"
                     value={previousPriceStr}
                     onChange={(e) => setPreviousPriceStr(e.target.value)}
-                    onBlur={() => {
-                      if (previousPriceStr.trim()) {
-                        setPreviousPriceStr(Price.formatBRL(Price.parseBRL(previousPriceStr)));
-                      }
-                    }}
-                    placeholder="R$ 1.299,00"
+                    onBlur={() => setPreviousPriceStr(previousPriceStr.trim() ? Price.formatBRL(Price.parseBRL(previousPriceStr)) : '')}
+                    placeholder="R$ 0,00 (Deixe em branco se não houver)"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-400 font-mono focus:outline-none focus:border-blue-500"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Categoria Oficial:</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500 font-medium"
-                  >
-                    {OFFICIAL_TAXONOMY_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                    <LinkIcon className="h-3.5 w-3.5 text-blue-400" /> Link Original do Produto:
+                  </label>
+                  <input
+                    type="text"
+                    value={originalUrl}
+                    onChange={(e) => setOriginalUrl(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-blue-300 font-mono focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                    <LinkIcon className="h-3.5 w-3.5 text-emerald-400" /> Link de Afiliado:
+                  </label>
+                  <input
+                    type="text"
+                    value={affiliateUrl}
+                    onChange={(e) => setAffiliateUrl(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-emerald-300 font-mono focus:outline-none focus:border-blue-500"
+                  />
                 </div>
               </div>
 
+              {/* Categoria do Produto (Taxonomia Oficial Selecionável) */}
               <div>
-                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
-                  <LinkIcon className="h-3.5 w-3.5 text-blue-400" /> Link de Afiliado (Ex: https://amzn.to/...)
-                </label>
-                <input
-                  type="text"
-                  value={affiliateUrl}
-                  onChange={(e) => setAffiliateUrl(e.target.value)}
-                  placeholder="https://shopee.com.br/product/123?aff_id=xxx"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-blue-300 font-mono focus:outline-none focus:border-blue-500"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold">Categoria do Produto (Catálogo):</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewCategoryModal(true)}
+                    className="text-[10px] text-blue-400 hover:underline flex items-center gap-0.5"
+                  >
+                    <PlusCircle className="h-3 w-3" /> Criar Nova Categoria
+                  </button>
+                </div>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-medium focus:outline-none focus:border-blue-500"
+                >
+                  {categoryOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
-                  <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> Link Original do Produto
-                </label>
-                <input
-                  type="text"
-                  value={originalUrl}
-                  onChange={(e) => setOriginalUrl(e.target.value)}
-                  placeholder="https://amazon.com.br/dp/B0C7CKX75R"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-300 font-mono focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* Seção de Mídias (Fotos + Vídeos) & Upload no Firebase Storage */}
-              <div className="space-y-3 pt-2 border-t border-slate-800">
+              {/* Mídias da Oferta (Fotos e Vídeos - Arquivo ou Link) */}
+              <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-slate-300 font-semibold flex items-center gap-1">
                     <ImageIcon className="h-3.5 w-3.5 text-purple-400" /> Mídias da Oferta (Imagens & Vídeos):
                   </label>
+                  <span className="text-[10px] text-slate-400">{mediaList.length} mídia(s)</span>
+                </div>
 
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*,video/*"
-                    onChange={handleMediaFileUpload}
-                    className="hidden"
-                  />
+                {/* Opções Duplas de Mídia: PC vs Link URL */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      ref={imageFileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => handleMediaFileUpload(e, 'image')}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingImage}
+                      onClick={() => imageFileInputRef.current?.click()}
+                      className="text-xs justify-center"
+                      leftIcon={uploadingImage ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-purple-400" />}
+                    >
+                      📁 Imagem do PC
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setShowImageUrlInput(!showImageUrlInput)}
+                      className="text-[11px] text-slate-400 hover:text-white flex items-center justify-center gap-1"
+                    >
+                      <LinkIcon className="h-3 w-3 text-blue-400" /> Usar Link da Imagem
+                    </button>
+                    {showImageUrlInput && (
+                      <div className="flex gap-1.5 pt-1">
+                        <input
+                          type="text"
+                          value={imageUrlInput}
+                          onChange={(e) => setImageUrlInput(e.target.value)}
+                          placeholder="https://.../imagem.jpg"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white font-mono text-[10px]"
+                        />
+                        <Button type="button" variant="primary" size="sm" onClick={() => handleAddUrlMedia('image')}>
+                          OK
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    disabled={uploadingImage}
-                    onClick={() => fileInputRef.current?.click()}
-                    leftIcon={uploadingImage ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-purple-400" />}
-                  >
-                    {uploadingImage ? 'Enviando ao Storage...' : '+ Adicionar Mídia'}
-                  </Button>
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      ref={videoFileInputRef}
+                      type="file"
+                      multiple
+                      accept="video/*"
+                      onChange={(e) => handleMediaFileUpload(e, 'video')}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingImage}
+                      onClick={() => videoFileInputRef.current?.click()}
+                      className="text-xs justify-center"
+                      leftIcon={uploadingImage ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-blue-400" />}
+                    >
+                      📁 Vídeo do PC
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoUrlInput(!showVideoUrlInput)}
+                      className="text-[11px] text-slate-400 hover:text-white flex items-center justify-center gap-1"
+                    >
+                      <LinkIcon className="h-3 w-3 text-blue-400" /> Usar Link do Vídeo
+                    </button>
+                    {showVideoUrlInput && (
+                      <div className="flex gap-1.5 pt-1">
+                        <input
+                          type="text"
+                          value={videoUrlInput}
+                          onChange={(e) => setVideoUrlInput(e.target.value)}
+                          placeholder="https://.../video.mp4"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-white font-mono text-[10px]"
+                        />
+                        <Button type="button" variant="primary" size="sm" onClick={() => handleAddUrlMedia('video')}>
+                          OK
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Grid de Mídias Anexadas */}
                 {mediaList.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {mediaList.map((m) => (
-                      <div key={m.id} className={`relative rounded-xl border p-1.5 bg-slate-950 flex flex-col gap-1.5 ${m.isPrimary ? 'border-amber-500 ring-1 ring-amber-500/40' : 'border-slate-800'}`}>
-                        <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
-                          {m.type === 'video' ? (
-                            <video src={m.url} controls className="w-full h-full object-cover" />
-                          ) : (
-                            <img src={m.url} alt="" className="w-full h-full object-cover" />
-                          )}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+                    {mediaList.map((m) => {
+                      const hasFailed = failedImageIds.includes(m.id);
 
-                          {m.isPrimary && (
-                            <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[9px] font-bold px-1 rounded flex items-center gap-0.5">
-                              ★ Capa
+                      return (
+                        <div key={m.id} className={`relative rounded-xl border p-1.5 bg-slate-950 flex flex-col gap-1.5 ${m.isPrimary ? 'border-amber-500 ring-1 ring-amber-500/40' : 'border-slate-800'}`}>
+                          <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
+                            {m.type === 'video' ? (
+                              <video src={m.url} controls className="w-full h-full object-cover" />
+                            ) : hasFailed ? (
+                              <div className="flex flex-col items-center justify-center p-2 text-center text-amber-400">
+                                <AlertCircle className="h-5 w-5 mb-1" />
+                                <span className="text-[9px]">URL Externa Carregada</span>
+                              </div>
+                            ) : (
+                              <img
+                                src={m.url}
+                                alt=""
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                                onError={() => {
+                                  setFailedImageIds((prev) => [...prev, m.id]);
+                                }}
+                              />
+                            )}
+
+                            {m.isPrimary && (
+                              <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[9px] font-bold px-1 rounded flex items-center gap-0.5 z-10">
+                                ★ Capa
+                              </span>
+                            )}
+
+                            <span className="absolute bottom-1 right-1 bg-slate-950/80 text-white text-[9px] px-1 rounded flex items-center gap-0.5 z-10">
+                              {m.type === 'video' ? <Video className="h-3 w-3 text-blue-400" /> : <ImageIcon className="h-3 w-3 text-purple-400" />}
                             </span>
-                          )}
-                        </div>
+                          </div>
 
-                        <div className="flex items-center justify-between text-[10px]">
-                          {!m.isPrimary && (
+                          <div className="flex items-center justify-between text-[10px]">
+                            {!m.isPrimary && m.type === 'image' && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryMediaItem(m.id)}
+                                className="text-amber-400 hover:underline font-semibold"
+                              >
+                                Marcar Capa
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleSetPrimaryMediaItem(m.id)}
-                              className="text-amber-400 hover:underline font-semibold"
+                              onClick={() => handleRemoveMediaItem(m.id, m.url)}
+                              className="text-red-400 hover:text-red-300 p-0.5 ml-auto"
                             >
-                              Marcar Capa
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveMediaItem(m.id, m.url)}
-                            className="text-red-400 hover:text-red-300 p-0.5 ml-auto"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-[11px] text-slate-500 bg-slate-950 border border-dashed border-slate-800 rounded-xl p-3 text-center">
@@ -501,7 +738,7 @@ export function EditOfferModal({
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
-                  <FileText className="h-3.5 w-3.5 text-slate-400" /> Descrição Factual / Briefing do Produto:
+                  <FileText className="h-3.5 w-3.5 text-slate-400" /> Descrição Factual / Briefing do Produto (Fonte da Verdade):
                 </label>
                 <textarea
                   rows={4}
@@ -516,14 +753,24 @@ export function EditOfferModal({
 
           {activeTab === 'offer' && (
             <div className="space-y-4">
+              {/* Marketplace da Oferta Comercial */}
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Marketplace / Origem Comercial:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold">Marketplace da Oferta (Origem Comercial):</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewMarketplaceModal(true)}
+                    className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5"
+                  >
+                    <PlusCircle className="h-3 w-3" /> Criar Novo Marketplace
+                  </button>
+                </div>
                 <select
                   value={marketplaceSlug}
                   onChange={(e) => handleMarketplaceChange(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white font-medium focus:outline-none focus:border-amber-500"
                 >
-                  {MARKETPLACE_OPTIONS.map((m) => (
+                  {marketplaceOptions.map((m) => (
                     <option key={m.slug} value={m.slug}>
                       {m.name}
                     </option>
@@ -551,76 +798,182 @@ export function EditOfferModal({
                   </label>
                   <input
                     type="number"
-                    min={0}
-                    max={100}
+                    min="0"
+                    max="100"
                     value={scoreValue}
                     onChange={(e) => setScoreValue(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-300 font-bold focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-amber-400 font-bold focus:outline-none focus:border-amber-500"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Classificação:</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Classificação do Score:</label>
                   <select
                     value={scoreLabel}
                     onChange={(e) => setScoreLabel(e.target.value as ScoreType)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
                   >
                     <option value="EXCELLENT">EXCELLENT (Excelente)</option>
                     <option value="GOOD">GOOD (Boa)</option>
-                    <option value="AVERAGE">AVERAGE (Média)</option>
-                    <option value="POOR">POOR (Baixa)</option>
+                    <option value="FAIR">FAIR (Regular)</option>
+                    <option value="POOR">POOR (Fraca)</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Justificativa Comercial:
-                </label>
+                <label className="block text-slate-300 font-semibold mb-1">Justificativa da Nota / IA:</label>
                 <input
                   type="text"
                   value={scoreJustification}
                   onChange={(e) => setScoreJustification(e.target.value)}
-                  placeholder="Ex: Oferta com 25% de desconto com frete grátis."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Chamada para Ação (CTA):</label>
-                  <input
-                    type="text"
-                    value={cta}
-                    onChange={(e) => setCta(e.target.value)}
-                    placeholder="Ex: 🔥 Garanta o seu antes que acabe!"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Hashtags (separadas por vírgula):</label>
-                  <input
-                    type="text"
-                    value={hashtags}
-                    onChange={(e) => setHashtags(e.target.value)}
-                    placeholder="promo, achadinhos, desconto"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Chamada para Ação (CTA):</label>
+                <input
+                  type="text"
+                  value={cta}
+                  onChange={(e) => setCta(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Hashtags (separadas por vírgula):</label>
+                <input
+                  type="text"
+                  value={hashtags}
+                  onChange={(e) => setHashtags(e.target.value)}
+                  placeholder="promo, oferta, desconto"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500"
+                />
               </div>
             </div>
           )}
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={processing || uploadingImage}>
+          {/* Modal Footer Controls */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={processing}>
               Cancelar
             </Button>
-            <Button type="submit" variant="primary" size="sm" disabled={processing || uploadingImage}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={processing}
+              leftIcon={processing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            >
               {processing ? 'Salvando Alterações...' : 'Salvar Alterações'}
             </Button>
           </div>
         </form>
+
+        {/* MODAL INLINE DE CRIAÇÃO DE NOVO MARKETPLACE */}
+        {showNewMarketplaceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fadeIn">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                  <PlusCircle className="h-4 w-4 text-amber-400" />
+                  <span>Criar Novo Marketplace Oficial</span>
+                </h3>
+                <button onClick={() => setShowNewMarketplaceModal(false)} className="text-slate-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Nome do Marketplace:</label>
+                <input
+                  type="text"
+                  value={newMarketplaceName}
+                  onChange={(e) => setNewMarketplaceName(e.target.value)}
+                  placeholder="Ex: Kwai Shop, AliExpress"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setShowNewMarketplaceModal(false)} disabled={creatingTaxonomy}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleCreateMarketplace}
+                  disabled={creatingTaxonomy || !newMarketplaceName.trim()}
+                  leftIcon={creatingTaxonomy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+                >
+                  {creatingTaxonomy ? 'Criando...' : 'Criar e Selecionar'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL INLINE DE CRIAÇÃO DE NOVA CATEGORIA */}
+        {showNewCategoryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fadeIn">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                  <PlusCircle className="h-4 w-4 text-blue-400" />
+                  <span>Criar Nova Categoria Oficial</span>
+                </h3>
+                <button onClick={() => setShowNewCategoryModal(false)} className="text-slate-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Nome da Categoria:</label>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Ex: Maquiagem, Smartwatches"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Categoria Pai (Opcional):</label>
+                  <select
+                    value={newCategoryParent}
+                    onChange={(e) => setNewCategoryParent(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Sem Categoria Pai (Principal)</option>
+                    {categoryOptions.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setShowNewCategoryModal(false)} disabled={creatingTaxonomy}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleCreateCategory}
+                  disabled={creatingTaxonomy || !newCategoryName.trim()}
+                  leftIcon={creatingTaxonomy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+                >
+                  {creatingTaxonomy ? 'Criando...' : 'Criar e Selecionar'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

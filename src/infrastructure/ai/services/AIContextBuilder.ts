@@ -271,6 +271,10 @@ ${strategy.diretrizesConfianca.join('\n')}`);
     blocks.push(CopyStrategyEngine.formatStrategyPromptBlock(strategy));
 
     // ── BLOCO 5: ANTI-HALUCINAÇÃO ──
+    blocks.push(`━━━ 🛡️ VERACIDADE FACTUAL E RESPEITO ABSOLUTO AO BRIEFING MANUAL ━━━
+- O conteúdo manual informado pelo usuário na Descrição/Briefing é a FONTE SUPREMA DE VERDADE FACTUAL.
+- NUNCA invente especificações técnicas, notas de fragrância, tempos de fixação (ex: "12h de fixação"), oxímetros, funções Bluetooth, garantias ou brindes que NÃO estejam presentes no briefing fornecido.
+- A IA pode melhorar a fluidez, criar introduções comerciais dinâmicas e destacar benefícios reais, mas É RIGOROSAMENTE PROIBIDA de inventar características não informadas.`);
     blocks.push(MarketplaceDataValidator.buildAntiHallucinationInstructions(offerCtx.dadosComerciaisValidados));
 
     return blocks.join('\n\n');
