@@ -24,14 +24,14 @@ export class AIProviderFactory {
     this.providers.set(adapter.providerName.toLowerCase(), adapter);
   }
 
-  public static getProvider(providerType: AIProviderType = 'gemini'): IAIProviderAdapter {
+  public static getProvider(providerType: AIProviderType = 'openai'): IAIProviderAdapter {
     for (const [key, adapter] of this.providers.entries()) {
       if (key.includes(providerType.toLowerCase())) {
         return adapter;
       }
     }
-    // Default fallback to Gemini
-    return this.providers.get('gemini-2.5-flash') || new GeminiAIAdapter();
+    // Default fallback to OpenAI
+    return this.providers.get('gpt-4o-mini') || new OpenAIAdapter();
   }
 
   public static getAllProviders(): IAIProviderAdapter[] {

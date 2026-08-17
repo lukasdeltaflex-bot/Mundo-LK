@@ -183,6 +183,11 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       setStep('preview');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('was not found on the server') || msg.includes('Failed to find Server Action')) {
+        console.warn('[OfferCreationFlow] 🔄 Deployment Skew detectado em analyzeProductUrlAction. Recarregando bundle mais recente...');
+        window.location.reload();
+        return;
+      }
       setError(`Erro durante a geração da IA: ${msg}`);
       setStep('confirming');
     } finally {
@@ -252,6 +257,11 @@ export function OfferCreationFlow({ onSaved }: OfferCreationFlowProps) {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('was not found on the server') || msg.includes('Failed to find Server Action')) {
+        console.warn('[OfferCreationFlow] 🔄 Deployment Skew detectado em extractProductDetailsAction. Recarregando bundle mais recente...');
+        window.location.reload();
+        return;
+      }
       setError(`Erro na extração de dados: ${msg}`);
       setStep('input');
     }

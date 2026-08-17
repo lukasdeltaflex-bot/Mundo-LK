@@ -26,7 +26,7 @@ export class ProviderStage implements AIStage {
 
     context.cacheHit = false;
 
-    const providerName = context.policy === 'QUALITY' ? 'openai' : context.policy === 'LOW_COST' ? 'deepseek' : 'gemini';
+    const providerName = context.policy === 'LOW_COST' ? 'deepseek' : 'openai';
     const adapter = AIModelSelectorService.selectProvider(providerName);
 
     const aiResult = await (adapter as GeminiAIAdapter).generateOfferContent(
