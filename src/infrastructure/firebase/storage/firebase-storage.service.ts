@@ -95,6 +95,25 @@ export class FirebaseStorageService {
   }
 
   /**
+   * Returns a safe display URL for rendering in <img> tags.
+   * If rawUrl is an external CDN image (Shopee, Amazon, SHEIN, Magalu), routes it through /api/proxy-image
+   * to bypass browser hotlinking and CORS blocks completely.
+   */
+  public static getDisplayUrl(rawUrl: string): string {
+    if (!rawUrl) return '';
+    const url = rawUrl.trim();
+    if (
+      url.startsWith('data:') ||
+      url.startsWith('blob:') ||
+      url.includes('firebasestorage.googleapis.com') ||
+      url.startsWith('/api/proxy-image')
+    ) {
+      return url;
+    }
+    return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  }
+
+  /**
    * Uploads an offer image file to Firebase Storage safely.
    * Path: offers/{offerId}/{timestamp}_{filename}
    */

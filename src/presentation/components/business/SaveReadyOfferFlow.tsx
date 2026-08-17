@@ -615,9 +615,8 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
                           </div>
                         ) : (
                           <img
-                            src={m.url}
+                            src={FirebaseStorageService.getDisplayUrl(m.url)}
                             alt=""
-                            referrerPolicy="no-referrer"
                             className="w-full h-full object-cover"
                             onError={() => {
                               setFailedImageIds((prev) => [...prev, m.id]);
