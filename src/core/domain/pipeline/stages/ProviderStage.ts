@@ -26,17 +26,36 @@ export class ProviderStage implements AIStage {
 
     context.cacheHit = false;
 
-    const providerName = context.policy === 'LOW_COST' ? 'deepseek' : 'openai';
-    const adapter = AIModelSelectorService.selectProvider(providerName);
+    const preferredProvider = process.env.AI_PROVIDER || (process.env.OPENAI_API_KEY ? 'openai' : 'gemini');
+    let adapter = AIModelSelectorService.selectProvider(preferredProvider);
+    let aiResult;
 
-    const aiResult = await (adapter as GeminiAIAdapter).generateOfferContent(
-      context.product,
-      context.style,
-      context.commercialGoal,
-      context.generationMode,
-      context.hierarchicalContext?.winningStrategyPrompt,
-      context.prompt
-    );
+    try {
+      aiResult = await (adapter as GeminiAIAdapter).generateOfferContent(
+        context.product,
+        context.style,
+        context.commercialGoal,
+        context.generationMode,
+        context.hierarchicalContext?.winningStrategyPrompt,
+        context.prompt
+      );
+    } catch (primaryErr) {
+      // Se OpenAI falhar (ex: créditos recém-adicionados aguardando sync) e existir chave Gemini, alterna graciosamente
+      if (preferredProvider === 'openai' && (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
+        console.warn('[ProviderStage] ⚠️ Provedor OpenAI falhou. Alternando automaticamente para GeminiAIAdapter...', primaryErr);
+        const geminiAdapter = AIModelSelectorService.selectProvider('gemini');
+        aiResult = await (geminiAdapter as GeminiAIAdapter).generateOfferContent(
+          context.product,
+          context.style,
+          context.commercialGoal,
+          context.generationMode,
+          context.hierarchicalContext?.winningStrategyPrompt,
+          context.prompt
+        );
+      } else {
+        throw primaryErr;
+      }
+    }
 
     context.analysis = (aiResult as any).analysis as GeminiOfferAnalysis;
 
