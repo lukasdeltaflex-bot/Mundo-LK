@@ -1,4 +1,5 @@
 import { Offer, MarketplaceDetectionSource } from '../../../core/domain/entities/offer.entity';
+import { ProductMedia } from '../../../core/domain/entities/product.entity';
 import { ChannelContent } from '../../../core/domain/value-objects/channel-content.vo';
 
 export interface FirestoreOfferDoc {
@@ -18,6 +19,7 @@ export interface FirestoreOfferDoc {
   marketplaceId?: string;
   marketplaceName?: string;
   marketplaceDetectedBy?: MarketplaceDetectionSource;
+  media?: ProductMedia[];
 }
 
 export class OfferMapper {
@@ -79,6 +81,7 @@ export class OfferMapper {
       marketplaceId: doc.marketplaceId || rootDoc.marketplaceSlug || undefined,
       marketplaceName: doc.marketplaceName || undefined,
       marketplaceDetectedBy: (doc.marketplaceDetectedBy as MarketplaceDetectionSource) || 'url_parser',
+      media: doc.media || undefined,
     });
   }
 
@@ -107,6 +110,7 @@ export class OfferMapper {
       ...(entity.marketplaceId && { marketplaceId: entity.marketplaceId }),
       ...(entity.marketplaceName && { marketplaceName: entity.marketplaceName }),
       ...(entity.marketplaceDetectedBy && { marketplaceDetectedBy: entity.marketplaceDetectedBy }),
+      ...(entity.media && { media: entity.media }),
     } as any;
   }
 }

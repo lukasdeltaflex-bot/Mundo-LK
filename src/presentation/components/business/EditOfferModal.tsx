@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/presentation/components/ui/Button';
 import { X, Tag, Sparkles, MessageSquare, Flame, Check, Link as LinkIcon, Image as ImageIcon, FileText, Upload, Trash2, RefreshCw } from 'lucide-react';
 import { Offer } from '@/core/domain/entities/offer.entity';
-import { Product, OFFICIAL_TAXONOMY_CATEGORIES } from '@/core/domain/entities/product.entity';
+import { Product, ProductMedia, OFFICIAL_TAXONOMY_CATEGORIES } from '@/core/domain/entities/product.entity';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { FirebaseStorageService } from '@/infrastructure/firebase/storage/firebase-storage.service';
@@ -50,6 +50,7 @@ export function EditOfferModal({
   const [originalUrl, setOriginalUrl] = useState('');
   const [affiliateUrl, setAffiliateUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [mediaList, setMediaList] = useState<ProductMedia[]>([]);
   const [category, setCategory] = useState('Geral');
 
   // Campos da Oferta Comercial
@@ -84,6 +85,10 @@ export function EditOfferModal({
       setCta(offer.cta || '🔥 Garanta o seu antes que acabe!');
       setHashtags(offer.hashtags ? offer.hashtags.join(', ') : '');
 
+      if (offer.media && offer.media.length > 0) {
+        setMediaList(offer.media);
+      }
+
       // Carrega o produto vinculado no Firestore para permitir edição integral
       if (offer.productId) {
         const productRepo = new FirestoreProductRepository();
@@ -97,6 +102,9 @@ export function EditOfferModal({
             setOriginalUrl(p.originalUrl || '');
             setAffiliateUrl(p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl || '');
             setImageUrl(p.images && p.images.length > 0 ? p.images[0] : '');
+            if (!offer.media && p.media && p.media.length > 0) {
+              setMediaList(p.media);
+            }
             setCategory(p.categoryId || 'Geral');
           } else {
             setTitle(productTitle || '');
@@ -113,38 +121,74 @@ export function EditOfferModal({
 
   if (!isOpen || !offer) return null;
 
-  // Lógica de upload de imagem para Firebase Storage com substituição segura
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Lógica de upload de imagem/vídeo para Firebase Storage com substituição segura
+  const handleMediaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const file = files[0];
     setUploadingImage(true);
-
     try {
-      const oldImageUrl = imageUrl;
-      const downloadUrl = await storageService.uploadOfferImage(file, offer.id);
-      setImageUrl(downloadUrl);
+      const newItems: ProductMedia[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const nextOrder = mediaList.length + newItems.length;
+        const isFirst = nextOrder === 0;
 
-      // Remove imagem antiga do Storage se for do Firebase
-      if (oldImageUrl && oldImageUrl !== downloadUrl) {
-        await storageService.deleteStorageImage(oldImageUrl);
+        const mediaItem = await storageService.uploadOfferMediaFile(
+          file,
+          offer.id,
+          nextOrder,
+          isFirst
+        );
+        newItems.push(mediaItem);
+      }
+
+      setMediaList((prev) => {
+        const updated = [...prev, ...newItems];
+        if (!updated.some(m => m.isPrimary) && updated.length > 0) {
+          updated[0].isPrimary = true;
+        }
+        return updated;
+      });
+
+      const primary = newItems.find(m => m.isPrimary) || newItems[0];
+      if (primary && primary.type === 'image') {
+        setImageUrl(primary.url);
       }
     } catch (err: any) {
-      console.error('[EditOfferModal] Falha no upload da imagem:', err);
-      alert(`Falha ao fazer upload da imagem: ${err?.message || String(err)}`);
+      console.error('[EditOfferModal] Falha no upload da mídia:', err);
+      alert(`Falha ao fazer upload da mídia: ${err?.message || String(err)}`);
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleRemoveImage = async () => {
-    if (!imageUrl) return;
-    if (confirm('Deseja remover a imagem atual da oferta?')) {
-      const oldUrl = imageUrl;
-      setImageUrl('');
-      await storageService.deleteStorageImage(oldUrl);
+  const handleRemoveMediaItem = async (mediaId: string, url: string) => {
+    if (confirm('Deseja remover esta mídia da oferta?')) {
+      setMediaList((prev) => {
+        const filtered = prev.filter((m) => m.id !== mediaId);
+        if (!filtered.some((m) => m.isPrimary) && filtered.length > 0) {
+          filtered[0].isPrimary = true;
+        }
+        return filtered;
+      });
+
+      await storageService.deleteStorageImage(url);
+    }
+  };
+
+  const handleSetPrimaryMediaItem = (mediaId: string) => {
+    setMediaList((prev) =>
+      prev.map((m) => ({
+        ...m,
+        isPrimary: m.id === mediaId,
+      }))
+    );
+
+    const selected = mediaList.find((m) => m.id === mediaId);
+    if (selected && selected.type === 'image') {
+      setImageUrl(selected.url);
     }
   };
 
@@ -223,6 +267,7 @@ export function EditOfferModal({
         scoreJustification: scoreJustification.trim(),
         cta: cta.trim(),
         hashtags: hashtagList,
+        media: mediaList,
         copies: {
           ...offer.copies,
           copies: {
@@ -378,65 +423,80 @@ export function EditOfferModal({
                 />
               </div>
 
-              {/* Seção de Mídia & Upload no Firebase Storage */}
-              <div className="space-y-2 pt-1 border-t border-slate-800">
-                <label className="block text-slate-300 font-semibold flex items-center gap-1">
-                  <ImageIcon className="h-3.5 w-3.5 text-purple-400" /> Imagem da Oferta & Upload no Storage:
-                </label>
+              {/* Seção de Mídias (Fotos + Vídeos) & Upload no Firebase Storage */}
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-300 font-semibold flex items-center gap-1">
+                    <ImageIcon className="h-3.5 w-3.5 text-purple-400" /> Mídias da Oferta (Imagens & Vídeos):
+                  </label>
 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  {imageUrl ? (
-                    <img src={imageUrl} alt="" className="h-16 w-16 object-cover rounded-xl border border-slate-800 shrink-0" />
-                  ) : (
-                    <div className="h-16 w-16 rounded-xl border border-dashed border-slate-800 bg-slate-950 flex items-center justify-center text-slate-600 shrink-0">
-                      Sem Foto
-                    </div>
-                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={handleMediaFileUpload}
+                    className="hidden"
+                  />
 
-                  <div className="grow space-y-2 w-full">
-                    <input
-                      type="text"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://m.media-amazon.com/images/I/..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-300 font-mono text-[11px] focus:outline-none focus:border-blue-500"
-                    />
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageFileChange}
-                        className="hidden"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        disabled={uploadingImage}
-                        onClick={() => fileInputRef.current?.click()}
-                        leftIcon={uploadingImage ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-purple-400" />}
-                      >
-                        {uploadingImage ? 'Enviando ao Storage...' : 'Substituir por Arquivo Local'}
-                      </Button>
-
-                      {imageUrl && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-red-400 hover:bg-red-500/10"
-                          onClick={handleRemoveImage}
-                          leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-                        >
-                          Excluir Imagem
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    disabled={uploadingImage}
+                    onClick={() => fileInputRef.current?.click()}
+                    leftIcon={uploadingImage ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-purple-400" />}
+                  >
+                    {uploadingImage ? 'Enviando ao Storage...' : '+ Adicionar Mídia'}
+                  </Button>
                 </div>
+
+                {/* Grid de Mídias Anexadas */}
+                {mediaList.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {mediaList.map((m) => (
+                      <div key={m.id} className={`relative rounded-xl border p-1.5 bg-slate-950 flex flex-col gap-1.5 ${m.isPrimary ? 'border-amber-500 ring-1 ring-amber-500/40' : 'border-slate-800'}`}>
+                        <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
+                          {m.type === 'video' ? (
+                            <video src={m.url} controls className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={m.url} alt="" className="w-full h-full object-cover" />
+                          )}
+
+                          {m.isPrimary && (
+                            <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[9px] font-bold px-1 rounded flex items-center gap-0.5">
+                              ★ Capa
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px]">
+                          {!m.isPrimary && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimaryMediaItem(m.id)}
+                              className="text-amber-400 hover:underline font-semibold"
+                            >
+                              Marcar Capa
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMediaItem(m.id, m.url)}
+                            className="text-red-400 hover:text-red-300 p-0.5 ml-auto"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-500 bg-slate-950 border border-dashed border-slate-800 rounded-xl p-3 text-center">
+                    Nenhuma mídia anexada a esta oferta ainda.
+                  </div>
+                )}
               </div>
 
               <div>

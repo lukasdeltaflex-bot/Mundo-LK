@@ -1,5 +1,6 @@
 import { ChannelContent } from '../value-objects/channel-content.vo';
 import { ScoreType } from '../value-objects/score-level.vo';
+import { ProductMedia } from './product.entity';
 
 export type MarketplaceDetectionSource = 'url_parser' | 'manual_selection' | 'api_response' | 'unknown';
 
@@ -20,6 +21,7 @@ export interface OfferProps {
   marketplaceId?: string;              // ex: "shopee", "amazon", "mercadolivre"
   marketplaceName?: string;            // ex: "Shopee", "Amazon"
   marketplaceDetectedBy?: MarketplaceDetectionSource; // rastreabilidade da detecção
+  media?: ProductMedia[];              // Mídias (imagens/vídeos) específicas desta oferta
 }
 
 /**
@@ -42,6 +44,7 @@ export class Offer {
   public readonly marketplaceId?: string;
   public readonly marketplaceName?: string;
   public readonly marketplaceDetectedBy?: MarketplaceDetectionSource;
+  public readonly media?: ProductMedia[];
 
   constructor(props: OfferProps) {
     this.id = props.id;
@@ -59,5 +62,6 @@ export class Offer {
     this.marketplaceId = props.marketplaceId;
     this.marketplaceName = props.marketplaceName;
     this.marketplaceDetectedBy = props.marketplaceDetectedBy;
+    this.media = props.media;
   }
 }

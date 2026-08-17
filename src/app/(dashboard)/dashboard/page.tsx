@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { OfferCreationFlow } from '@/presentation/components/business/OfferCreationFlow';
+import { SaveReadyOfferFlow } from '@/presentation/components/business/SaveReadyOfferFlow';
 import { useAuth } from '@/presentation/context/AuthContext';
-import { ShoppingBag, Sparkles, Layers, Zap, Link as LinkIcon, Package, FileText, Loader2 } from 'lucide-react';
+import { ShoppingBag, Sparkles, Layers, Zap, Link as LinkIcon, Package, FileText, Loader2, PlusCircle, Bot } from 'lucide-react';
 import { Card } from '@/presentation/components/ui/Card';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { Product } from '@/core/domain/entities/product.entity';
@@ -32,6 +33,7 @@ export default function DashboardPage() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creationMode, setCreationMode] = useState<'ai' | 'ready'>('ai');
 
   const loadProducts = async () => {
     if (!user?.uid) {
@@ -103,10 +105,33 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ── Assistente IA — Criar Nova Oferta ───────────────────────── */}
-      <section>
-        <SectionHeading icon={Sparkles} label="Assistente IA — Criar Nova Oferta" />
-        <OfferCreationFlow onSaved={loadProducts} />
+      {/* ── Criar Nova Oferta (Seletor de Modo) ───────────────────────── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionHeading icon={PlusCircle} label="Criar Nova Oferta" />
+          <div className="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setCreationMode('ai')}
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition ${creationMode === 'ai' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              <Bot className="h-3.5 w-3.5" /> 🤖 Criar com IA
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreationMode('ready')}
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition ${creationMode === 'ready' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              <FileText className="h-3.5 w-3.5" /> 📋 Salvar Oferta Pronta
+            </button>
+          </div>
+        </div>
+
+        {creationMode === 'ai' ? (
+          <OfferCreationFlow onSaved={loadProducts} />
+        ) : (
+          <SaveReadyOfferFlow onSaved={loadProducts} />
+        )}
       </section>
 
       {/* ── Meus Produtos ──────────────────────────────────────────────── */}
