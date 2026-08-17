@@ -184,6 +184,51 @@ export class FirestoreProductRepository implements IProductRepository {
     const trashRef = doc(db, 'trash_products', id);
     await deleteDoc(trashRef);
   }
+
+  public async restoreManyFromTrash(ids: string[]): Promise<{ restored: string[]; errors: string[] }> {
+    if (ids.length === 0) return { restored: [], errors: [] };
+    const restoredAt = new Date().toISOString();
+    const restored: string[] = [];
+    const errors: string[] = [];
+
+    const chunkSize = 200; // 2 ops por item -> 400 ops max (Firestore permite 500)
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+
+      chunk.forEach((id) => {
+        const prodRef = doc(db, this.collectionName, id);
+        batch.update(prodRef, {
+          status: 'ACTIVE',
+          restoredAt,
+          updatedAt: restoredAt,
+        });
+
+        const trashRef = doc(db, 'trash_products', id);
+        batch.delete(trashRef);
+      });
+
+      try {
+        await batch.commit();
+        restored.push(...chunk);
+      } catch (err: any) {
+        console.warn('[FirestoreProductRepository] Erro ao restaurar lote no batch. Recorrendo a fallback individual:', err);
+        // Fallback por item se o lote falhar
+        for (const id of chunk) {
+          try {
+            await this.restoreFromTrash(id);
+            restored.push(id);
+          } catch (singleErr: any) {
+            console.error(`[FirestoreProductRepository] Erro ao restaurar produto ${id}:`, singleErr);
+            errors.push(id);
+          }
+        }
+      }
+    }
+
+    return { restored, errors };
+  }
+
   public async save(product: Product): Promise<void> {
     const raw = ProductMapper.toPersistence(product);
     const activeUid = product.userId || auth.currentUser?.uid;
@@ -295,5 +340,43 @@ export class FirestoreProductRepository implements IProductRepository {
 
     const trashRef = doc(db, 'trash_products', id);
     await deleteDoc(trashRef);
+  }
+
+  public async deleteManyPermanently(ids: string[]): Promise<{ deleted: string[]; errors: string[] }> {
+    if (ids.length === 0) return { deleted: [], errors: [] };
+    const deleted: string[] = [];
+    const errors: string[] = [];
+
+    const chunkSize = 200; // 2 ops por item -> 400 ops max
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+
+      chunk.forEach((id) => {
+        const prodRef = doc(db, this.collectionName, id);
+        batch.delete(prodRef);
+
+        const trashRef = doc(db, 'trash_products', id);
+        batch.delete(trashRef);
+      });
+
+      try {
+        await batch.commit();
+        deleted.push(...chunk);
+      } catch (err: any) {
+        console.warn('[FirestoreProductRepository] Erro ao deletar lote no batch. Recorrendo a fallback individual:', err);
+        for (const id of chunk) {
+          try {
+            await this.delete(id);
+            deleted.push(id);
+          } catch (singleErr: any) {
+            console.error(`[FirestoreProductRepository] Erro ao deletar produto ${id}:`, singleErr);
+            errors.push(id);
+          }
+        }
+      }
+    }
+
+    return { deleted, errors };
   }
 }
