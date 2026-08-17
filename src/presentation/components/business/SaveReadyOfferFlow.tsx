@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import {
@@ -16,22 +16,24 @@ import {
   RefreshCw,
   Video,
   Image as ImageIcon,
-  AlertCircle
+  AlertCircle,
+  PlusCircle,
+  X
 } from 'lucide-react';
 import { Price, AffiliateLink } from '@/core/domain/value-objects';
 import { ProductMedia, OFFICIAL_TAXONOMY_CATEGORIES } from '@/core/domain/entities/product.entity';
 import { ReadyOfferParserService, ParsedReadyOffer } from '@/core/domain/services/ReadyOfferParserService';
 import { FirebaseStorageService } from '@/infrastructure/firebase/storage/firebase-storage.service';
+import { CustomTaxonomyService, CustomMarketplace, CustomCategory } from '@/core/domain/services/CustomTaxonomyService';
 import { PublishingService } from '@/app/(dashboard)/operacao/services/PublishingService';
 import { ChannelContent } from '@/core/domain/value-objects/channel-content.vo';
 import { useAuth } from '@/presentation/context/AuthContext';
-import { MarketplaceRegistry } from '@/infrastructure/marketplaces/registry/MarketplaceRegistry';
 
 interface SaveReadyOfferFlowProps {
   onSaved?: () => void;
 }
 
-const MARKETPLACE_OPTIONS = [
+const DEFAULT_MARKETPLACE_OPTIONS = [
   { slug: 'shopee', name: 'Shopee' },
   { slug: 'magalu', name: 'Magazine Luiza (Magalu)' },
   { slug: 'mercadolivre', name: 'Mercado Livre' },
@@ -44,7 +46,7 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Única Autoridade para o ID da Oferta (Gerado uma única vez na inicialização)
+  // Única Autoridade para o ID da Oferta
   const [officialOfferId] = useState<string>(
     () => `off_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
   );
@@ -53,10 +55,17 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
   const [pastedText, setPastedText] = useState('');
   const [parsedData, setParsedData] = useState<ParsedReadyOffer | null>(null);
 
-  // Passo 2: Mídias enviadas (Imagens e Vídeos)
+  // Passo 2: Mídias enviadas (Imagens e Vídeos - Arquivo Local ou URL)
   const [mediaList, setMediaList] = useState<ProductMedia[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Inputs para URL de Imagem e URL de Vídeo
+  const [showImageUrlInput, setShowImageUrlInput] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [showVideoUrlInput, setShowVideoUrlInput] = useState(false);
+  const [videoUrlInput, setVideoUrlInput] = useState('');
 
   // Passo 3: Dados confirmados da Oferta
   const [title, setTitle] = useState('');
@@ -69,10 +78,46 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Taxonomy & Modais de Criação Inline (Marketplace e Categoria)
+  const [marketplaceOptions, setMarketplaceOptions] = useState(DEFAULT_MARKETPLACE_OPTIONS);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(OFFICIAL_TAXONOMY_CATEGORIES);
+  const [showNewMarketplaceModal, setShowNewMarketplaceModal] = useState(false);
+  const [newMarketplaceName, setNewMarketplaceName] = useState('');
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryParent, setNewCategoryParent] = useState('');
+  const [creatingTaxonomy, setCreatingTaxonomy] = useState(false);
+
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+
   const parserService = useRef(new ReadyOfferParserService()).current;
   const storageService = useRef(new FirebaseStorageService()).current;
+  const taxonomyService = useRef(new CustomTaxonomyService()).current;
   const publishingService = useRef(new PublishingService()).current;
+
+  // Carrega taxonomias customizadas salvas no Firestore para o usuário
+  useEffect(() => {
+    if (user?.uid) {
+      taxonomyService.getCustomMarketplaces(user.uid).then((customMkts) => {
+        if (customMkts && customMkts.length > 0) {
+          const formatted = customMkts.map((m) => ({ slug: m.slug, name: m.name }));
+          setMarketplaceOptions((prev) => {
+            const existingSlugs = prev.map((p) => p.slug);
+            const toAdd = formatted.filter((f) => !existingSlugs.includes(f.slug));
+            return [...prev, ...toAdd];
+          });
+        }
+      });
+
+      taxonomyService.getCustomCategories(user.uid).then((customCats) => {
+        if (customCats && customCats.length > 0) {
+          const names = customCats.map((c) => c.name);
+          setCategoryOptions((prev) => Array.from(new Set([...prev, ...names])));
+        }
+      });
+    }
+  }, [user?.uid]);
 
   // 1. Analisa a Oferta Pronta com Parser Determinístico (0 IA)
   const handleParseText = () => {
@@ -95,13 +140,14 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
     setStep(2);
   };
 
-  // 2. Upload de Arquivos de Mídia (Fotos e Vídeos) para Firebase Storage
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 2. Upload de Arquivos Locais (Imagens e Vídeos) para Firebase Storage com Timeout e Safety Handlers
+  const handleLocalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, acceptedType: 'image' | 'video') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setUploading(true);
     setUploadError(null);
+    setUploadStatusMsg(acceptedType === 'video' ? 'Enviando vídeo ao Storage...' : 'Enviando imagem ao Storage...');
 
     try {
       const newMediaItems: ProductMedia[] = [];
@@ -122,18 +168,53 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
 
       setMediaList((prev) => {
         const updated = [...prev, ...newMediaItems];
-        // Garante que pelo menos 1 item seja primário
         if (!updated.some((m) => m.isPrimary) && updated.length > 0) {
           updated[0].isPrimary = true;
         }
         return updated;
       });
+      setUploadStatusMsg(null);
     } catch (err: any) {
-      console.error('[SaveReadyOfferFlow] Erro de upload:', err);
-      setUploadError(err?.message || 'Falha ao fazer upload da mídia.');
+      console.error('[SaveReadyOfferFlow] Erro no upload local:', err);
+      setUploadError(err?.message || 'Falha ao realizar upload da mídia.');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setUploadStatusMsg(null);
+      if (imageFileInputRef.current) imageFileInputRef.current.value = '';
+      if (videoFileInputRef.current) videoFileInputRef.current.value = '';
+    }
+  };
+
+  // Adicionar Mídia por URL (Imagem ou Vídeo)
+  const handleAddUrlMedia = (mediaType: 'image' | 'video') => {
+    const rawUrl = mediaType === 'video' ? videoUrlInput : imageUrlInput;
+    if (!rawUrl.trim()) {
+      alert('Por favor, informe uma URL válida.');
+      return;
+    }
+
+    try {
+      const nextOrder = mediaList.length;
+      const isFirstItem = nextOrder === 0;
+      const mediaItem = storageService.buildUrlMedia(rawUrl, mediaType, nextOrder, isFirstItem);
+
+      setMediaList((prev) => {
+        const updated = [...prev, mediaItem];
+        if (!updated.some((m) => m.isPrimary) && updated.length > 0) {
+          updated[0].isPrimary = true;
+        }
+        return updated;
+      });
+
+      if (mediaType === 'video') {
+        setVideoUrlInput('');
+        setShowVideoUrlInput(false);
+      } else {
+        setImageUrlInput('');
+        setShowImageUrlInput(false);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'URL inválida.');
     }
   };
 
@@ -155,8 +236,66 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
       return filtered;
     });
 
-    // Remove arquivo no Storage se for do Firebase Storage
     await storageService.deleteStorageImage(url);
+  };
+
+  // Criação Inline de Novo Marketplace no Firestore
+  const handleCreateMarketplace = async () => {
+    if (!newMarketplaceName.trim() || !user?.uid || creatingTaxonomy) return;
+
+    setCreatingTaxonomy(true);
+    try {
+      const created = await taxonomyService.createCustomMarketplace(
+        newMarketplaceName,
+        newMarketplaceName,
+        user.uid
+      );
+
+      setMarketplaceOptions((prev) => {
+        if (!prev.some((m) => m.slug === created.slug)) {
+          return [...prev, { slug: created.slug, name: created.name }];
+        }
+        return prev;
+      });
+
+      setMarketplaceSlug(created.slug);
+      setNewMarketplaceName('');
+      setShowNewMarketplaceModal(false);
+    } catch (err: any) {
+      alert(`Não foi possível criar o marketplace: ${err?.message || String(err)}`);
+    } finally {
+      setCreatingTaxonomy(false);
+    }
+  };
+
+  // Criação Inline de Nova Categoria no Firestore
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim() || !user?.uid || creatingTaxonomy) return;
+
+    setCreatingTaxonomy(true);
+    try {
+      const created = await taxonomyService.createCustomCategory(
+        newCategoryName,
+        newCategoryParent || null,
+        user.uid
+      );
+
+      setCategoryOptions((prev) => {
+        if (!prev.includes(created.name)) {
+          return [...prev, created.name];
+        }
+        return prev;
+      });
+
+      setCategory(created.name);
+      setNewCategoryName('');
+      setNewCategoryParent('');
+      setShowNewCategoryModal(false);
+    } catch (err: any) {
+      alert(`Não foi possível criar a categoria: ${err?.message || String(err)}`);
+    } finally {
+      setCreatingTaxonomy(false);
+    }
   };
 
   // 3. Salva a Oferta no Firestore com Mídias e Copy Preservada
@@ -170,10 +309,9 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
       const primaryImageUrl = primaryMedia ? primaryMedia.url : '';
       const allImageUrls = mediaList.filter((m) => m.type === 'image').map((m) => m.url);
 
-      const selectedOpt = MARKETPLACE_OPTIONS.find((m) => m.slug === marketplaceSlug);
+      const selectedOpt = marketplaceOptions.find((m) => m.slug === marketplaceSlug);
       const marketplaceName = selectedOpt ? selectedOpt.name : 'Shopee';
 
-      // 1. Extração Simulada para o Dominio (0 chamadas IA)
       const extractionResult = {
         title: title.trim() || 'Oferta Pronta',
         description: whatsAppCopy.trim(),
@@ -207,7 +345,6 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
         affiliateUrl: affiliateUrl.trim() || originalUrl.trim(),
       };
 
-      // 2. Transmite a Copy Preservada do Usuário sem reescrita
       const copies = ChannelContent.create({
         whatsAppText: whatsAppCopy.trim(),
         telegramText: whatsAppCopy.trim(),
@@ -216,12 +353,12 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
       });
 
       const offerProps = {
-        id: officialOfferId, // ID oficial único
+        id: officialOfferId,
         userId: user.uid,
         marketplaceId: marketplaceSlug,
         marketplaceName,
         copies,
-        media: mediaList, // Mídias vinculadas diretamente à Offer
+        media: mediaList,
         scoreValue: 95,
         scoreLabel: 'EXCELLENT' as const,
         scoreJustification: 'Oferta Pronta Importada pelo Usuário',
@@ -311,47 +448,156 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
           </div>
         )}
 
-        {/* PASSO 2: Mídias da Oferta (Imagens & Vídeos) */}
+        {/* PASSO 2: Mídias da Oferta (Imagens & Vídeos - Arquivo PC ou URL) */}
         {step === 2 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <h4 className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
                 <ImageIcon className="h-4 w-4 text-purple-400" />
-                <span>Mídias da Oferta (Imagens e Vídeos)</span>
+                <span>Mídias da Oferta (Imagens e Vídeos MISTOS)</span>
               </h4>
               <span className="text-[11px] text-slate-400">{mediaList.length} mídia(s) anexada(s)</span>
             </div>
 
             {uploadError && (
-              <div className="flex items-center gap-2 p-3 bg-red-950/40 border border-red-800 rounded-xl text-red-300">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{uploadError}</span>
+              <div className="flex items-center justify-between p-3 bg-red-950/40 border border-red-800 rounded-xl text-red-300">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{uploadError}</span>
+                </div>
+                <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-200">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             )}
 
-            {/* Dropzone de Upload */}
-            <div className="border-2 border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-950/60 rounded-xl p-6 text-center transition cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <Upload className="h-8 w-8 text-purple-400 mx-auto mb-2" />
-              <p className="font-semibold text-slate-200 text-xs">Clique ou arraste imagens e vídeos aqui</p>
-              <p className="text-[11px] text-slate-500 mt-1">Suporta fotos (PNG, JPG, WEBP até 10MB) e vídeos (MP4, WEBM até 50MB)</p>
-              {uploading && (
-                <div className="flex items-center justify-center gap-2 mt-3 text-purple-400 font-semibold">
-                  <RefreshCw className="h-4 w-4 animate-spin" /> Enviando mídias ao Storage...
+            {/* Seções de Adicionar Imagem & Vídeo (Dual Entry: Arquivo vs Link) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Box de Imagens */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between font-semibold text-slate-200">
+                  <span className="flex items-center gap-1.5 text-purple-400">
+                    <ImageIcon className="h-4 w-4" /> Imagens
+                  </span>
                 </div>
-              )}
+
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={imageFileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => handleLocalFileUpload(e, 'image')}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-center text-xs"
+                    disabled={uploading}
+                    onClick={() => imageFileInputRef.current?.click()}
+                    leftIcon={uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-purple-400" />}
+                  >
+                    📁 Anexar Imagem do PC
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-center text-xs text-slate-400 hover:text-white"
+                    onClick={() => setShowImageUrlInput(!showImageUrlInput)}
+                    leftIcon={<LinkIcon className="h-3.5 w-3.5 text-blue-400" />}
+                  >
+                    🔗 Usar link da imagem (URL)
+                  </Button>
+
+                  {showImageUrlInput && (
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={imageUrlInput}
+                        onChange={(e) => setImageUrlInput(e.target.value)}
+                        placeholder="https://.../imagem.jpg"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono text-[11px]"
+                      />
+                      <Button type="button" variant="primary" size="sm" onClick={() => handleAddUrlMedia('image')}>
+                        OK
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Box de Vídeos */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between font-semibold text-slate-200">
+                  <span className="flex items-center gap-1.5 text-blue-400">
+                    <Video className="h-4 w-4" /> Vídeos
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={videoFileInputRef}
+                    type="file"
+                    multiple
+                    accept="video/*"
+                    onChange={(e) => handleLocalFileUpload(e, 'video')}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-center text-xs"
+                    disabled={uploading}
+                    onClick={() => videoFileInputRef.current?.click()}
+                    leftIcon={uploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-blue-400" />}
+                  >
+                    📁 Anexar Vídeo do PC
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-center text-xs text-slate-400 hover:text-white"
+                    onClick={() => setShowVideoUrlInput(!showVideoUrlInput)}
+                    leftIcon={<LinkIcon className="h-3.5 w-3.5 text-blue-400" />}
+                  >
+                    🔗 Usar link do vídeo (URL)
+                  </Button>
+
+                  {showVideoUrlInput && (
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={videoUrlInput}
+                        onChange={(e) => setVideoUrlInput(e.target.value)}
+                        placeholder="https://.../video.mp4"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono text-[11px]"
+                      />
+                      <Button type="button" variant="primary" size="sm" onClick={() => handleAddUrlMedia('video')}>
+                        OK
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Grid de Mídias Carregadas */}
+            {uploadStatusMsg && (
+              <div className="flex items-center justify-center gap-2 p-3 bg-purple-950/30 border border-purple-800/40 rounded-xl text-purple-300 font-semibold animate-pulse">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>{uploadStatusMsg}</span>
+              </div>
+            )}
+
+            {/* Grid de Mídias Carregadas (Preview em Tempo Real) */}
             {mediaList.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {mediaList.map((m) => (
                   <div key={m.id} className={`relative rounded-xl border p-2 bg-slate-950 flex flex-col gap-2 ${m.isPrimary ? 'border-amber-500 ring-1 ring-amber-500/40' : 'border-slate-800'}`}>
                     <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
@@ -361,7 +607,7 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
                         <img src={m.url} alt="" className="w-full h-full object-cover" />
                       )}
 
-                      {/* Badge Primária */}
+                      {/* Badge Capa */}
                       {m.isPrimary && (
                         <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
                           <Star className="h-3 w-3 fill-slate-950" /> Capa
@@ -374,13 +620,13 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
                     </div>
 
                     <div className="flex items-center justify-between gap-1">
-                      {!m.isPrimary && (
+                      {!m.isPrimary && m.type === 'image' && (
                         <button
                           type="button"
                           onClick={() => handleSetPrimaryMedia(m.id)}
                           className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
                         >
-                          <Star className="h-3 w-3" /> Definir Capa
+                          <Star className="h-3 w-3" /> Marcar Capa
                         </button>
                       )}
                       <button
@@ -438,13 +684,22 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Marketplace:</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-semibold">Marketplace:</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewMarketplaceModal(true)}
+                      className="text-[10px] text-blue-400 hover:underline flex items-center gap-0.5"
+                    >
+                      <PlusCircle className="h-3 w-3" /> Criar Novo
+                    </button>
+                  </div>
                   <select
                     value={marketplaceSlug}
                     onChange={(e) => setMarketplaceSlug(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-medium focus:outline-none focus:border-blue-500"
                   >
-                    {MARKETPLACE_OPTIONS.map((m) => (
+                    {marketplaceOptions.map((m) => (
                       <option key={m.slug} value={m.slug}>
                         {m.name}
                       </option>
@@ -456,13 +711,22 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Categoria Oficial:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold">Categoria Oficial:</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewCategoryModal(true)}
+                    className="text-[10px] text-blue-400 hover:underline flex items-center gap-0.5"
+                  >
+                    <PlusCircle className="h-3 w-3" /> Criar Nova
+                  </button>
+                </div>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-medium focus:outline-none focus:border-blue-500"
                 >
-                  {OFFICIAL_TAXONOMY_CATEGORIES.map((cat) => (
+                  {categoryOptions.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
                     </option>
@@ -510,6 +774,110 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
           </div>
         )}
       </CardContent>
+
+      {/* MODAL INLINE DE CRIAÇÃO DE NOVO MARKETPLACE */}
+      {showNewMarketplaceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <PlusCircle className="h-4 w-4 text-blue-400" />
+                <span>Criar Novo Marketplace Oficial</span>
+              </h3>
+              <button onClick={() => setShowNewMarketplaceModal(false)} className="text-slate-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Nome do Marketplace:</label>
+              <input
+                type="text"
+                value={newMarketplaceName}
+                onChange={(e) => setNewMarketplaceName(e.target.value)}
+                placeholder="Ex: Kwai Shop, AliExpress"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowNewMarketplaceModal(false)} disabled={creatingTaxonomy}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleCreateMarketplace}
+                disabled={creatingTaxonomy || !newMarketplaceName.trim()}
+                leftIcon={creatingTaxonomy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+              >
+                {creatingTaxonomy ? 'Criando...' : 'Criar e Selecionar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INLINE DE CRIAÇÃO DE NOVA CATEGORIA */}
+      {showNewCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <PlusCircle className="h-4 w-4 text-blue-400" />
+                <span>Criar Nova Categoria Oficial</span>
+              </h3>
+              <button onClick={() => setShowNewCategoryModal(false)} className="text-slate-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Nome da Categoria:</label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Ex: Maquiagem, Smartwatches"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Categoria Pai (Opcional):</label>
+                <select
+                  value={newCategoryParent}
+                  onChange={(e) => setNewCategoryParent(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Sem Categoria Pai (Principal)</option>
+                  {categoryOptions.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowNewCategoryModal(false)} disabled={creatingTaxonomy}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleCreateCategory}
+                disabled={creatingTaxonomy || !newCategoryName.trim()}
+                leftIcon={creatingTaxonomy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+              >
+                {creatingTaxonomy ? 'Criando...' : 'Criar e Selecionar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

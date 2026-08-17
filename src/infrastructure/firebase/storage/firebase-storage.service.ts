@@ -4,7 +4,7 @@ import { ProductMedia, MediaType } from '@/core/domain/entities/product.entity';
 
 export class FirebaseStorageService {
   /**
-   * Uploads an offer media file (image or video) to Firebase Storage safely.
+   * Uploads an offer media file (image or video) to Firebase Storage safely with 15s safety timeout.
    * Path: offers/{offerId}/media/{timestamp}_{filename}
    */
   public async uploadOfferMediaFile(
@@ -33,19 +33,64 @@ export class FirebaseStorageService {
     const storagePath = `offers/${offerId}/media/${Date.now()}_${sanitizedName}`;
     const storageRef = ref(storage, storagePath);
 
-    const snapshot = await uploadBytes(storageRef, file, {
-      contentType: file.type,
-    });
+    // Timeout de Segurança (15s) para evitar travamento em upload
+    const timeoutMs = isVideo ? 30000 : 15000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Tempo limite excedido no upload da mídia (${timeoutMs / 1000}s). Verifique sua conexão e tente novamente.`)),
+        timeoutMs
+      )
+    );
 
-    const downloadUrl = await getDownloadURL(snapshot.ref);
+    try {
+      const snapshot = await Promise.race([
+        uploadBytes(storageRef, file, { contentType: file.type }),
+        timeoutPromise,
+      ]);
+
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+
+      return {
+        id: `med_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        type: mediaType,
+        url: downloadUrl,
+        order,
+        isPrimary,
+        title: file.name,
+      };
+    } catch (err: any) {
+      console.error('[FirebaseStorageService] Erro no upload:', err);
+      const msg = err?.message || String(err);
+      if (msg.includes('storage/unauthorized')) {
+        throw new Error('Permissão negada no Firebase Storage. Verifique se você está autenticado.');
+      } else if (msg.includes('storage/canceled')) {
+        throw new Error('Upload cancelado.');
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Validates and constructs a ProductMedia object from a raw URL link (image or video).
+   */
+  public buildUrlMedia(
+    rawUrl: string,
+    mediaType: MediaType,
+    order: number = 0,
+    isPrimary: boolean = false
+  ): ProductMedia {
+    const url = (rawUrl || '').trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      throw new Error('A URL informada deve começar com http:// ou https://');
+    }
 
     return {
-      id: `med_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `urlmed_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       type: mediaType,
-      url: downloadUrl,
+      url,
       order,
       isPrimary,
-      title: file.name,
+      title: `${mediaType === 'video' ? 'Vídeo' : 'Imagem'} por Link`,
     };
   }
 
