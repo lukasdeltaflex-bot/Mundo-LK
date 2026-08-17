@@ -80,7 +80,7 @@ export class PublishingService {
         categoryId: extraction.category || 'Geral',
         marketplaceSlug: extraction.marketplace ? extraction.marketplace.toLowerCase() : 'shopee',
         originalUrl: rawUrl,
-        affiliateUrl: AffiliateLink.create(rawUrl),
+        affiliateUrl: AffiliateLink.create(extraction.affiliateUrl || rawUrl),
         currentPrice: Price.create(extraction.currentPrice || 0),
         previousPrice: extraction.originalPrice ? Price.create(extraction.originalPrice) : null,
         discountPercentage: DiscountPercentage.create(extraction.discountPercentage || 0),

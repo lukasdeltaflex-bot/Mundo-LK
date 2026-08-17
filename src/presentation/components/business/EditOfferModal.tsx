@@ -2,11 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/presentation/components/ui/Button';
-import { X, Tag, Sparkles, MessageSquare, Flame, Check } from 'lucide-react';
+import { X, Tag, Sparkles, MessageSquare, Flame, Check, Link, Image as ImageIcon, FileText, ShoppingCart } from 'lucide-react';
 import { Offer } from '@/core/domain/entities/offer.entity';
+import { Product } from '@/core/domain/entities/product.entity';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
+import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
 import { UpdateOfferUseCase } from '@/core/application/use-cases/offers/UpdateOfferUseCase';
 import { ScoreType } from '@/core/domain/value-objects/score-level.vo';
+import { Price, AffiliateLink } from '@/core/domain/value-objects';
 import { useAuth } from '@/presentation/context/AuthContext';
 
 interface EditOfferModalProps {
@@ -34,6 +37,20 @@ export function EditOfferModal({
   onSuccess,
 }: EditOfferModalProps) {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'product' | 'offer'>('product');
+  const [product, setProduct] = useState<Product | null>(null);
+
+  // Campos do Produto Vinculado
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [currentPriceStr, setCurrentPriceStr] = useState('');
+  const [previousPriceStr, setPreviousPriceStr] = useState('');
+  const [originalUrl, setOriginalUrl] = useState('');
+  const [affiliateUrl, setAffiliateUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [category, setCategory] = useState('');
+
+  // Campos da Oferta Comercial
   const [marketplaceSlug, setMarketplaceSlug] = useState('shopee');
   const [marketplaceName, setMarketplaceName] = useState('');
   const [whatsAppCopy, setWhatsAppCopy] = useState('');
@@ -45,10 +62,11 @@ export function EditOfferModal({
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    if (offer) {
+    if (offer && isOpen && user?.uid) {
       const slug = offer.marketplaceId || (offer as any).marketplace || 'shopee';
       setMarketplaceSlug(slug);
       setMarketplaceName(offer.marketplaceName || MARKETPLACE_OPTIONS.find(m => m.slug === slug)?.name || 'Shopee');
+      
       const existingText = offer.copies?.copies?.whatsAppText ||
         offer.copies?.copies?.shortText ||
         (typeof offer.copies === 'string' ? offer.copies : '');
@@ -58,8 +76,33 @@ export function EditOfferModal({
       setScoreJustification(offer.scoreJustification || '');
       setCta(offer.cta || '🔥 Garanta o seu antes que acabe!');
       setHashtags(offer.hashtags ? offer.hashtags.join(', ') : '');
+
+      // Carrega o produto vinculado no Firestore para permitir edição integral
+      if (offer.productId) {
+        const productRepo = new FirestoreProductRepository();
+        productRepo.findById(offer.productId).then((p) => {
+          if (p) {
+            setProduct(p);
+            setTitle(p.title || productTitle || '');
+            setDescription(p.description || '');
+            setCurrentPriceStr(p.currentPrice ? String(p.currentPrice.amount) : '');
+            setPreviousPriceStr(p.previousPrice ? String(p.previousPrice.amount) : '');
+            setOriginalUrl(p.originalUrl || '');
+            setAffiliateUrl(p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl || '');
+            setImageUrl(p.images && p.images.length > 0 ? p.images[0] : '');
+            setCategory(p.categoryId || 'Geral');
+          } else {
+            setTitle(productTitle || '');
+          }
+        }).catch((err) => {
+          console.warn('[EditOfferModal] Erro ao carregar produto vinculado:', err);
+          setTitle(productTitle || '');
+        });
+      } else {
+        setTitle(productTitle || '');
+      }
     }
-  }, [offer, isOpen]);
+  }, [offer, isOpen, user?.uid, productTitle]);
 
   if (!isOpen || !offer) return null;
 
@@ -67,31 +110,45 @@ export function EditOfferModal({
     e.preventDefault();
     if (!user?.uid || processing) return;
 
-    const trimmedCopy = whatsAppCopy.trim();
-    if (!trimmedCopy) {
-      alert('O texto/copy da oferta é obrigatório.');
-      return;
-    }
-
-    const scoreNum = parseInt(scoreValue, 10);
-    const selectedMarketplaceObj = MARKETPLACE_OPTIONS.find(m => m.slug === marketplaceSlug);
-    const finalMarketplaceName = selectedMarketplaceObj ? selectedMarketplaceObj.name : marketplaceName.trim();
-
     setProcessing(true);
     try {
-      const repo = new FirestoreOfferRepository();
-      const useCase = new UpdateOfferUseCase(repo);
+      const offerRepo = new FirestoreOfferRepository();
+      const productRepo = new FirestoreProductRepository();
+      const useCase = new UpdateOfferUseCase(offerRepo);
 
-      // Verificação de duplicidade se o marketplace mudou
-      if (offer.productId && marketplaceSlug !== (offer.marketplaceId || (offer as any).marketplace)) {
-        const existingOffers = await repo.findByProductId(offer.productId, user.uid);
-        const duplicate = existingOffers.find(o => (o.marketplaceId || (o as any).marketplace) === marketplaceSlug && o.id !== offer.id);
-        if (duplicate) {
-          alert(`Este produto já possui uma oferta cadastrada no marketplace ${finalMarketplaceName}. A alteração foi cancelada para evitar duplicidade.`);
-          setProcessing(false);
-          return;
+      // 1. Atualiza o Product vinculado no Firestore se ele existir
+      if (product) {
+        const parsedPrice = parseFloat(currentPriceStr.replace(',', '.'));
+        const validPrice = isNaN(parsedPrice) ? 0 : parsedPrice;
+
+        const parsedPrevPrice = parseFloat(previousPriceStr.replace(',', '.'));
+        const validPrevPrice = isNaN(parsedPrevPrice) ? null : parsedPrevPrice;
+
+        const updatedImages = imageUrl.trim()
+          ? [imageUrl.trim(), ...(product.images || []).filter(img => img !== imageUrl.trim())]
+          : product.images;
+
+        product.title = title.trim() || product.title;
+        product.description = description.trim();
+        product.currentPrice = Price.create(validPrice);
+        if (validPrevPrice !== null) {
+          product.previousPrice = Price.create(validPrevPrice);
+        } else {
+          product.previousPrice = null;
         }
+
+        (product as any).originalUrl = originalUrl.trim() || product.originalUrl;
+        product.affiliateUrl = AffiliateLink.create(affiliateUrl.trim() || originalUrl.trim() || product.originalUrl);
+        product.images = updatedImages;
+        product.categoryId = category.trim() || product.categoryId;
+
+        await productRepo.save(product);
       }
+
+      // 2. Atualiza a Offer no Firestore
+      const scoreNum = parseInt(scoreValue, 10);
+      const selectedMarketplaceObj = MARKETPLACE_OPTIONS.find(m => m.slug === marketplaceSlug);
+      const finalMarketplaceName = selectedMarketplaceObj ? selectedMarketplaceObj.name : marketplaceName.trim();
 
       const hashtagList = hashtags
         .split(',')
@@ -112,7 +169,7 @@ export function EditOfferModal({
           ...offer.copies,
           copies: {
             ...existingCopies,
-            whatsAppText: trimmedCopy,
+            whatsAppText: whatsAppCopy.trim(),
           },
         } as any,
       };
@@ -123,11 +180,11 @@ export function EditOfferModal({
         changes,
       });
 
-      console.log('[EditOfferModal] Oferta atualizada com sucesso. OfferID:', offer.id);
+      console.log('[EditOfferModal] Oferta e Produto atualizados com sucesso. OfferID:', offer.id);
       onSuccess();
       onClose();
     } catch (err: any) {
-      console.error('[EditOfferModal] Erro ao atualizar oferta:', err);
+      console.error('[EditOfferModal] Erro ao salvar alterações:', err);
       const errMsg = err?.message || String(err);
       alert(`Não foi possível salvar as alterações da oferta: ${errMsg}`);
     } finally {
@@ -137,12 +194,12 @@ export function EditOfferModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden">
+      <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/40 shrink-0">
           <div className="flex items-center gap-2">
             <Tag className="h-5 w-5 text-amber-400" />
-            <h3 className="font-semibold text-slate-100">Editar Oferta Comercial</h3>
+            <h3 className="font-semibold text-slate-100 text-sm sm:text-base">Edição Completa da Oferta e Produto</h3>
           </div>
           <button
             type="button"
@@ -154,158 +211,242 @@ export function EditOfferModal({
           </button>
         </div>
 
-        {/* Identity & Product Link Subheader */}
-        <div className="bg-slate-950/60 border-b border-slate-800/80 px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <span>
-            ID da Oferta: <strong className="font-mono text-amber-400">{offer.id}</strong>
+        {/* Identity & Navigation Tabs */}
+        <div className="bg-slate-950/60 border-b border-slate-800 px-6 py-2 flex items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveTab('product')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition ${activeTab === 'product' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              📦 1. Produto & Links
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('offer')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition ${activeTab === 'offer' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              🔥 2. Copy Comercial & Score
+            </button>
+          </div>
+
+          <span className="text-[11px] font-mono text-slate-400">
+            ID: <strong className="text-amber-400">{offer.id}</strong>
           </span>
-          {offer.productId && (
-            <span className="text-[11px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-medium">
-              Produto Vinculado: <strong className="font-mono text-blue-400">{offer.productId}</strong>
-            </span>
-          )}
         </div>
 
-        {productTitle && (
-          <div className="px-6 py-2 bg-blue-950/20 border-b border-blue-500/20 text-xs text-blue-300 truncate">
-            📌 <strong>{productTitle}</strong>
-          </div>
-        )}
-
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          {/* Marketplace Select */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Marketplace Canal / Origem Comercial
-            </label>
-            <select
-              value={marketplaceSlug}
-              onChange={(e) => {
-                const slug = e.target.value;
-                setMarketplaceSlug(slug);
-                const opt = MARKETPLACE_OPTIONS.find((m) => m.slug === slug);
-                if (opt) setMarketplaceName(opt.name);
-              }}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition"
-            >
-              {MARKETPLACE_OPTIONS.map((m) => (
-                <option key={m.slug} value={m.slug}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto grow text-xs">
+          {activeTab === 'product' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Título do Produto:</label>
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500 font-medium"
+                />
+              </div>
 
-          {/* Copy Texto de Envio (WhatsApp / Redes) */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-              <MessageSquare className="h-3.5 w-3.5 text-amber-400" /> Texto Criativo / Copy de Divulgação <span className="text-red-400">*</span>
-            </label>
-            <textarea
-              rows={4}
-              required
-              value={whatsAppCopy}
-              onChange={(e) => setWhatsAppCopy(e.target.value)}
-              placeholder="Digite ou edite o texto promocional da oferta..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition font-mono leading-relaxed"
-            />
-          </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Preço Atual (R$):</label>
+                  <input
+                    type="text"
+                    required
+                    value={currentPriceStr}
+                    onChange={(e) => setCurrentPriceStr(e.target.value)}
+                    placeholder="1004.00"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-emerald-400 font-bold font-mono focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Preço Anterior (De):</label>
+                  <input
+                    type="text"
+                    value={previousPriceStr}
+                    onChange={(e) => setPreviousPriceStr(e.target.value)}
+                    placeholder="1299.00"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-400 font-mono focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Categoria:</label>
+                  <input
+                    type="text"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Geral"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
 
-          {/* Grid de Score & Classificação */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                <Flame className="h-3.5 w-3.5 text-amber-500" /> Score de Atratividade (0-100)
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={scoreValue}
-                onChange={(e) => setScoreValue(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-500 transition"
-              />
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                  <Link className="h-3.5 w-3.5 text-blue-400" /> Link de Afiliado (Ex: https://amzn.to/...)
+                </label>
+                <input
+                  type="text"
+                  value={affiliateUrl}
+                  onChange={(e) => setAffiliateUrl(e.target.value)}
+                  placeholder="https://shopee.com.br/product/123?aff_id=xxx"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-blue-300 font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                  <Link className="h-3.5 w-3.5 text-slate-400" /> Link Original do Produto
+                </label>
+                <input
+                  type="text"
+                  value={originalUrl}
+                  onChange={(e) => setOriginalUrl(e.target.value)}
+                  placeholder="https://amazon.com.br/dp/B0C7CKX75R"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-300 font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                  <ImageIcon className="h-3.5 w-3.5 text-purple-400" /> URL da Imagem Principal
+                </label>
+                <input
+                  type="text"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://m.media-amazon.com/images/I/..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-300 font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5 text-slate-400" /> Descrição Factual / Briefing do Produto:
+                </label>
+                <textarea
+                  rows={5}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Insira detalhes técnicos, voltagem, recursos e características..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                />
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Classificação da Oferta
-              </label>
-              <select
-                value={scoreLabel}
-                onChange={(e) => setScoreLabel(e.target.value as ScoreType)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition"
-              >
-                <option value="EXCELLENT">EXCELLENT (Excelente)</option>
-                <option value="GOOD">GOOD (Boa)</option>
-                <option value="AVERAGE">AVERAGE (Média)</option>
-                <option value="POOR">POOR (Baixa)</option>
-              </select>
+          {activeTab === 'offer' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Marketplace / Origem Comercial:</label>
+                <select
+                  value={marketplaceSlug}
+                  onChange={(e) => {
+                    const slug = e.target.value;
+                    setMarketplaceSlug(slug);
+                    const opt = MARKETPLACE_OPTIONS.find((m) => m.slug === slug);
+                    if (opt) setMarketplaceName(opt.name);
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500"
+                >
+                  {MARKETPLACE_OPTIONS.map((m) => (
+                    <option key={m.slug} value={m.slug}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                  <MessageSquare className="h-3.5 w-3.5 text-amber-400" /> Texto de Divulgação (Copy WhatsApp):
+                </label>
+                <textarea
+                  rows={6}
+                  value={whatsAppCopy}
+                  onChange={(e) => setWhatsAppCopy(e.target.value)}
+                  placeholder="Insira a Copy promocional final para envio nos grupos..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono leading-relaxed focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                    <Flame className="h-3.5 w-3.5 text-amber-500" /> Score de Atratividade (0-100):
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={scoreValue}
+                    onChange={(e) => setScoreValue(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-300 font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Classificação:</label>
+                  <select
+                    value={scoreLabel}
+                    onChange={(e) => setScoreLabel(e.target.value as ScoreType)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="EXCELLENT">EXCELLENT (Excelente)</option>
+                    <option value="GOOD">GOOD (Boa)</option>
+                    <option value="AVERAGE">AVERAGE (Média)</option>
+                    <option value="POOR">POOR (Baixa)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Justificativa Comercial:
+                </label>
+                <input
+                  type="text"
+                  value={scoreJustification}
+                  onChange={(e) => setScoreJustification(e.target.value)}
+                  placeholder="Ex: Oferta com 25% de desconto com frete grátis."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Chamada para Ação (CTA):</label>
+                  <input
+                    type="text"
+                    value={cta}
+                    onChange={(e) => setCta(e.target.value)}
+                    placeholder="Ex: 🔥 Garanta o seu antes que acabe!"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Hashtags (separadas por vírgula):</label>
+                  <input
+                    type="text"
+                    value={hashtags}
+                    onChange={(e) => setHashtags(e.target.value)}
+                    placeholder="promo, achadinhos, desconto"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Justificativa do Score */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Justificativa Comercial
-            </label>
-            <input
-              type="text"
-              value={scoreJustification}
-              onChange={(e) => setScoreJustification(e.target.value)}
-              placeholder="Ex: Preço 25% abaixo da média de mercado com frete grátis."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition"
-            />
-          </div>
-
-          {/* CTA & Hashtags */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Chamada para Ação (CTA)
-              </label>
-              <input
-                type="text"
-                value={cta}
-                onChange={(e) => setCta(e.target.value)}
-                placeholder="Ex: 🔥 Garanta o seu antes que acabe!"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Hashtags (Separadas por vírgula)
-              </label>
-              <input
-                type="text"
-                value={hashtags}
-                onChange={(e) => setHashtags(e.target.value)}
-                placeholder="promo, achadinhos, desconto"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition"
-              />
-            </div>
-          </div>
+          )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={processing}
-            >
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={processing}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={processing}
-            >
-              {processing ? 'Salvando Alterações...' : 'Salvar Oferta'}
+            <Button type="submit" variant="primary" size="sm" disabled={processing}>
+              {processing ? 'Salvando Alterações...' : 'Salvar Alterações'}
             </Button>
           </div>
         </form>
