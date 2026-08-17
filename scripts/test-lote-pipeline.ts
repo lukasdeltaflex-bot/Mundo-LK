@@ -115,7 +115,7 @@ Compatível com Android e iOS.`,
   let frigobarCopyText = '';
   try {
     const frigobarResult = await openAiAdapter.generateOfferContent(
-      frigobarProduct,
+      frigobarProduct as any,
       'padrao',
       'CONVERSION',
       'STANDARD'
@@ -131,7 +131,7 @@ Compatível com Android e iOS.`,
   let smartwatchCopyText = '';
   try {
     const smartwatchResult = await openAiAdapter.generateOfferContent(
-      smartwatchProduct,
+      smartwatchProduct as any,
       'padrao',
       'CONVERSION',
       'STANDARD'
@@ -166,7 +166,7 @@ Compatível com Android e iOS.`,
   for (const st of styles) {
     console.log(`[Estilo: ${st.toUpperCase()}]`);
     try {
-      const res = await openAiAdapter.generateOfferContent(frigobarProduct, st, 'CONVERSION', 'STANDARD');
+      const res = await openAiAdapter.generateOfferContent(frigobarProduct as any, st, 'CONVERSION', 'STANDARD');
       console.log(`  Benefício Principal: "${res.analysis.beneficioPrincipal}"`);
       console.log(`  Ângulo de Venda: "${res.analysis.anguloDeVenda}"`);
     } catch (e: any) {
