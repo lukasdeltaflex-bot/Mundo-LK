@@ -37,9 +37,40 @@ export class Price {
   }
 
   public formatBRL(): string {
+    return Price.formatBRL(this.amount, this.currency);
+  }
+
+  public static formatBRL(amount: number | null | undefined, currency: string = 'BRL'): string {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return 'R$ 0,00';
+    }
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: this.currency,
-    }).format(this.amount);
+      currency,
+    }).format(amount);
+  }
+
+  public static parseBRL(input: string | number | null | undefined): number {
+    if (input === null || input === undefined || input === '') {
+      return 0;
+    }
+    if (typeof input === 'number') {
+      return isNaN(input) || input < 0 ? 0 : Number(input.toFixed(2));
+    }
+    
+    let clean = String(input)
+      .replace(/R\$\s?/gi, '')
+      .replace(/\s/g, '')
+      .trim();
+
+    if (!clean) return 0;
+
+    // Se contem virgula (padrão brasileiro R$ 1.234,56 ou 1234,56)
+    if (clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.');
+    }
+
+    const val = parseFloat(clean);
+    return isNaN(val) || val < 0 ? 0 : Number(val.toFixed(2));
   }
 }

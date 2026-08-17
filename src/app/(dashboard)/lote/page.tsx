@@ -27,6 +27,7 @@ import { ImportEngine } from '../operacao/services/ImportEngine';
 import { PublishingService } from '../operacao/services/PublishingService';
 import { ChannelContent } from '@/core/domain/value-objects/channel-content.vo';
 import { OfferProps } from '@/core/domain/entities/offer.entity';
+import { OFFICIAL_TAXONOMY_CATEGORIES } from '@/core/domain/entities/product.entity';
 import { OfferStyle } from '@/infrastructure/ai/providers/gemini.adapter';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { Price } from '@/core/domain/value-objects';
@@ -230,8 +231,7 @@ export default function LotePage() {
   const handleSaveInlineEdit = () => {
     if (!editingItem) return;
 
-    const parsedPrice = parseFloat(editPrice.replace(',', '.'));
-    const validPrice = isNaN(parsedPrice) ? null : parsedPrice;
+    const validPrice = Price.parseBRL(editPrice);
 
     setQueue((prev) =>
       prev.map((i) => {
@@ -631,7 +631,7 @@ export default function LotePage() {
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
                   {queue.map((item) => {
-                    const priceFormatted = item.currentPrice ? `R$ ${item.currentPrice.toFixed(2)}` : '—';
+                    const priceFormatted = Price.formatBRL(item.currentPrice);
                     const hasDesc = Boolean(item.userConfirmedData?.description || item.extractionResult?.description);
 
                     return (
@@ -732,19 +732,24 @@ export default function LotePage() {
                   type="text"
                   value={editPrice}
                   onChange={(e) => setEditPrice(e.target.value)}
-                  placeholder="1000.00"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500 font-mono"
+                  onBlur={() => setEditPrice(Price.formatBRL(Price.parseBRL(editPrice)))}
+                  placeholder="R$ 1.000,00"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-emerald-400 font-bold font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Categoria:</label>
-                <input
-                  type="text"
+                <label className="block text-slate-300 font-semibold mb-1">Categoria Oficial:</label>
+                <select
                   value={editCategory}
                   onChange={(e) => setEditCategory(e.target.value)}
-                  placeholder="Geral"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500"
-                />
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500 font-medium"
+                >
+                  {OFFICIAL_TAXONOMY_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

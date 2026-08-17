@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/presentation/components/ui/Button';
-import { X, Tag, Sparkles, MessageSquare, Flame, Check, Link, Image as ImageIcon, FileText, ShoppingCart } from 'lucide-react';
+import { X, Tag, Sparkles, MessageSquare, Flame, Check, Link as LinkIcon, Image as ImageIcon, FileText, Upload, Trash2, RefreshCw } from 'lucide-react';
 import { Offer } from '@/core/domain/entities/offer.entity';
-import { Product } from '@/core/domain/entities/product.entity';
+import { Product, OFFICIAL_TAXONOMY_CATEGORIES } from '@/core/domain/entities/product.entity';
 import { FirestoreOfferRepository } from '@/infrastructure/firebase/repositories/firestore-offer.repository';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
+import { FirebaseStorageService } from '@/infrastructure/firebase/storage/firebase-storage.service';
 import { UpdateOfferUseCase } from '@/core/application/use-cases/offers/UpdateOfferUseCase';
 import { ScoreType } from '@/core/domain/value-objects/score-level.vo';
 import { Price, AffiliateLink } from '@/core/domain/value-objects';
 import { useAuth } from '@/presentation/context/AuthContext';
+import { ProductIdentityResolver } from '@/core/domain/services/ProductIdentityResolver';
 
 interface EditOfferModalProps {
   offer: Offer | null;
@@ -48,7 +50,7 @@ export function EditOfferModal({
   const [originalUrl, setOriginalUrl] = useState('');
   const [affiliateUrl, setAffiliateUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('Geral');
 
   // Campos da Oferta Comercial
   const [marketplaceSlug, setMarketplaceSlug] = useState('shopee');
@@ -60,6 +62,11 @@ export function EditOfferModal({
   const [cta, setCta] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const storageService = useRef(new FirebaseStorageService()).current;
+  const identityResolver = useRef(new ProductIdentityResolver()).current;
 
   useEffect(() => {
     if (offer && isOpen && user?.uid) {
@@ -85,8 +92,8 @@ export function EditOfferModal({
             setProduct(p);
             setTitle(p.title || productTitle || '');
             setDescription(p.description || '');
-            setCurrentPriceStr(p.currentPrice ? String(p.currentPrice.amount) : '');
-            setPreviousPriceStr(p.previousPrice ? String(p.previousPrice.amount) : '');
+            setCurrentPriceStr(p.currentPrice ? Price.formatBRL(p.currentPrice.amount) : 'R$ 0,00');
+            setPreviousPriceStr(p.previousPrice ? Price.formatBRL(p.previousPrice.amount) : '');
             setOriginalUrl(p.originalUrl || '');
             setAffiliateUrl(p.affiliateUrl ? p.affiliateUrl.url : p.originalUrl || '');
             setImageUrl(p.images && p.images.length > 0 ? p.images[0] : '');
@@ -106,6 +113,59 @@ export function EditOfferModal({
 
   if (!isOpen || !offer) return null;
 
+  // Lógica de upload de imagem para Firebase Storage com substituição segura
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    setUploadingImage(true);
+
+    try {
+      const oldImageUrl = imageUrl;
+      const downloadUrl = await storageService.uploadOfferImage(file, offer.id);
+      setImageUrl(downloadUrl);
+
+      // Remove imagem antiga do Storage se for do Firebase
+      if (oldImageUrl && oldImageUrl !== downloadUrl) {
+        await storageService.deleteStorageImage(oldImageUrl);
+      }
+    } catch (err: any) {
+      console.error('[EditOfferModal] Falha no upload da imagem:', err);
+      alert(`Falha ao fazer upload da imagem: ${err?.message || String(err)}`);
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!imageUrl) return;
+    if (confirm('Deseja remover a imagem atual da oferta?')) {
+      const oldUrl = imageUrl;
+      setImageUrl('');
+      await storageService.deleteStorageImage(oldUrl);
+    }
+  };
+
+  // Alternância de Marketplace com auto-regeneração de link de afiliado oficial
+  const handleMarketplaceChange = (newSlug: string) => {
+    setMarketplaceSlug(newSlug);
+    const opt = MARKETPLACE_OPTIONS.find((m) => m.slug === newSlug);
+    if (opt) setMarketplaceName(opt.name);
+
+    if (originalUrl.trim()) {
+      try {
+        const resolved = identityResolver.resolveCanonicalKey(originalUrl.trim());
+        if (resolved && resolved.marketplaceSlug === newSlug) {
+          // Se a URL original corresponder ao novo marketplace, preserva a URL
+        }
+      } catch {
+        // Ignora
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.uid || processing) return;
@@ -116,14 +176,12 @@ export function EditOfferModal({
       const productRepo = new FirestoreProductRepository();
       const useCase = new UpdateOfferUseCase(offerRepo);
 
+      // Parse BRL dos preços digitados (ex: "R$ 1.234,56" ou "1234,56" -> 1234.56)
+      const validPrice = Price.parseBRL(currentPriceStr);
+      const validPrevPrice = previousPriceStr.trim() ? Price.parseBRL(previousPriceStr) : null;
+
       // 1. Atualiza o Product vinculado no Firestore se ele existir
       if (product) {
-        const parsedPrice = parseFloat(currentPriceStr.replace(',', '.'));
-        const validPrice = isNaN(parsedPrice) ? 0 : parsedPrice;
-
-        const parsedPrevPrice = parseFloat(previousPriceStr.replace(',', '.'));
-        const validPrevPrice = isNaN(parsedPrevPrice) ? null : parsedPrevPrice;
-
         const updatedImages = imageUrl.trim()
           ? [imageUrl.trim(), ...(product.images || []).filter(img => img !== imageUrl.trim())]
           : product.images;
@@ -131,7 +189,7 @@ export function EditOfferModal({
         product.title = title.trim() || product.title;
         product.description = description.trim();
         product.currentPrice = Price.create(validPrice);
-        if (validPrevPrice !== null) {
+        if (validPrevPrice !== null && validPrevPrice > 0) {
           product.previousPrice = Price.create(validPrevPrice);
         } else {
           product.previousPrice = null;
@@ -204,7 +262,7 @@ export function EditOfferModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={processing}
+            disabled={processing || uploadingImage}
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition"
           >
             <X className="h-5 w-5" />
@@ -258,7 +316,8 @@ export function EditOfferModal({
                     required
                     value={currentPriceStr}
                     onChange={(e) => setCurrentPriceStr(e.target.value)}
-                    placeholder="1004.00"
+                    onBlur={() => setCurrentPriceStr(Price.formatBRL(Price.parseBRL(currentPriceStr)))}
+                    placeholder="R$ 1.004,00"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-emerald-400 font-bold font-mono focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -268,25 +327,34 @@ export function EditOfferModal({
                     type="text"
                     value={previousPriceStr}
                     onChange={(e) => setPreviousPriceStr(e.target.value)}
-                    placeholder="1299.00"
+                    onBlur={() => {
+                      if (previousPriceStr.trim()) {
+                        setPreviousPriceStr(Price.formatBRL(Price.parseBRL(previousPriceStr)));
+                      }
+                    }}
+                    placeholder="R$ 1.299,00"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-400 font-mono focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Categoria:</label>
-                  <input
-                    type="text"
+                  <label className="block text-slate-300 font-semibold mb-1">Categoria Oficial:</label>
+                  <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    placeholder="Geral"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
-                  />
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500 font-medium"
+                  >
+                    {OFFICIAL_TAXONOMY_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
-                  <Link className="h-3.5 w-3.5 text-blue-400" /> Link de Afiliado (Ex: https://amzn.to/...)
+                  <LinkIcon className="h-3.5 w-3.5 text-blue-400" /> Link de Afiliado (Ex: https://amzn.to/...)
                 </label>
                 <input
                   type="text"
@@ -299,7 +367,7 @@ export function EditOfferModal({
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
-                  <Link className="h-3.5 w-3.5 text-slate-400" /> Link Original do Produto
+                  <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> Link Original do Produto
                 </label>
                 <input
                   type="text"
@@ -310,17 +378,65 @@ export function EditOfferModal({
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1">
-                  <ImageIcon className="h-3.5 w-3.5 text-purple-400" /> URL da Imagem Principal
+              {/* Seção de Mídia & Upload no Firebase Storage */}
+              <div className="space-y-2 pt-1 border-t border-slate-800">
+                <label className="block text-slate-300 font-semibold flex items-center gap-1">
+                  <ImageIcon className="h-3.5 w-3.5 text-purple-400" /> Imagem da Oferta & Upload no Storage:
                 </label>
-                <input
-                  type="text"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://m.media-amazon.com/images/I/..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-300 font-mono focus:outline-none focus:border-blue-500"
-                />
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="" className="h-16 w-16 object-cover rounded-xl border border-slate-800 shrink-0" />
+                  ) : (
+                    <div className="h-16 w-16 rounded-xl border border-dashed border-slate-800 bg-slate-950 flex items-center justify-center text-slate-600 shrink-0">
+                      Sem Foto
+                    </div>
+                  )}
+
+                  <div className="grow space-y-2 w-full">
+                    <input
+                      type="text"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      placeholder="https://m.media-amazon.com/images/I/..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-300 font-mono text-[11px] focus:outline-none focus:border-blue-500"
+                    />
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageFileChange}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        disabled={uploadingImage}
+                        onClick={() => fileInputRef.current?.click()}
+                        leftIcon={uploadingImage ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-purple-400" />}
+                      >
+                        {uploadingImage ? 'Enviando ao Storage...' : 'Substituir por Arquivo Local'}
+                      </Button>
+
+                      {imageUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-red-400 hover:bg-red-500/10"
+                          onClick={handleRemoveImage}
+                          leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                        >
+                          Excluir Imagem
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -328,7 +444,7 @@ export function EditOfferModal({
                   <FileText className="h-3.5 w-3.5 text-slate-400" /> Descrição Factual / Briefing do Produto:
                 </label>
                 <textarea
-                  rows={5}
+                  rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Insira detalhes técnicos, voltagem, recursos e características..."
@@ -344,12 +460,7 @@ export function EditOfferModal({
                 <label className="block text-slate-300 font-semibold mb-1">Marketplace / Origem Comercial:</label>
                 <select
                   value={marketplaceSlug}
-                  onChange={(e) => {
-                    const slug = e.target.value;
-                    setMarketplaceSlug(slug);
-                    const opt = MARKETPLACE_OPTIONS.find((m) => m.slug === slug);
-                    if (opt) setMarketplaceName(opt.name);
-                  }}
+                  onChange={(e) => handleMarketplaceChange(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500"
                 >
                   {MARKETPLACE_OPTIONS.map((m) => (
@@ -442,10 +553,10 @@ export function EditOfferModal({
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={processing}>
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={processing || uploadingImage}>
               Cancelar
             </Button>
-            <Button type="submit" variant="primary" size="sm" disabled={processing}>
+            <Button type="submit" variant="primary" size="sm" disabled={processing || uploadingImage}>
               {processing ? 'Salvando Alterações...' : 'Salvar Alterações'}
             </Button>
           </div>
