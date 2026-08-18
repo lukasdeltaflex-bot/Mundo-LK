@@ -42,9 +42,13 @@ import { ensurePriceBoldInCopy } from '@/core/utils/price-formatting.utils';
 
 // ─── Image Fallback Component with Lazy Loading ──────────────────────────────
 
+import { FirebaseStorageService } from '@/infrastructure/firebase/storage/firebase-storage.service';
+
 function ProductImageThumbnail({ src, title }: { src?: string; title: string }) {
   const [imgError, setImgError] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  const displayUrl = src ? FirebaseStorageService.getDisplayUrl(src) : '';
 
   return (
     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-950/80 border border-slate-800/80 group-hover:border-slate-700 transition">
@@ -54,9 +58,9 @@ function ProductImageThumbnail({ src, title }: { src?: string; title: string }) 
         </div>
       )}
 
-      {src && !imgError ? (
+      {displayUrl && !imgError ? (
         <img
-          src={src}
+          src={displayUrl}
           alt={title}
           loading="lazy"
           onLoad={() => setLoaded(true)}
