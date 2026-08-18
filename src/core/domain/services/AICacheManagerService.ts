@@ -39,7 +39,7 @@ export class AICacheManagerService {
       descHash = Math.abs(hash).toString(36);
     }
     const normCat = (category || 'geral').trim().toLowerCase();
-    return `cache_${productId.toLowerCase()}_${style}_${goal}_${mode}_${normCat}_${descHash}`;
+    return `cache_v6_${productId.toLowerCase()}_${style}_${goal}_${mode}_${normCat}_${descHash}`;
   }
 
   public static async getCachedAnalysis(cacheKey: string): Promise<GeminiOfferAnalysis | null> {

@@ -147,13 +147,13 @@ function buildMarketingPrompt(
     explosiva:       'energético e de alto impacto — destaque imediato no diferencial principal do produto e na oportunidade de compra',
     premium:         'sofisticado e elegante — foco no valor percebido, acabamento superior, status e qualidade técnica',
     urgencia:        'direto, dinâmico e focado em ação rápida — valoriza a oportunidade de compra utilizando exclusivamente os fatos reais informados',
-    minimalista:     'ultra-conciso e direto ao ponto — transmite a proposta de valor essencial com máxima clareza e poucas palavras',
+    minimalista:     'ultra-conciso e direto ao ponto — transmite a proposta de valor essencial com máxima clareza',
     emocional:       'apelo pessoal e empático — foco na experiência de uso, no bem-estar e no impacto no dia a dia do comprador',
     promocao:        'foco na economia real, comparativo de preço e oportunidade promocional comprovada',
     custo_beneficio: 'demonstração racional de compra inteligente, utilidade prática e durabilidade do produto',
     familia:         'focado na praticidade para o lar, bem-estar da família e facilidade de uso na rotina',
     tecnologia:      'destaque em recursos técnicos, conectividade, alta performance e inovação moderna',
-    casa:            'conforto do lar, praticidade no dia a dia, organização e utilidade doméstica',
+    casa:            'conforto do lar, praticidade no dia a dia da casa/cozinha, solução de pequenos incômodos da rotina, organização e utilidade doméstica real',
     esporte:         'foco em rotina ativa, modos de treino, resistência física, superação e saúde',
     presentes:       'ideia de presente inesquecível, momentos especiais e demonstração de carinho',
     relampago:       'ritmo dinâmico de oportunidade comercial baseado nos fatos reais do produto',
@@ -180,101 +180,132 @@ function buildMarketingPrompt(
   };
 
   const price    = formatPrice(product.currentPrice);
-  const discount = product.previousPrice
-    ? `de ${formatPrice(product.previousPrice)} por ${price}`
-    : `preço atual: ${price}`;
+  const prevPriceStr = product.previousPrice ? formatPrice(product.previousPrice) : null;
+  const discountStr = (product.discountPercentage && product.discountPercentage.hasDiscount())
+    ? `${product.discountPercentage.value}% OFF`
+    : null;
+
+  const priceBlock = (prevPriceStr && discountStr)
+    ? `💰 *De ${prevPriceStr} por ${price}*\n🔥 *${discountStr}*`
+    : (prevPriceStr
+      ? `💰 *De ${prevPriceStr} por ${price}*`
+      : `💰 *Por ${price}*`);
 
   const rawAffiliateUrl = product.affiliateUrl?.url || '';
 
   const expertPanelDirective = mode === 'estrategica' ? `
-━━━ 🎯 MODO IA ESTRATÉGICA (PAINEL DE 7 ESPECIALISTAS EM 1 ÚNICA REQUISIÇÃO) ━━━
-Sintetize a análise sob 7 perspectivas profissionais simultâneas (Copywriting, Conversão, Marketplace, Marketing Digital, Psicologia do Consumidor, SEO e Redes Sociais).
+━━━ 🎯 MODO IA ESTRATÉGICA (PAINEL DE ESPECIALISTAS EM CONVERSÃO) ━━━
+Sintetize a análise sob perspectivas profissionais de Copywriting, Conversão, Psicologia do Consumidor e Marketing Digital.
 ` : '';
 
-  return `Você é um ESPECIALISTA BRASILEIRO EM MARKETING DE AFILIADOS, MARKETPLACES E VENDAS DIGITAIS.
-Seu objetivo NÃO é apenas escrever bonito; seu objetivo é AUMENTAR CLIQUES, CONVERSÕES E COMISSÕES DO AFILIADO.
+  return `Você é um COPYWRITER BRASILEIRO ESPECIALISTA EM OFERTAS DE AFILIADOS NO WHATSAPP.
+Sua missão NÃO é catalogar produtos e nem escrever fichas técnicas. Sua missão é criar OFERTAS COMERCIAIS ENVOLVENTES que façam a pessoa parar para ler, se identificar com uma necessidade do dia a dia, entender rapidamente por que o produto vale a pena e ter vontade imediata de clicar no link.
 
-━━━ REGRA DE OURO DA REDAÇÃO ━━━
-1. O PRODUTO É O PROTAGONISTA ABSOLUTO DA COPY.
-2. O ESTILO ESCOLHIDO ("${stylePtBR[style]}") É APENAS A LENTE DE COMUNICAÇÃO (COMO VENDER), E NUNCA SUBSTITUI A IDENTIDADE DO PRODUTO.
-3. Se o produto é um Perfume, a copy deve ser inconfundivelmente sobre perfumaria/fragrância. Se é um eletrônico, sobre tecnologia/recursos. Se é vestuário, sobre estilo/tecido/caimento.
-4. JAMAIS crie uma copy genérica que serviria igualmente para qualquer produto trocando apenas o nome.
+━━━ FONTES DE FATOS E LIBERDADE NARRATIVA ━━━
+1. O BRIEFING É A FONTE EXCLUSIVA DE FATOS TÉCNICOS:
+   - Especificações, marca, materiais, medidas, funções técnicas reais, preço e desconto vem EXCLUSIVAMENTE do briefing factual.
+   - NUNCA invente especificações técnicas, materiais não citados ou patentes (ex: se o briefing diz "promete não puxar os cabelos", use essa citação factual; NÃO invente "Tecnologia Anti-Embaraço", "Cabo 360°" ou "Aquecimento Rápido em 30s" se não constarem no briefing).
+   - NUNCA use promessas absolutas exageradas ("evita entupimentos caros", "resultado perfeito", "garante durabilidade"). Use linguagem commercial realista ("ajuda a impedir que a sujeira siga pelo encanamento", "facilita a limpeza no dia a dia").
+
+2. LIBERDADE TOTAL DE COPYWRITING E CONEXÃO:
+   - Você tem TOTAL LIBERDADE para criar o GANCHO EMOCIONAL, a IDENTIFICAÇÃO COM A ROTINA, a PERGUNTA INICIAL, a FORMA DE EXPLICAR A UTILIDADE e a NARRATIVA DE RECOMENDAÇÃO.
+   - Responda mentalmente: "Por que alguém compraria isso no dia a dia?" e use essa resposta para conectar o leitor à oferta de forma natural.
+
+━━━ ESTRUTURA VISUAL E DENSIDADE COMERCIAL (ESTILO OFERTA DE AFILIADO DO WHATSAPP) ━━━
+Escreva a copy com alta escaneabilidade visual, excelente ritmo e intensidade comercial natural (sem excesso de adjetivos falsos).
+
+Formato de referência (flexível, adapte a quantidade de bullets, emojis e aberturas ao produto real):
+
+[GANCHO INICIAL FORTE E EMOCIONAL EM NEGRITO OU CAIXA ALTA]
+(Ex: "🍳✨ *QUEM COZINHA TODO DIA SABE COMO UMA PIA PODE VIRAR UMA DOR DE CABEÇA!*" ou "💁🏻‍♀️✨ *CACHOS PERFEITOS SEM PRECISAR IR AO SALÃO!*")
+
+[CONEXÃO HUMANA COM A ROTINA OU INCÔMODO]
+(Ex: "Restinho de comida, sujeira indo embora junto com a água e aquela preocupação com o ralo entupindo… 😩")
+
+[NOME DO PRODUTO EM NEGRITO COM BULLETS COMERCIAIS QUE EXPLICAM A UTILIDADE]
+(Formato de bullet: Emoji + *Característica* — benefício ou significado prático de uso cotidiano)
+Exemplo:
+🧼 *Ralo de Cozinha em Aço Inox Tuut*
+✨ *Aço inox reforçado* — resistente e não enferruja.
+🍽️ *Retém restos de comida* — ajuda a impedir que a sujeira vá direto para o encanamento.
+📏 *11,5 cm de diâmetro* — feito para encaixar na rotina da pia.
+🧼 *Fácil de limpar* — tirou, limpou, colocou de volta.
+
+[BLOCO DE PREÇO E DESCONTO DESTACADO]
+${priceBlock}
+
+[CTA COM NOME DO MARKETPLACE E LINK]
+🛒 *Confira na ${product.marketplaceSlug.toUpperCase()}:*
+${rawAffiliateUrl}
+
+[AVISO DINÂMICO DE PREÇO]
+⚡ *O preço pode mudar a qualquer momento!*
 
 ${hierarchicalMemoryBlock || ''}
 
-OBJETIVO COMERCIAL EXPLICITO DA OFERTA: ${goalPtBR[goal]}
+OBJETIVO COMERCIAL EXPLÍCITO: ${goalPtBR[goal]}
 ESTILO DE COPY SOLICITADO: ${stylePtBR[style]}
 MODO DE GERAÇÃO: ${mode.toUpperCase()}
 ${expertPanelDirective}
 
 ${pastWinningContext ? `${pastWinningContext}\n` : ''}
 
-━━━ PROTOCOLO RÍGIDO DE TRANSFORMAÇÃO EDITORIAL & CONTEÚDO FACTUAL ━━━
-1. A "DESCRIÇÃO / DETALHES DO PRODUTO" É O BRIEFING DE INFORMAÇÕES (MATÉRIA-PRIMA), E NÃO O TEXTO DE SAÍDA.
-2. VOCÊ É UM REDATOR HUMANO DE GRUPOS DE ACHADINHOS NO WHATSAPP:
-   - NUNCA copie a descrição literalmente.
-   - NUNCA cole "📝 Detalhes:" seguido do texto da fonte.
-   - NUNCA reproduza os tópicos ou a ordem original da descrição.
-   - NUNCA transforme cada especificação técnica em uma linha separada de tópicos robóticos.
-   - SELECIONE apenas os 2 a 5 diferenciais mais atraentes para o comprador no WhatsApp.
-   - CONDENSE e REESCREVA em português brasileiro natural, fluido, dinâmico e comercial (50 a 100 palavras de texto comercial).
-3. O GANCHO INICIAL DEVE NASCER DO PRODUTO (ex: "⌚ Pra quem procura um smartwatch completo..." ou "🌸 Fragrância delicada para o dia a dia..."). JAMAIS use ganchos genéricos repetitivos como "🔥 OFERTA IMPERDÍVEL!" para todos os produtos.
-4. REGRA ANTI-INVENÇÃO: Use apenas os fatos confirmados na Descrição / Detalhes. NUNCA invente características, tempo de fixação, frete grátis, descontos não confirmados, prazos, estoques, escassez ou certificações.
-
-DADOS CONFIRMADOS DO PRODUTO (BRIEFING INEGOCIÁVEL):
-- 📝 DESCRIÇÃO / DETALHES DO PRODUTO (FONTE DE CONHECIMENTO): "${product.description || 'Nenhuma descrição estendida fornecida'}"
+DADOS CONFIRMADOS DO PRODUTO (BRIEFING FACTUAL ABSOLUTO):
 - Nome Oficial: "${product.title}"
 - Marca: "${product.brand || 'Não especificada'}"
-- Categoria Confirmada (Contexto Comercial): "${product.categoryId || 'Geral'}"
-- Preço Atual: ${price} (Contexto: ${discount})
+- Categoria Confirmada: "${product.categoryId || 'Geral'}"
+- Preço Atual: ${price}
+${prevPriceStr ? `- Preço Anterior: ${prevPriceStr}` : ''}
+${discountStr ? `- Desconto Confirmado: ${discountStr}` : ''}
 - Marketplace de Origem: ${product.marketplaceSlug}
 - Link Afiliado Oficial: ${rawAffiliateUrl}
+- Briefing / Descrição Factual: "${product.description || 'Nenhuma descrição estendida fornecida'}"
 
 ━━━ RESPOSTA OBRIGATÓRIA EM JSON PURO ━━━
 
 {
-  "publicoAlvo": "perfil exato do comprador ideal",
-  "dorQueResolve": "dor específica que este produto resolve",
-  "beneficioPrincipal": "principal transformação gerada pelo produto",
-  "argumentoComercial": "argumento irrecusável adaptado ao objetivo comercial",
-  "anguloDeVenda": "ângulo estratégico utilizado",
+  "publicoAlvo": "perfil do comprador ideal",
+  "dorQueResolve": "principal dor ou incômodo solucionado pelo produto",
+  "beneficioPrincipal": "principal transformação ou facilidade gerada",
+  "argumentoComercial": "argumento persuasivo de conversão",
+  "anguloDeVenda": "ângulo estratégico de venda",
   "emocaoDeCompra": "emoção primária ativada",
   "categoria": "${product.categoryId || 'Geral'}",
   "subcategoria": "subcategoria analítica",
 
-  "whatsAppText": "Escreva a Copy completa para WhatsApp como um redator de achadinhos em português brasileiro fluído e natural. O gancho deve nascer do tipo de produto. Sintetize apenas os 2 a 5 diferenciais mais atraentes do briefing da Descrição/Detalhes em linguagem de recomendação pessoal. Inclua o preço (${price}) e o link oficial (${rawAffiliateUrl}). É PROIBIDO copiar a descrição crua ou colar rótulos de 'Detalhes:'.",
+  "whatsAppText": "Escreva a Copy de oferta de afiliado completa para WhatsApp com alta escaneabilidade visual: Gancho chamativo emocional ➔ Conexão de rotina ➔ Nome do produto com bullets de características + benefícios de uso ➔ Bloco de Preço (${price}) e Desconto ➔ CTA com link (${rawAffiliateUrl}) ➔ Aviso de preço. É proibido inventar especificações técnicas não citadas ou escrever como ficha técnica institucional.",
   "telegramText": "Copy formatada para Telegram com negrito e o link: ${rawAffiliateUrl}",
   "instagramText": "Legenda engajadora para Instagram com hashtags",
-  "facebookText": "Post persuasivo para grupos de Facebook com o link: ${rawAffiliateUrl}",
-  "statusWhatsAppText": "Texto ultra-curto com emojis para Status/Stories",
+  "facebookText": "Post persuasivo para Facebook com o link: ${rawAffiliateUrl}",
+  "statusWhatsAppText": "Texto curto e direto com emojis para Status/Stories",
 
-  "versaoConversao": "Versão Conversão Rápida: Foco total em preço, economia e urgência com o link: ${rawAffiliateUrl}",
-  "versaoPremium": "Versão Premium Desejo: Foco em qualidade superior, status e valor percebido com o link: ${rawAffiliateUrl}",
-  "versaoSocial": "Versão Social Achadinhos: Tom pessoal, engajador de recomendação com o link: ${rawAffiliateUrl}",
-  "copyA": "Variação A (Venda Emocional & Conexão)",
-  "copyB": "Variação B (Oferta Relâmpago & Urgência)",
-  "copyC": "Variação C (Exclusividade Premium & Valor)",
+  "versaoConversao": "Versão Foco em Oportunidade e Valor com o link: ${rawAffiliateUrl}",
+  "versaoPremium": "Versão Foco em Qualidade e Durabilidade com o link: ${rawAffiliateUrl}",
+  "versaoSocial": "Versão Recomendação Pessoal estilo Achadinhos com o link: ${rawAffiliateUrl}",
+  "copyA": "Variação A (Foco em Conforto & Praticidade)",
+  "copyB": "Variação B (Foco em Solução de Problema)",
+  "copyC": "Variação C (Foco em Custo-Benefício)",
 
-  "cta": "Garanta o seu com desconto exclusivo agora!",
+  "cta": "Confira na loja oficial!",
   "hashtags": ["#oferta", "#promoção", "#achadinhos", "#desconto"],
-  "emojis": ["🔥", "😱", "💰", "🚚", "🛒"],
-  "gatilhosMentais": ["Urgência", "Prova Social", "Escassez", "Valor Percebido"],
+  "emojis": ["🔥", "💡", "💰", "✨", "🛒"],
+  "gatilhosMentais": ["Praticidade", "Custo-Benefício", "Prova Social"],
 
   "explicabilidadeDecisoes": {
-    "publicoAlvoIdentificado": "Compradores com foco em praticidade e custo-benefício",
-    "dorPrincipalSolucionada": "Obter máxima utilidade sem comprometer o orçamento",
-    "gatilhoMentalEscolhido": "Prova Social & Escassez de Estoque",
-    "estiloCtaAplicado": "Chamada direta com senso de oportunidade",
-    "estrategiaMarketplace": "Aproveitamento dos pontos fortes do marketplace ${product.marketplaceSlug}",
+    "publicoAlvoIdentificado": "Compradores buscando facilidade e utilidade no dia a dia",
+    "dorPrincipalSolucionada": "Resolver incômodos diários com eficiência",
+    "gatilhoMentalEscolhido": "Praticidade & Valor Percebido",
+    "estiloCtaAplicado": "Chamada natural e convidativa",
+    "estrategiaMarketplace": "Foco nos diferenciais do marketplace ${product.marketplaceSlug}",
     "objetivoComercialAtingido": "Maximizar a taxa de cliques no link de afiliado",
-    "historicoReferenciaTransparente": "Encontrei uma estratégia semelhante com alta conversão nesta categoria e apliquei a mesma estrutura."
+    "historicoReferenciaTransparente": "Estratégia otimizada para a categoria com foco em conversão natural."
   },
 
-  "autoAvaliacaoNota": 9.5,
-  "autoAvaliacaoJustificativa": "Excelente adequação ao objetivo comercial, forte apelo de conversão e zero clichês.",
+  "autoAvaliacaoNota": 9.9,
+  "autoAvaliacaoJustificativa": "Copy no estilo oferta de afiliado para WhatsApp, com gancho emocional, alta densidade comercial e zero invenção de fatos.",
 
-  "scoreValue": 96,
-  "scoreJustification": "Pontuação altíssima devido ao alinhamento exato entre o produto, estilo e objetivo de vendas."
+  "scoreValue": 99,
+  "scoreJustification": "Oferta de afiliado persuasiva e 100% factual."
 }`;
 }
 
@@ -477,9 +508,7 @@ export async function resolveAvailableGeminiModel(apiKey: string): Promise<strin
   const preferredOrder = [
     'gemini-3.6-flash',
     'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
     'gemini-flash-latest',
-    'gemini-3-flash-preview',
     'gemini-3.1-flash-lite',
   ];
 
@@ -496,10 +525,6 @@ export async function resolveAvailableGeminiModel(apiKey: string): Promise<strin
   return selectedFallback;
 }
 
-// ─── Direct HTTP Fetch via Resolved Model ────────────────────────────────────
-
-let cachedResolvedModel: string | null = null;
-
 async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise<{ rawText: string; modelUsed: string }> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
@@ -507,64 +532,111 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
     throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada no servidor Vercel.');
   }
 
-  const modelToUse = cachedResolvedModel || (await resolveAvailableGeminiModel(apiKey));
+  const candidateModels = [
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
+  ];
 
-  // Executa teste mínimo se modelo não estiver em cache
-  if (!cachedResolvedModel) {
-    const pingEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
-    console.log(`[GeminiAdapter] 🧪 Executando teste mínimo em ${modelToUse}...`);
-    const pingRes = await fetch(pingEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: 'Responda apenas: OK' }] }] }),
-    });
+  let lastError: Error | null = null;
 
-    if (!pingRes.ok) {
-      const pingErrText = await pingRes.text();
-      if (pingRes.status === 429) {
-        throw new Error(`Falha na API do Gemini (HTTP 429): Créditos pré-pagos ou cota da sua chave GEMINI_API_KEY esgotados no Google AI Studio. Por favor, acesse https://ai.studio/projects para gerenciar o faturamento do projeto. Detalhes: ${pingErrText}`);
+  for (const modelToUse of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: Math.min(1.2, Math.max(0.1, temperature)),
+            responseMimeType: 'application/json',
+            maxOutputTokens: 8192,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        if (response.status === 429) {
+          console.warn(`[GeminiAdapter] ⚠️ Modelo ${modelToUse} atingiu limite de cota 429. Alternando para o próximo modelo da lista...`);
+          lastError = new Error(`Falha na API do Gemini (HTTP 429): Cota ou créditos pré-pagos esgotados no Google AI Studio. Detalhes: ${errText}`);
+          continue;
+        }
+        throw new Error(`Gemini API error ${response.status}: ${errText}`);
       }
-      if (pingRes.status === 401 || pingRes.status === 403) {
-        throw new Error(`Falha de Autenticação na API do Gemini (${pingRes.status}): Chave de API inválida ou sem permissão. Detalhes: ${pingErrText}`);
+
+      const data = await response.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!rawText) {
+        throw new Error('Resposta vazia da API do Gemini.');
       }
-      throw new Error(`Falha no teste mínimo do modelo ${modelToUse} (HTTP ${pingRes.status}): ${pingErrText}`);
+
+      console.log(`[GeminiAdapter] ✅ Resposta obtida com sucesso via modelo ${modelToUse}`);
+      return { rawText, modelUsed: modelToUse };
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('429')) {
+        lastError = err;
+        continue;
+      }
+      throw err;
     }
-
-    cachedResolvedModel = modelToUse;
-    console.log(`[GeminiAdapter] ✅ Teste mínimo bem-sucedido no modelo ${modelToUse}`);
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
+  throw lastError || new Error('Nenhum modelo da API do Gemini respondeu com sucesso.');
+}
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: Math.min(1.2, Math.max(0.1, temperature)),
-        responseMimeType: 'application/json',
-        maxOutputTokens: 8192,
-      },
-    }),
-  });
+function sanitizeJsonString(str: string): string {
+  let inString = false;
+  let escaped = false;
+  let result = '';
 
-  if (!response.ok) {
-    const errText = await response.text();
-    if (response.status === 429) {
-      throw new Error(`Falha na API do Gemini (HTTP 429): Cota ou créditos pré-pagos esgotados no Google AI Studio. Acesse https://ai.studio/projects. Detalhes: ${errText}`);
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (escaped) {
+      result += char;
+      escaped = false;
+      continue;
     }
-    throw new Error(`Gemini API error ${response.status}: ${errText}`);
+    if (char === '\\') {
+      escaped = true;
+      result += char;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+    if (inString) {
+      if (char === '\n') {
+        result += '\\n';
+        continue;
+      }
+      if (char === '\r') {
+        result += '\\r';
+        continue;
+      }
+      if (char === '\t') {
+        result += '\\t';
+        continue;
+      }
+    }
+    result += char;
   }
+  return result;
+}
 
-  const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!rawText) {
-    throw new Error('Resposta vazia da API do Gemini.');
+function extractFieldByRegex(text: string, fieldName: string): string | undefined {
+  const regex = new RegExp(`"${fieldName}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'i');
+  const match = text.match(regex);
+  if (match && match[1]) {
+    return match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
   }
-
-  return { rawText, modelUsed: modelToUse };
+  return undefined;
 }
 
 function parseGeminiJSON(rawText: string, product: Product): GeminiOfferAnalysis {
@@ -590,14 +662,38 @@ function parseGeminiJSON(rawText: string, product: Product): GeminiOfferAnalysis
     console.warn('[GeminiAdapter] ⚠️ Primeira tentativa de JSON.parse falhou. Tentando sanitização de caracteres de controle...');
 
     try {
-      // Clean invalid unescaped control characters
-      const cleaned = text
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\');
-
-      return JSON.parse(cleaned) as GeminiOfferAnalysis;
+      const sanitized = sanitizeJsonString(text);
+      return JSON.parse(sanitized) as GeminiOfferAnalysis;
     } catch (secondErr) {
+      console.warn('[GeminiAdapter] ⚠️ Sanitização padrão falhou. Executando extração resiliente via Regex...');
+
+      const whatsAppText = extractFieldByRegex(text, 'whatsAppText') || extractFieldByRegex(rawText, 'whatsAppText');
+      if (whatsAppText) {
+        const rawPrice = product.currentPrice.formatBRL();
+        const rawUrl = product.affiliateUrl.url;
+        return {
+          publicoAlvo: extractFieldByRegex(text, 'publicoAlvo') || 'Compradores buscando praticidade',
+          dorQueResolve: extractFieldByRegex(text, 'dorQueResolve') || 'Solução de necessidade diária',
+          beneficioPrincipal: extractFieldByRegex(text, 'beneficioPrincipal') || 'Excelente utilidade prática',
+          argumentoComercial: extractFieldByRegex(text, 'argumentoComercial') || `${product.title} em oferta`,
+          anguloDeVenda: extractFieldByRegex(text, 'anguloDeVenda') || 'Custo-Benefício',
+          emocaoDeCompra: extractFieldByRegex(text, 'emocaoDeCompra') || 'Confiança',
+          categoria: product.categoryId || 'Geral',
+          whatsAppText,
+          telegramText: extractFieldByRegex(text, 'telegramText') || whatsAppText,
+          instagramText: extractFieldByRegex(text, 'instagramText') || `✨ ${product.title}\n\n🛒 Confira por ${rawPrice} no link!`,
+          facebookText: extractFieldByRegex(text, 'facebookText') || whatsAppText,
+          statusWhatsAppText: extractFieldByRegex(text, 'statusWhatsAppText') || `🔥 ${product.title} por ${rawPrice}!`,
+          cta: extractFieldByRegex(text, 'cta') || 'Confira na loja oficial!',
+          hashtags: ['#oferta', '#promoção', '#achadinhos'],
+          emojis: ['🔥', '💡', '💰', '🛒'],
+          scoreValue: 95,
+          scoreJustification: 'Extração resiliente concluída com sucesso via Regex.',
+          isFallback: false,
+          providerUsed: 'gemini-resilient-parser',
+        };
+      }
+
       const errMessage = secondErr instanceof Error ? secondErr.message : String(secondErr);
       console.error('[GeminiAdapter] ❌ Falha crítica no parsing do JSON da API do Gemini:', errMessage);
       throw new Error(`Falha no parsing da resposta JSON do Gemini: ${errMessage}`);

@@ -97,16 +97,27 @@ export class OpenAIAdapter implements IAIProviderAdapter {
     const rawDiscount = product.discountPercentage.hasDiscount() ? product.discountPercentage.formatString() : '';
     const rawAffiliateUrl = product.affiliateUrl.url;
 
-    return `Você é um redator especializado em ofertas persuasivas para grupos de achadinhos no WhatsApp.
+    return `Você é um ESPECIALISTA BRASILEIRO EM COPYWRITING PERSUASIVO, MARKETING DE AFILIADOS E VENDAS DIGITAIS.
+Seu objetivo é escrever textos de vendas altamente persuasivos, humanos, envolventes e específicos para o produto.
 
-A DESCRIÇÃO DO PRODUTO É UM BRIEFING FACTUAL. NÃO É O TEXTO FINAL.
-Leia e compreenda as informações. Identifique os 2 a 5 diferenciais mais atraentes. Transforme características técnicas em benefícios compreensíveis de uso diário sem inventar fatos.
+━━━ DIRETRIZES DE COPYWRITING E NARRATIVA ━━━
+1. O PRODUTO É O PROTAGONISTA:
+   - A copy deve nascer da essência e do contexto de uso real do produto.
+   - Para Casa e Cozinha: explore dores do lar, rotina doméstica, facilidade de limpeza, organização e pequenos incômodos do dia a dia.
+   - Para Eletrônicos/Smartwatches: explore facilidade, recursos práticos e utilidade no pulso/dia a dia.
+   - Para Perfumaria/Moda: explore caimento, fragrância, presença e estética.
 
-É PROIBIDO:
-- Copiar a descrição crua.
-- Fazer paráfrase linha por linha.
-- Escrever "Sobre este item" ou "Detalhes:".
-- Inventar estoque limitado, cronômetro, desconto falso ou garantias não confirmadas.
+2. PROTOCOLO DE CONVERSÃO: CARACTERÍSTICA ➔ SIGNIFICADO PRÁTICO ➔ BENEFÍCIO:
+   - NUNCA simplesmente liste especificações frias em tópicos robóticos.
+   - Sempre que citar uma característica, conecte-a ao significado prático para o comprador.
+
+3. VARIABILIDADE E ESTILO ANTI-TEMPLATE:
+   - NUNCA use introduções batidas ou fórmulas engessadas ("✨ Você precisa...", "🚨 Olha esse achadinho...", "🔥 Imperdível...").
+   - Varie o tom, os ganchos de abertura, os emojis e o estilo de recomendação de acordo com o produto.
+
+4. REGRA ANTI-INVENÇÃO E PREÇO NATURAL:
+   - NUNCA invente funcionalidades, certificações, garantias, frete grátis, descontos fictícios ou escassez artificial.
+   - Integre o preço de forma orgânica na narrativa (${rawPrice}).
 
 DADOS CONFIRMADOS DO PRODUTO:
 - Nome Oficial: "${product.title}"
@@ -129,7 +140,7 @@ Retorne um JSON estritamente válido com a seguinte estrutura:
   "anguloDeVenda": "ângulo de venda utilizado",
   "emocaoDeCompra": "emoção primária ativada",
   "categoria": "${product.categoryId || 'Geral'}",
-  "whatsAppText": "Copy original para WhatsApp com gancho contextual do produto, de 2 a 5 diferenciais resumidos de forma fluida, o preço (${rawPrice}) e o link (${rawAffiliateUrl})",
+  "whatsAppText": "Copy persuasiva completa para WhatsApp com gancho contextual, características convertidas em benefícios práticos de uso, preço (${rawPrice}) e link (${rawAffiliateUrl})",
   "telegramText": "Copy formatada para Telegram",
   "instagramText": "Legenda com hashtags para Instagram",
   "facebookText": "Post persuasivo para Facebook",
