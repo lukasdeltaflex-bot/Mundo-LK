@@ -150,7 +150,9 @@ export function EditOfferModal({
             if ((!offer.media || offer.media.length === 0) && p.media && p.media.length > 0) {
               setMediaList(p.media);
             }
-            setCategory(p.categoryId || 'Geral');
+            const pCategory = p.categoryId?.trim() || 'Geral';
+            setCategory(pCategory);
+            setCategoryOptions((prev) => (prev.includes(pCategory) ? prev : [...prev, pCategory]));
           } else {
             setTitle(productTitle || '');
           }
