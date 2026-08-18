@@ -3,44 +3,25 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // =========================================================================
-    // HELPER FUNCTIONS
-    // =========================================================================
-
-    // Verifica se o usuário está autenticado e se é o dono do path
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+    // Permite leitura e escrita para mídias de ofertas e produtos
+    match /offers/{allPaths=**} {
+      allow read, write: if true;
     }
 
-    // Valida se o arquivo é uma imagem e se não excede 5MB
-    function isValidImage() {
-      return request.resource.contentType.matches('image/.*') 
-             && request.resource.size < 5 * 1024 * 1024;
+    match /products/{allPaths=**} {
+      allow read, write: if true;
     }
 
-    // =========================================================================
-    // PATHS PERMITIDOS
-    // =========================================================================
-
-    // Permite upload de avatares apenas pelo próprio usuário, máximo 5MB
     match /users/{userId}/avatars/{imageId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId) && isValidImage();
+      allow read, write: if true;
     }
 
-    // Permite upload de imagens de produtos apenas pelo próprio usuário, máximo 5MB
     match /users/{userId}/products/{imageId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId) && isValidImage();
+      allow read, write: if true;
     }
 
-    // =========================================================================
-    // BLOQUEIO GERAL
-    // =========================================================================
-    
-    // Bloqueia qualquer outro acesso não especificado
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

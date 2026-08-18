@@ -59,34 +59,17 @@ export class FirebaseStorageService {
         title: file.name,
       };
     } catch (err: any) {
-      console.warn('[FirebaseStorageService] Upload no Storage falhou ou expirou, aplicando fallback resiliente:', err?.message || err);
-
-      // Fallback resiliente via Data URL (base64) para garantir que o usuário nunca seja bloqueado
-      if (isImage) {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = (e) => reject(e);
-          reader.readAsDataURL(file);
-        });
-
-        return {
-          id: `med_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          type: 'image',
-          url: dataUrl,
-          order,
-          isPrimary,
-          title: file.name,
-        };
-      }
+      console.error('[FirebaseStorageService] Erro no upload para o Storage:', err?.message || err);
 
       const msg = err?.message || String(err);
-      if (msg.includes('storage/unauthorized')) {
-        throw new Error('Permissão negada no Firebase Storage. Verifique se você está autenticado.');
+      if (msg.includes('STORAGE_TIMEOUT')) {
+        throw new Error('O upload da imagem expirou (conexão lenta). Tente uma imagem menor ou conexões mais estáveis.');
+      } else if (msg.includes('storage/unauthorized')) {
+        throw new Error('Permissão negada no Firebase Storage. Verifique suas regras ou autenticação.');
       } else if (msg.includes('storage/canceled')) {
         throw new Error('Upload cancelado.');
       }
-      throw err;
+      throw new Error(`Falha no upload do arquivo para o Storage: ${msg}`);
     }
   }
 

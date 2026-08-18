@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, ShieldAlert, Sparkles, Upload, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { ProductExtractionResult } from '@/core/domain/entities/ProductExtractionResult';
+import { FirebaseStorageService } from '@/infrastructure/firebase/storage/firebase-storage.service';
 
 interface ProductConfirmationModalProps {
   data: ProductExtractionResult;
@@ -81,18 +82,20 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
   const isAssisted  = score >= 50 && score < 80;
   const isManual     = score < 50;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setImage(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    try {
+      const storageService = new FirebaseStorageService();
+      const mediaItem = await storageService.uploadOfferMediaFile(file, 'confirmation');
+      setImage(mediaItem.url);
+    } catch (err: any) {
+      alert(err?.message || 'Falha no upload da foto.');
     }
   };
+
+  const displayImageUrl = image ? FirebaseStorageService.getDisplayUrl(image) : '';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -101,49 +104,37 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const numericPrice = parseFloat(price.replace(/[^\d.,]/g, '').replace(',', '.'));
-    const numericPrevPrice = parseFloat(prevPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
-    const numericRating = parseFloat(rating);
-
-    let finalMarketplace = selectedMarketplace;
-    if (selectedMarketplace === 'outros' && customMarketplace.trim()) {
-      finalMarketplace = customMarketplace.trim();
-    }
-
-    const finalCatSource: CategorySource = isCategoryManuallyEdited ? 'MANUAL' : (data.categorySource || 'AI');
+    const numericPrice = parseFloat(price.replace(/\./g, '').replace(',', '.'));
+    const numericPrevPrice = prevPrice ? parseFloat(prevPrice.replace(/\./g, '').replace(',', '.')) : undefined;
 
     const confirmed: ProductExtractionResult = {
       ...data,
-      marketplace: finalMarketplace,
+      marketplace: (selectedMarketplace === 'outros' ? (customMarketplace.trim() || 'Outros') : selectedMarketplace),
       title: title.trim(),
-      description: description.trim(),
-      currentPrice: isNaN(numericPrice) ? 0 : numericPrice,
-      originalPrice: isNaN(numericPrevPrice) ? null : numericPrevPrice,
-      discountPercentage: (!isNaN(numericPrevPrice) && !isNaN(numericPrice) && numericPrevPrice > numericPrice)
-        ? Math.round(((numericPrevPrice - numericPrice) / numericPrevPrice) * 100)
-        : data.discountPercentage,
+      currentPrice: isNaN(numericPrice) ? data.currentPrice : numericPrice,
+      originalPrice: (numericPrevPrice !== undefined && !isNaN(numericPrevPrice)) ? numericPrevPrice : data.originalPrice,
       image: image.trim(),
-      brand: brand.trim() || 'Desconhecida',
+      brand: brand.trim() || 'Geral',
       category: category.trim() || 'Geral',
-      categorySource: finalCatSource,
-      categoryLocked: isCategoryManuallyEdited || data.categoryLocked,
+      categorySource: (isCategoryManuallyEdited ? 'user_selected' : (data.categorySource || 'ai_suggested')) as CategorySource,
       sellerName: seller.trim(),
+      rating: rating ? parseFloat(rating) : (data.rating || 4.8),
+      shippingType: shipping.trim(),
+      description: description.trim(),
       coupon: coupon.trim(),
       cashback: cashback.trim(),
-      rating: isNaN(numericRating) ? 4.8 : numericRating,
-      shippingType: shipping.trim() || 'Envio Padrão',
     };
 
     onConfirm(confirmed);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="flex items-start justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isAutomatic ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : isAssisted ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isAutomatic ? 'bg-emerald-500/20 text-emerald-400' : isAssisted ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'}`}>
               {isAutomatic ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
             </div>
             <div>
@@ -172,8 +163,8 @@ export const ProductConfirmationModal: React.FC<ProductConfirmationModalProps> =
               <span className="text-[11px] font-semibold text-slate-400 mb-2 flex items-center gap-1">
                 🖼️ Imagem do Produto
               </span>
-              {image ? (
-                <img src={image} alt="Produto" className="h-36 w-full object-contain rounded-lg bg-slate-900 p-1" />
+              {displayImageUrl ? (
+                <img src={displayImageUrl} alt="Produto" className="h-36 w-full object-contain rounded-lg bg-slate-900 p-1" />
               ) : (
                 <div className="flex flex-col items-center justify-center py-6 text-slate-500">
                   <ImageIcon className="h-8 w-8 mb-1 opacity-50" />
