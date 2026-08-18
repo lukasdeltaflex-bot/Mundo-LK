@@ -94,7 +94,9 @@ export function EditProductModal({
       setTitle(product.title || '');
       setDescription(product.description || '');
       setBrand(product.brand || '');
-      setCategoryId(product.categoryId || 'Geral');
+      const prodCat = product.categoryId?.trim() || 'Geral';
+      setCategoryId(prodCat);
+      setCategoryOptions((prev) => (prev.includes(prodCat) ? prev : [...prev, prodCat]));
 
       // Formatação Monetária BRL Automática na Inicialização
       setCurrentPriceAmount(product.currentPrice ? Price.formatBRL(product.currentPrice.amount) : 'R$ 0,00');
