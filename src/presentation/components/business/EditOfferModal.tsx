@@ -211,17 +211,23 @@ export function EditOfferModal({
   };
 
   // Adicionar Mídia por URL (Imagem ou Vídeo) na Edição
-  const handleAddUrlMedia = (mediaType: 'image' | 'video') => {
+  const handleAddUrlMedia = async (mediaType: 'image' | 'video') => {
     const rawUrl = mediaType === 'video' ? videoUrlInput : imageUrlInput;
     if (!rawUrl.trim()) {
       alert('Por favor, informe uma URL válida.');
       return;
     }
 
+    setUploadingImage(true);
     try {
+      let finalUrl = rawUrl.trim();
+      if (mediaType === 'image') {
+        finalUrl = await storageService.mirrorExternalUrl(finalUrl, offer?.id);
+      }
+
       const nextOrder = mediaList.length;
       const isFirst = nextOrder === 0;
-      const mediaItem = storageService.buildUrlMedia(rawUrl, mediaType, nextOrder, isFirst);
+      const mediaItem = storageService.buildUrlMedia(finalUrl, mediaType, nextOrder, isFirst);
 
       setMediaList((prev) => {
         const updated = [...prev, mediaItem];
@@ -239,7 +245,9 @@ export function EditOfferModal({
         setShowImageUrlInput(false);
       }
     } catch (err: any) {
-      alert(err?.message || 'URL inválida.');
+      alert(err?.message || 'URL inválida ou falha no espelhamento.');
+    } finally {
+      setUploadingImage(false);
     }
   };
 

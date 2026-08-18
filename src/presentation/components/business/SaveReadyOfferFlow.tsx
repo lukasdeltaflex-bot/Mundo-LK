@@ -187,17 +187,24 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
   };
 
   // Adicionar Mídia por URL (Imagem ou Vídeo)
-  const handleAddUrlMedia = (mediaType: 'image' | 'video') => {
+  const handleAddUrlMedia = async (mediaType: 'image' | 'video') => {
     const rawUrl = mediaType === 'video' ? videoUrlInput : imageUrlInput;
     if (!rawUrl.trim()) {
       alert('Por favor, informe uma URL válida.');
       return;
     }
 
+    setUploading(true);
+    setUploadStatusMsg('Espelhando imagem externa no Storage...');
     try {
+      let finalUrl = rawUrl.trim();
+      if (mediaType === 'image') {
+        finalUrl = await storageService.mirrorExternalUrl(finalUrl, officialOfferId);
+      }
+
       const nextOrder = mediaList.length;
       const isFirstItem = nextOrder === 0;
-      const mediaItem = storageService.buildUrlMedia(rawUrl, mediaType, nextOrder, isFirstItem);
+      const mediaItem = storageService.buildUrlMedia(finalUrl, mediaType, nextOrder, isFirstItem);
 
       setMediaList((prev) => {
         const updated = [...prev, mediaItem];
@@ -215,7 +222,10 @@ export function SaveReadyOfferFlow({ onSaved }: SaveReadyOfferFlowProps) {
         setShowImageUrlInput(false);
       }
     } catch (err: any) {
-      alert(err?.message || 'URL inválida.');
+      alert(err?.message || 'URL inválida ou falha no espelhamento.');
+    } finally {
+      setUploading(false);
+      setUploadStatusMsg(null);
     }
   };
 

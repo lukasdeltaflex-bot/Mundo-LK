@@ -115,6 +115,39 @@ export class FirebaseStorageService {
   }
 
   /**
+   * Mirrors an external image URL (Shopee, Amazon, SHEIN, Magalu) to Firebase Storage permanently.
+   * Calls /api/mirror-image endpoint. If the URL is already in Firebase Storage, returns it as is.
+   */
+  public async mirrorExternalUrl(rawUrl: string, offerId?: string): Promise<string> {
+    const url = (rawUrl || '').trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      throw new Error('A URL informada deve começar com http:// ou https://');
+    }
+
+    if (url.includes('firebasestorage.googleapis.com')) {
+      return url;
+    }
+
+    try {
+      const res = await fetch('/api/mirror-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, offerId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.url) {
+        throw new Error(data.error || 'Falha ao espelhar a imagem externa no Firebase Storage.');
+      }
+
+      return data.url;
+    } catch (err: any) {
+      console.warn('[FirebaseStorageService] Espelhamento de URL externa falhou, utilizando URL direta com proxy:', err?.message || err);
+      return url;
+    }
+  }
+
+  /**
    * Returns a safe display URL for rendering in <img> tags.
    * If rawUrl is an external CDN image (Shopee, Amazon, SHEIN, Magalu), routes it through /api/proxy-image
    * to bypass browser hotlinking and CORS blocks completely.
