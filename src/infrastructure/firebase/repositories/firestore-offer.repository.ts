@@ -195,7 +195,11 @@ export class FirestoreOfferRepository implements IOfferRepository {
         const rawCopies = typeof (offerChanges.copies as any).copies === 'object'
           ? (offerChanges.copies as any).copies
           : offerChanges.copies;
-        updatePayload.copies = { copies: rawCopies };
+        updatePayload.copies = rawCopies;
+        if (rawCopies && typeof rawCopies === 'object' && rawCopies.whatsAppText) {
+          updatePayload.whatsAppText = rawCopies.whatsAppText;
+          updatePayload.whatsappText = rawCopies.whatsAppText;
+        }
       }
 
       updatePayload.updatedAt = new Date().toISOString();

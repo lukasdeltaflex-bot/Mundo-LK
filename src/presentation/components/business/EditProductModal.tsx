@@ -30,6 +30,8 @@ const DEFAULT_MARKETPLACE_OPTIONS = [
   { slug: 'geral', name: 'Geral / Outro' },
 ];
 
+import { ChannelContent } from '@/core/domain/value-objects/channel-content.vo';
+
 export function EditProductModal({
   product,
   isOpen,
@@ -46,10 +48,10 @@ export function EditProductModal({
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [processing, setProcessing] = useState(false);
 
-  // Oferta Vinculada & Marketplace da Oferta Comercial
-  const [linkedOffer, setLinkedOffer] = useState<Offer | null>(null);
-  const [marketplaceSlug, setMarketplaceSlug] = useState('shopee');
-  const [marketplaceName, setMarketplaceName] = useState('Shopee');
+  // Lista de Ofertas Vinculadas (Product 1:N Offer)
+  const [linkedOffers, setLinkedOffers] = useState<Offer[]>([]);
+  const [offerDescriptions, setOfferDescriptions] = useState<Record<string, string>>({});
+  const [offerMarketplaces, setOfferMarketplaces] = useState<Record<string, { slug: string; name: string }>>({});
 
   // Taxonomias & Modais Inline
   const [marketplaceOptions, setMarketplaceOptions] = useState(DEFAULT_MARKETPLACE_OPTIONS);
@@ -99,22 +101,36 @@ export function EditProductModal({
       setPreviousPriceAmount(product.previousPrice ? Price.formatBRL(product.previousPrice.amount) : '');
       setMedia(product.media || []);
 
-      const initialMkt = product.marketplaceSlug || 'shopee';
-      setMarketplaceSlug(initialMkt);
-      setMarketplaceName(DEFAULT_MARKETPLACE_OPTIONS.find((m) => m.slug === initialMkt)?.name || 'Shopee');
-
-      // Carrega a oferta vinculada no Firestore para permitir editar o Marketplace da Offer
+      // Carrega TODAS as ofertas vinculadas a este produto (Product 1:N Offer)
       const offerRepo = new FirestoreOfferRepository();
       offerRepo.findByProductId(product.id, user.uid).then((offers) => {
         if (offers && offers.length > 0) {
-          const mainOffer = offers[0];
-          setLinkedOffer(mainOffer);
-          const offerMkt = mainOffer.marketplaceId || initialMkt;
-          setMarketplaceSlug(offerMkt);
-          setMarketplaceName(mainOffer.marketplaceName || DEFAULT_MARKETPLACE_OPTIONS.find((m) => m.slug === offerMkt)?.name || 'Shopee');
+          setLinkedOffers(offers);
+
+          const descMap: Record<string, string> = {};
+          const mktMap: Record<string, { slug: string; name: string }> = {};
+
+          offers.forEach((off) => {
+            const desc =
+              off.copies?.copies?.whatsAppText ||
+              off.copies?.copies?.shortText ||
+              (typeof off.copies === 'string' ? (off.copies as string) : '');
+            descMap[off.id] = desc;
+
+            const slug = off.marketplaceId || product.marketplaceSlug || 'shopee';
+            const name = off.marketplaceName || DEFAULT_MARKETPLACE_OPTIONS.find((m) => m.slug === slug)?.name || 'Shopee';
+            mktMap[off.id] = { slug, name };
+          });
+
+          setOfferDescriptions(descMap);
+          setOfferMarketplaces(mktMap);
+        } else {
+          setLinkedOffers([]);
+          setOfferDescriptions({});
+          setOfferMarketplaces({});
         }
       }).catch((err) => {
-        console.warn('[EditProductModal] Erro ao carregar oferta vinculada:', err);
+        console.warn('[EditProductModal] Erro ao carregar ofertas vinculadas:', err);
       });
     }
   }, [product, isOpen, user?.uid]);
@@ -140,8 +156,6 @@ export function EditProductModal({
         return prev;
       });
 
-      setMarketplaceSlug(created.slug);
-      setMarketplaceName(created.name);
       setNewMarketplaceName('');
       setShowNewMarketplaceModal(false);
     } catch (err: any) {
@@ -228,22 +242,47 @@ export function EditProductModal({
         changes: productChanges,
       });
 
-      // 2. Atualização do Marketplace na Offer Vinculada (Mantendo offer.id e product.id)
-      if (linkedOffer) {
-        const selectedMkt = marketplaceOptions.find((m) => m.slug === marketplaceSlug);
-        const finalMktName = selectedMkt ? selectedMkt.name : marketplaceName.trim();
+      // 2. Atualização 100% Cirúrgica de Cada Offer Vinculada no Firestore (Preservando offer.id e product.id)
+      for (const off of linkedOffers) {
+        const editedDesc = offerDescriptions[off.id];
+        const editedMkt = offerMarketplaces[off.id];
 
-        await updateOfferUseCase.execute({
-          offerId: linkedOffer.id,
-          userId: user.uid,
-          changes: {
-            marketplaceId: marketplaceSlug,
-            marketplaceName: finalMktName,
-          },
-        });
+        const originalDesc =
+          off.copies?.copies?.whatsAppText ||
+          off.copies?.copies?.shortText ||
+          (typeof off.copies === 'string' ? (off.copies as string) : '');
+        const originalMktSlug = off.marketplaceId || product.marketplaceSlug || 'shopee';
+
+        const offerChanges: Record<string, any> = {};
+
+        // SOMENTE adiciona 'copies' ao payload se a descrição foi efetivamente alterada pelo usuário
+        if (editedDesc !== undefined && editedDesc.trim() !== originalDesc.trim()) {
+          const currentCopiesObj = off.copies && off.copies.copies ? off.copies.copies : {};
+          offerChanges.copies = ChannelContent.create({
+            ...currentCopiesObj,
+            whatsAppText: editedDesc.trim(),
+            channelText: editedDesc.trim(),
+          });
+        }
+
+        // SOMENTE adiciona marketplace ao payload se a opção de marketplace foi efetivamente alterada
+        if (editedMkt && editedMkt.slug !== originalMktSlug) {
+          offerChanges.marketplaceId = editedMkt.slug;
+          offerChanges.marketplaceName = editedMkt.name;
+        }
+
+        // Executa o update SOMENTE se houver pelo menos um campo alterado pelo usuário
+        if (Object.keys(offerChanges).length > 0) {
+          console.log(`[EditProductModal] Atualizando cirurgicamente Offer ${off.id} com payload:`, offerChanges);
+          await updateOfferUseCase.execute({
+            offerId: off.id,
+            userId: user.uid,
+            changes: offerChanges as any,
+          });
+        }
       }
 
-      console.log('[EditProductModal] Produto e Oferta atualizados com sucesso. ProductID:', product.id);
+      console.log('[EditProductModal] Produto e Ofertas atualizados com sucesso. ProductID:', product.id);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -274,37 +313,15 @@ export function EditProductModal({
           </button>
         </div>
 
-        {/* Product ID & Editable Marketplace (Pertence à Offer) */}
+        {/* Product ID Header */}
         <div className="bg-slate-950/60 border-b border-slate-800/80 px-6 py-2.5 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
           <span>
             ID do Produto: <strong className="font-mono text-blue-400">{product.id}</strong>
           </span>
-
-          <div className="flex items-center gap-1.5">
-            <ShoppingBag className="h-3.5 w-3.5 text-amber-400" />
-            <span className="font-semibold text-slate-300">Marketplace da Oferta:</span>
-            <select
-              value={marketplaceSlug}
-              onChange={(e) => {
-                const slug = e.target.value;
-                if (slug === 'NEW') {
-                  setShowNewMarketplaceModal(true);
-                } else {
-                  setMarketplaceSlug(slug);
-                  const opt = marketplaceOptions.find((m) => m.slug === slug);
-                  if (opt) setMarketplaceName(opt.name);
-                }
-              }}
-              className="bg-slate-900 border border-slate-700 text-amber-400 font-bold px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-amber-500"
-            >
-              {marketplaceOptions.map((m) => (
-                <option key={m.slug} value={m.slug}>
-                  {m.name}
-                </option>
-              ))}
-              <option value="NEW">➕ Criar Novo Marketplace...</option>
-            </select>
-          </div>
+          <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+            <ShoppingBag className="h-3.5 w-3.5" />
+            {linkedOffers.length} Oferta(s) Vinculada(s)
+          </span>
         </div>
 
         {/* Form Body */}
@@ -412,6 +429,86 @@ export function EditProductModal({
 
           {/* Galeria de Mídias (Imagens e Vídeos) */}
           <ProductMediaGalleryManager media={media} onChange={setMedia} />
+
+          {/* Seção de Ofertas Vinculadas ao Produto (Product 1:N Offer) */}
+          <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <h4 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <ShoppingBag className="h-4 w-4 text-amber-400" />
+                Ofertas Vinculadas ({linkedOffers.length})
+              </h4>
+              <span className="text-[10px] text-slate-400">
+                Edite a descrição e o marketplace de cada oferta de forma isolada
+              </span>
+            </div>
+
+            {linkedOffers.map((off) => {
+              const currentDesc = offerDescriptions[off.id] ?? (
+                off.copies?.copies?.whatsAppText ||
+                off.copies?.copies?.shortText ||
+                (typeof off.copies === 'string' ? (off.copies as string) : '')
+              );
+              const currentMktSlug = offerMarketplaces[off.id]?.slug || off.marketplaceId || 'shopee';
+
+              return (
+                <div key={off.id} className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-amber-400 text-xs flex items-center gap-1">
+                        Marketplace:
+                      </span>
+                      <select
+                        value={currentMktSlug}
+                        onChange={(e) => {
+                          const slug = e.target.value;
+                          if (slug === 'NEW') {
+                            setShowNewMarketplaceModal(true);
+                          } else {
+                            const opt = marketplaceOptions.find((m) => m.slug === slug);
+                            setOfferMarketplaces((prev) => ({
+                              ...prev,
+                              [off.id]: { slug, name: opt ? opt.name : slug }
+                            }));
+                          }
+                        }}
+                        className="bg-slate-950 border border-slate-700 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-amber-500"
+                      >
+                        {marketplaceOptions.map((m) => (
+                          <option key={m.slug} value={m.slug}>
+                            {m.name}
+                          </option>
+                        ))}
+                        <option value="NEW">➕ Criar Novo Marketplace...</option>
+                      </select>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500">ID da Oferta: {off.id}</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Descrição da Oferta ({offerMarketplaces[off.id]?.name || off.marketplaceName || currentMktSlug}):
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={currentDesc}
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        setOfferDescriptions((prev) => ({ ...prev, [off.id]: text }));
+                      }}
+                      placeholder="Digite a descrição da oferta..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition font-sans"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {linkedOffers.length === 0 && (
+              <p className="text-xs text-slate-500 italic text-center py-2">
+                Nenhuma oferta cadastrada vinculada a este produto.
+              </p>
+            )}
+          </div>
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
