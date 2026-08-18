@@ -46,34 +46,35 @@ export class AIService {
     const formattedOldPrice = params.previousPrice ? `R$ ${params.previousPrice.toFixed(2)}` : '';
     const url = params.affiliateUrl.trim();
 
-    // Quando houver chave de API da IA disponível, executa a chamada dinamicamente ao modelo
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (apiKey) {
+    const currPrice = Price.create(params.price);
+    const prevPrice = params.previousPrice ? Price.create(params.previousPrice) : null;
+
+    const productEntity = new Product({
+      id: `prod_copy_${Date.now()}`,
+      userId: 'user_default',
+      title: params.title,
+      description: params.description || params.title,
+      brand: params.brand || '',
+      categoryId: params.category || 'Geral',
+      marketplaceSlug: params.marketplaceSlug || 'desconhecido',
+      originalUrl: url,
+      affiliateUrl: AffiliateLink.create(url),
+      currentPrice: currPrice,
+      previousPrice: prevPrice,
+      discountPercentage: DiscountPercentage.calculate(currPrice, prevPrice),
+      images: [],
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const styleMapped: OfferStyle = (params.style as OfferStyle) || 'explosiva';
+
+    // 1. Tenta Gemini (provider principal)
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (geminiKey) {
       try {
         const adapter = new GeminiAIAdapter();
-        const currPrice = Price.create(params.price);
-        const prevPrice = params.previousPrice ? Price.create(params.previousPrice) : null;
-
-        const productEntity = new Product({
-          id: `prod_copy_${Date.now()}`,
-          userId: 'user_default',
-          title: params.title,
-          description: params.description || params.title,
-          brand: params.brand || '',
-          categoryId: params.category || 'Geral',
-          marketplaceSlug: params.marketplaceSlug || 'desconhecido',
-          originalUrl: url,
-          affiliateUrl: AffiliateLink.create(url),
-          currentPrice: currPrice,
-          previousPrice: prevPrice,
-          discountPercentage: DiscountPercentage.calculate(currPrice, prevPrice),
-          images: [],
-          status: 'ACTIVE',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-
-        const styleMapped: OfferStyle = (params.style as OfferStyle) || 'explosiva';
         const result = await adapter.generateOfferContent(productEntity, styleMapped);
 
         const channelText =
@@ -87,11 +88,32 @@ export class AIService {
           return channelText;
         }
       } catch (err) {
-        console.warn('[AIService] Falha ao gerar via API Gemini, executando formatação assistida:', err);
+        const reason = err instanceof Error ? err.message : String(err);
+        console.warn(`[AIService] Falha no Gemini: ${reason}`);
+
+        // 2. Fallback para OpenRouter
+        if (process.env.OPENROUTER_API_KEY) {
+          try {
+            console.log('[AIService] 🔄 Acionando fallback OpenRouter...');
+            const { OpenRouterAIAdapter } = await import('@/infrastructure/ai/providers/openrouter.adapter');
+            const openRouterAdapter = new OpenRouterAIAdapter();
+            const fallbackResult = await openRouterAdapter.generateOfferContent(
+              productEntity, styleMapped, 'maxima_conversao', 'profissional',
+              undefined, undefined, reason
+            );
+
+            const fbText = fallbackResult.copies.copies.whatsAppText;
+            if (fbText && fbText.trim().length > 0) {
+              return fbText;
+            }
+          } catch (fbErr) {
+            console.warn('[AIService] OpenRouter também falhou:', fbErr);
+          }
+        }
       }
     }
 
-    // Formatação assistida dinâmica baseada nos dados confirmados do produto
+    // 3. Formatação assistida de emergência (sem IA)
     return `🔥 *Oportunidade Imperdível!*\n\n📦 *${params.title}*\n\n💰 Apenas: *${formattedPrice}*${formattedOldPrice ? ` ~(De: ${formattedOldPrice})~` : ''}\n\n✅ Envio rápido e garantia de compra!\n\n👉 *Garanta o seu no link oficial:*\n${url}`;
   }
 

@@ -3,8 +3,9 @@ import { GeminiAIAdapter } from '../providers/gemini.adapter';
 import { OpenAIAdapter } from '../providers/openai.adapter';
 import { ClaudeAIAdapter } from '../providers/claude.adapter';
 import { DeepSeekAIAdapter } from '../providers/deepseek.adapter';
+import { OpenRouterAIAdapter } from '../providers/openrouter.adapter';
 
-export type AIProviderType = 'gemini' | 'openai' | 'claude' | 'deepseek';
+export type AIProviderType = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'openrouter';
 
 /**
  * AI Provider Factory.
@@ -18,6 +19,7 @@ export class AIProviderFactory {
     AIProviderFactory.register(new OpenAIAdapter());
     AIProviderFactory.register(new ClaudeAIAdapter());
     AIProviderFactory.register(new DeepSeekAIAdapter());
+    AIProviderFactory.register(new OpenRouterAIAdapter());
   }
 
   public static register(adapter: IAIProviderAdapter): void {

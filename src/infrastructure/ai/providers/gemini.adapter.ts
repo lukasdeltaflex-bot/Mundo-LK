@@ -134,7 +134,7 @@ export function getStyleTemperature(style: OfferStyle): number {
   }
 }
 
-function buildMarketingPrompt(
+export function buildMarketingPrompt(
   product: Product,
   style: OfferStyle,
   goal: CommercialGoal = 'maxima_conversao',
@@ -532,6 +532,8 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
     throw new Error('GEMINI_API_KEY ou GOOGLE_API_KEY não configurada no servidor Vercel.');
   }
 
+  const timeoutMs = parseInt(process.env.GEMINI_TIMEOUT_MS || '20000', 10);
+
   const candidateModels = [
     'gemini-3.6-flash',
     'gemini-3.5-flash',
@@ -542,12 +544,16 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
   let lastError: Error | null = null;
 
   for (const modelToUse of candidateModels) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -557,6 +563,8 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
           },
         }),
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errText = await response.text();
@@ -578,8 +586,13 @@ async function callGeminiAPI(prompt: string, temperature: number = 0.7): Promise
       console.log(`[GeminiAdapter] ✅ Resposta obtida com sucesso via modelo ${modelToUse}`);
       return { rawText, modelUsed: modelToUse };
     } catch (err) {
-      if (err instanceof Error && err.message.includes('429')) {
-        lastError = err;
+      clearTimeout(timeoutId);
+      if (err instanceof Error && (err.message.includes('429') || err.name === 'AbortError')) {
+        const reason = err.name === 'AbortError'
+          ? `Timeout de ${timeoutMs}ms atingido para o modelo ${modelToUse}`
+          : err.message;
+        console.warn(`[GeminiAdapter] ⚠️ ${reason}. Alternando para próximo modelo...`);
+        lastError = new Error(reason);
         continue;
       }
       throw err;
