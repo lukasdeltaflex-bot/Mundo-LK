@@ -44,7 +44,7 @@ html.dark body {
    LIGHT MODE — Complete overrides for all color classes used in the app
 ═══════════════════════════════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIGHT MODE — Soft, modern, comfortable SaaS/ERP palette (#F5F6F8 background)
+   LIGHT MODE — High-Contrast, Soft, Comfortable SaaS/ERP Palette
 ═══════════════════════════════════════════════════════════════════════════ */
 html.light {
   --background:   #F5F6F8;
@@ -74,10 +74,25 @@ html.light nav {
   border-color: #E5E7EB !important;
 }
 
+/* ── Modal Backdrop Overlays (Preserve dark semi-transparent dimming) ───── */
+html.light .fixed.inset-0.bg-slate-950\/80,
+html.light .fixed.inset-0.bg-slate-950\/90,
+html.light .fixed.inset-0.bg-slate-950\/70,
+html.light .fixed.inset-0.bg-slate-950\/60,
+html.light .fixed.inset-0.bg-slate-950\/50,
+html.light .fixed.inset-0.bg-slate-900\/80,
+html.light .fixed.inset-0.bg-slate-900\/50,
+html.light .fixed.inset-0.bg-black\/50,
+html.light .fixed.inset-0.bg-black\/60,
+html.light .fixed.inset-0.bg-black\/80 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
+
 /* ── Surface Hierarchy — Backgrounds ─────────────────────────────────────── */
 /* Inner dark container boxes, search wrappers, modal panels */
 html.light .bg-slate-950,
 html.light .bg-slate-950\/40,
+html.light .bg-slate-950\/50,
 html.light .bg-slate-950\/60,
 html.light .bg-slate-950\/80 {
   background-color: #F8F9FA !important;
@@ -86,6 +101,7 @@ html.light .bg-slate-950\/80 {
 /* Primary cards, containers, header bars, dropdown menus */
 html.light .bg-slate-900,
 html.light .bg-slate-900\/40,
+html.light .bg-slate-900\/50,
 html.light .bg-slate-900\/60,
 html.light .bg-slate-900\/80,
 html.light .bg-slate-900\/90 {
@@ -95,6 +111,7 @@ html.light .bg-slate-900\/90 {
 /* Sub-containers, filter toolbars, tab bars, secondary cards */
 html.light .bg-slate-800,
 html.light .bg-slate-800\/40,
+html.light .bg-slate-800\/50,
 html.light .bg-slate-800\/60,
 html.light .bg-slate-800\/80 {
   background-color: #F8F9FA !important;
@@ -103,8 +120,59 @@ html.light .bg-slate-800\/80 {
 /* Secondary interactive pills, badges, disabled buttons */
 html.light .bg-slate-700,
 html.light .bg-slate-700\/40,
+html.light .bg-slate-700\/50,
 html.light .bg-slate-700\/60 {
   background-color: #F1F3F5 !important;
+}
+
+/* ── Soft Colored Badges & Tinted Containers ────────────────────────────── */
+html.light .bg-purple-500\/10,
+html.light .bg-purple-500\/15,
+html.light .bg-purple-500\/20,
+html.light .bg-purple-600\/10 {
+  background-color: #F3E8FF !important;
+}
+
+html.light .bg-blue-500\/10,
+html.light .bg-blue-500\/15,
+html.light .bg-blue-500\/20,
+html.light .bg-blue-600\/10 {
+  background-color: #DBEAFE !important;
+}
+
+html.light .bg-emerald-500\/10,
+html.light .bg-emerald-500\/15,
+html.light .bg-emerald-500\/20,
+html.light .bg-emerald-600\/10 {
+  background-color: #D1FAE5 !important;
+}
+
+html.light .bg-amber-500\/10,
+html.light .bg-amber-500\/15,
+html.light .bg-amber-500\/20,
+html.light .bg-amber-600\/10 {
+  background-color: #FEF3C7 !important;
+}
+
+html.light .bg-red-500\/10,
+html.light .bg-red-500\/15,
+html.light .bg-red-500\/20,
+html.light .bg-red-600\/10 {
+  background-color: #FEE2E2 !important;
+}
+
+html.light .bg-sky-500\/10,
+html.light .bg-sky-500\/15,
+html.light .bg-sky-500\/20,
+html.light .bg-sky-600\/10 {
+  background-color: #E0F2FE !important;
+}
+
+html.light .bg-pink-500\/10,
+html.light .bg-pink-500\/15,
+html.light .bg-pink-500\/20,
+html.light .bg-pink-600\/10 {
+  background-color: #FCE7F3 !important;
 }
 
 /* Gradients */
@@ -115,6 +183,28 @@ html.light .to-indigo-950\/40 {
   --tw-gradient-from: #F8FAFC !important;
   --tw-gradient-via: #FFFFFF !important;
   --tw-gradient-to: #F8FAFC !important;
+}
+
+/* ── Solid Primary & Action Buttons (Must keep white text on dark background) ── */
+html.light .bg-blue-600,
+html.light .bg-blue-600 *,
+html.light .bg-blue-700,
+html.light .bg-blue-700 *,
+html.light .bg-emerald-600,
+html.light .bg-emerald-600 *,
+html.light .bg-emerald-700,
+html.light .bg-emerald-700 *,
+html.light .bg-purple-600,
+html.light .bg-purple-600 *,
+html.light .bg-purple-700,
+html.light .bg-purple-700 *,
+html.light .bg-red-600,
+html.light .bg-red-600 *,
+html.light .bg-red-700,
+html.light .bg-red-700 *,
+html.light .bg-indigo-600,
+html.light .bg-indigo-600 * {
+  color: #FFFFFF !important;
 }
 
 /* ── Text Typography Colors ──────────────────────────────────────────────── */
@@ -145,15 +235,46 @@ html.light .text-slate-700 {
   color: #374151 !important;
 }
 
-/* Keep accent/brand colors vibrant with appropriate light mode contrast */
-html.light .text-blue-400 { color: #2563EB !important; }
-html.light .text-blue-300 { color: #1D4ED8 !important; }
-html.light .text-emerald-400 { color: #059669 !important; }
-html.light .text-emerald-300 { color: #047857 !important; }
-html.light .text-amber-400 { color: #D97706 !important; }
-html.light .text-amber-300 { color: #B45309 !important; }
-html.light .text-purple-400 { color: #7C3AED !important; }
-html.light .text-red-400 { color: #DC2626 !important; }
+/* Accent & Brand Colors (Crisp legibility on Light Mode) */
+html.light .text-blue-300,
+html.light .text-blue-400,
+html.light .text-blue-500 { color: #1D4ED8 !important; }
+
+html.light .text-purple-300,
+html.light .text-purple-400,
+html.light .text-purple-500 { color: #6B21A8 !important; }
+
+html.light .text-indigo-300,
+html.light .text-indigo-400,
+html.light .text-indigo-500 { color: #4338CA !important; }
+
+html.light .text-emerald-300,
+html.light .text-emerald-400,
+html.light .text-emerald-500 { color: #047857 !important; }
+
+html.light .text-green-300,
+html.light .text-green-400,
+html.light .text-green-500 { color: #15803D !important; }
+
+html.light .text-amber-300,
+html.light .text-amber-400,
+html.light .text-amber-500 { color: #B45309 !important; }
+
+html.light .text-yellow-300,
+html.light .text-yellow-400,
+html.light .text-yellow-500 { color: #A16207 !important; }
+
+html.light .text-red-300,
+html.light .text-red-400,
+html.light .text-red-500 { color: #B91C1C !important; }
+
+html.light .text-pink-300,
+html.light .text-pink-400,
+html.light .text-pink-500 { color: #BE185D !important; }
+
+html.light .text-sky-300,
+html.light .text-sky-400,
+html.light .text-sky-500 { color: #0369A1 !important; }
 
 /* ── Border & Divider Colors ─────────────────────────────────────────────── */
 html.light .border-slate-900,
@@ -169,6 +290,31 @@ html.light .border-slate-600 {
 html.light .divide-slate-800,
 html.light .divide-slate-700 {
   border-color: #E5E7EB !important;
+}
+
+html.light .border-purple-500\/30,
+html.light .border-purple-500\/20 {
+  border-color: #D8B4FE !important;
+}
+
+html.light .border-blue-500\/30,
+html.light .border-blue-500\/20 {
+  border-color: #93C5FD !important;
+}
+
+html.light .border-emerald-500\/30,
+html.light .border-emerald-500\/20 {
+  border-color: #6EE7B7 !important;
+}
+
+html.light .border-amber-500\/30,
+html.light .border-amber-500\/20 {
+  border-color: #FDE68A !important;
+}
+
+html.light .border-red-500\/30,
+html.light .border-red-500\/20 {
+  border-color: #FCA5A5 !important;
 }
 
 /* ── Inputs & Form Elements ──────────────────────────────────────────────── */
@@ -208,17 +354,27 @@ html.light .card {
 
 /* ── Modals / Dialogs ────────────────────────────────────────────────────── */
 html.light [role="dialog"],
-html.light [data-modal] {
+html.light [data-modal],
+html.light .fixed.inset-0 > div {
   background-color: #FFFFFF !important;
   color: #1F2937 !important;
   border-color: #E5E7EB !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04) !important;
 }
 
-/* Modal backdrop overlay */
-html.light [role="dialog"] ~ div,
-html.light .fixed.inset-0.bg-slate-950\/80 {
-  background-color: rgba(15, 23, 42, 0.4) !important;
+/* Modal Inner Headers and Footers */
+html.light [role="dialog"] .bg-slate-950\/50,
+html.light [role="dialog"] .bg-slate-950\/60,
+html.light [role="dialog"] .bg-slate-950,
+html.light [data-modal] .bg-slate-950\/50,
+html.light [data-modal] .bg-slate-950\/60,
+html.light [data-modal] .bg-slate-950,
+html.light .fixed.inset-0 .bg-slate-950\/50,
+html.light .fixed.inset-0 .bg-slate-950\/60,
+html.light .fixed.inset-0 .bg-slate-950,
+html.light .fixed.inset-0 .bg-slate-900 {
+  background-color: #F8F9FA !important;
+  border-color: #E5E7EB !important;
 }
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
