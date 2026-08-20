@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Tag, Search, Sparkles, Filter, ShieldCheck, Flame, Star,
-  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2, Loader2, Edit2, CheckSquare
+  Clock, Share2, Layers, Heart, TrendingUp, CheckCircle2, Trash2, Loader2, Edit2, CheckSquare,
+  Store, ShoppingBag, X, ArrowUpDown
 } from 'lucide-react';
 import { SmartCategoryBadge } from './components/SmartCategoryBadge';
+import { MarketplaceBadge } from '@/presentation/components/business/MarketplaceBadge';
 import { AffiliateMobileShareSheet } from '../operacao/components/AffiliateMobileShareSheet';
 import { EditOfferModal } from '@/presentation/components/business/EditOfferModal';
 import { BulkEditOffersModal } from '@/presentation/components/business/BulkEditOffersModal';
@@ -16,6 +18,7 @@ import { DiscountPercentage } from '@/core/domain/value-objects/discount-percent
 import { AffiliateLinkResolver } from '@/core/domain/services/AffiliateLinkResolver';
 import { SourceOfTruthService } from '@/core/domain/services/SourceOfTruthService';
 import { SmartOrganizationResult, AffiliateSmartOrganizer } from '@/core/domain/services/AffiliateSmartOrganizer';
+import { CustomTaxonomyService } from '@/core/domain/services/CustomTaxonomyService';
 import { Button } from '@/presentation/components/ui/Button';
 
 import { useAuth } from '@/presentation/context/AuthContext';
@@ -38,17 +41,31 @@ export type DynamicCollectionTab =
   | 'ALTO_POTENCIAL'
   | 'FAVORITAS';
 
+const BASE_MARKETPLACE_LIST = [
+  { slug: 'TODOS', label: 'Todos os Marketplaces', dot: 'bg-slate-400' },
+  { slug: 'shopee', label: 'Shopee', dot: 'bg-orange-500' },
+  { slug: 'mercadolivre', label: 'Mercado Livre', dot: 'bg-yellow-400' },
+  { slug: 'amazon', label: 'Amazon', dot: 'bg-blue-400' },
+  { slug: 'magalu', label: 'Magalu', dot: 'bg-sky-400' },
+  { slug: 'shein', label: 'SHEIN', dot: 'bg-pink-400' },
+  { slug: 'aliexpress', label: 'AliExpress', dot: 'bg-red-500' },
+  { slug: 'geral', label: 'Geral / Outros', dot: 'bg-purple-400' },
+];
+
 export default function OfertasLibraryPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<DynamicCollectionTab>('TODAS');
   const [quickFilter, setQuickFilter] = useState<string>('TODOS');
+  const [selectedMarketplace, setSelectedMarketplace] = useState<string>('TODOS');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOfferForMobile, setSelectedOfferForMobile] = useState<AffiliateOffer | null>(null);
   const [editingOfferData, setEditingOfferData] = useState<{ offer: Offer; productTitle?: string } | null>(null);
   const [selectedOfferIds, setSelectedOfferIds] = useState<string[]>([]);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [customMarketplaces, setCustomMarketplaces] = useState<Array<{ slug: string; label: string; dot: string }>>([]);
 
   const smartOrganizer = AffiliateSmartOrganizer.getInstance();
+  const taxonomyService = useRef(new CustomTaxonomyService()).current;
 
   const [offersData, setOffersData] = useState<
     Array<{
@@ -178,6 +195,55 @@ export default function OfertasLibraryPage() {
     handleUpdateOrganization(offerId, reclassified);
   };
 
+  useEffect(() => {
+    if (user?.uid) {
+      taxonomyService
+        .getCustomMarketplaces(user.uid)
+        .then((customMkts) => {
+          if (customMkts && customMkts.length > 0) {
+            const formatted = customMkts.map((m) => ({
+              slug: m.slug,
+              label: m.name,
+              dot: 'bg-purple-400',
+            }));
+            setCustomMarketplaces(formatted);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.uid]);
+
+  const availableMarketplaces = useMemo(() => {
+    const list = [...BASE_MARKETPLACE_LIST];
+    customMarketplaces.forEach((c) => {
+      if (!list.some((item) => item.slug.toLowerCase() === c.slug.toLowerCase())) {
+        list.push(c);
+      }
+    });
+    return list;
+  }, [customMarketplaces]);
+
+  const marketplaceCounts = useMemo(() => {
+    const counts: Record<string, number> = { TODOS: offersData.length };
+    offersData.forEach(({ offer }) => {
+      const raw = (offer.marketplace || 'geral').toLowerCase().trim();
+      let normalized = 'geral';
+      if (raw.includes('shopee')) normalized = 'shopee';
+      else if (raw.includes('mercadolivre') || raw.includes('mercado livre')) normalized = 'mercadolivre';
+      else if (raw.includes('amazon')) normalized = 'amazon';
+      else if (raw.includes('magalu') || raw.includes('magazine')) normalized = 'magalu';
+      else if (raw.includes('shein')) normalized = 'shein';
+      else if (raw.includes('aliexpress')) normalized = 'aliexpress';
+      else normalized = raw;
+
+      counts[normalized] = (counts[normalized] || 0) + 1;
+      if (raw !== normalized) {
+        counts[raw] = (counts[raw] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [offersData]);
+
   const filteredOffers = offersData.filter(({ offer, product, organization }) => {
     const matchesSearch =
       searchQuery === '' ||
@@ -186,6 +252,24 @@ export default function OfertasLibraryPage() {
       organization.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
+
+    // Filtro por Marketplace
+    if (selectedMarketplace !== 'TODOS') {
+      const rawMkt = (offer.marketplace || 'geral').toLowerCase().trim();
+      const filterMkt = selectedMarketplace.toLowerCase().trim();
+      let normalized = 'geral';
+      if (rawMkt.includes('shopee')) normalized = 'shopee';
+      else if (rawMkt.includes('mercadolivre') || rawMkt.includes('mercado livre')) normalized = 'mercadolivre';
+      else if (rawMkt.includes('amazon')) normalized = 'amazon';
+      else if (rawMkt.includes('magalu') || rawMkt.includes('magazine')) normalized = 'magalu';
+      else if (rawMkt.includes('shein')) normalized = 'shein';
+      else if (rawMkt.includes('aliexpress')) normalized = 'aliexpress';
+      else normalized = rawMkt;
+
+      if (normalized !== filterMkt && rawMkt !== filterMkt) {
+        return false;
+      }
+    }
 
     const dispatchStatus = product ? product.getDispatchStatus() : 'NUNCA_ENVIADA';
 
@@ -224,6 +308,15 @@ export default function OfertasLibraryPage() {
     }
   }, [filteredOffers.length, offersData.length, pagination.hasMore, pagination.loading, activeTab, pagination.nextPage]);
 
+  const hasActiveFilters = searchQuery !== '' || selectedMarketplace !== 'TODOS' || activeTab !== 'TODAS' || quickFilter !== 'TODOS';
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedMarketplace('TODOS');
+    setActiveTab('TODAS');
+    setQuickFilter('TODOS');
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -234,21 +327,81 @@ export default function OfertasLibraryPage() {
             Biblioteca de Ofertas & Inteligência Comercial
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Organização automática por IA com controle humano 100% editável e botão de compartilhamento rápido mobile.
+            Organização automática por IA com controle humano 100% editável, filtro por marketplace e botão de compartilhamento rápido mobile.
           </p>
         </div>
 
-        {/* Busca Instantânea */}
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por nome, tag ou categoria..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
-          />
+        {/* Busca Instantânea & Dropdown Marketplace */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por nome, tag ou categoria..."
+              className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative">
+            <select
+              value={selectedMarketplace}
+              onChange={(e) => setSelectedMarketplace(e.target.value)}
+              className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-blue-500 transition cursor-pointer"
+            >
+              {availableMarketplaces.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.label} ({marketplaceCounts[m.slug] ?? 0})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+      </div>
+
+      {/* ─── FILTRO POR MARKETPLACE (PILLS COM CONTADOR) ─────────────────────────── */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <span className="text-[10px] font-bold text-slate-500 uppercase px-1 shrink-0 flex items-center gap-1">
+          <Store className="h-3.5 w-3.5 text-blue-400" /> Marketplaces:
+        </span>
+        {availableMarketplaces.map((mkt) => {
+          const count = marketplaceCounts[mkt.slug] ?? 0;
+          const isSelected = selectedMarketplace.toLowerCase() === mkt.slug.toLowerCase();
+          return (
+            <button
+              key={mkt.slug}
+              onClick={() => setSelectedMarketplace(mkt.slug)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition border ${
+                isSelected
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/80'
+              }`}
+            >
+              {mkt.slug !== 'TODOS' && (
+                <span className={`h-2 w-2 rounded-full ${mkt.dot} shrink-0`} />
+              )}
+              <span>{mkt.label}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  isSelected
+                    ? 'bg-blue-800/90 text-white border border-blue-400/40'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ─── COLEÇÕES DINÂMICAS (ABAS DE COLEÇÃO) ─────────────────────────────── */}
@@ -331,97 +484,121 @@ export default function OfertasLibraryPage() {
         </div>
       )}
 
-      {/* ─── LISTA / GRID DE OFERTAS ORGANIZADAS ────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredOffers.map(({ offer, organization }) => (
-          <div key={offer.id} className={`rounded-2xl border ${selectedOfferIds.includes(offer.id) ? 'border-purple-500/60 bg-purple-950/10' : 'border-slate-800 bg-slate-900'} p-4 space-y-3 flex flex-col justify-between shadow-xl transition`}>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={selectedOfferIds.includes(offer.id)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedOfferIds((prev) => [...prev, offer.id]);
-                    } else {
-                      setSelectedOfferIds((prev) => prev.filter((id) => id !== offer.id));
-                    }
-                  }}
-                  className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
-                />
-                <img
-                  src={offer.productData.images.main}
-                  alt={offer.productData.title}
-                  className="h-16 w-16 rounded-xl object-cover border border-slate-800 shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="rounded bg-slate-800 px-2 py-0.5 text-[9px] font-bold text-slate-400 uppercase">
-                      {offer.marketplace}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteOffer(offer.id, offer.productData.title)}
-                      className="text-slate-500 hover:text-red-400 p-0.5 transition"
-                      title="Excluir Oferta"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <h3 className="text-xs font-bold text-white line-clamp-2 mt-1">{offer.productData.title}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-extrabold text-emerald-400">
-                      R$ {offer.pricing.currentPrice.toFixed(2)}
-                    </span>
-                    {offer.pricing.originalPrice && (
-                      <span className="text-xs text-slate-500 line-through">
-                        R$ {offer.pricing.originalPrice.toFixed(2)}
+      {/* ─── LISTA / GRID DE OFERTAS ORGANIZADAS OU EMPTY STATE ────────────────────────────── */}
+      {filteredOffers.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 p-12 text-center shadow-xl">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-500/20 bg-blue-600/10 text-blue-400">
+            <ShoppingBag className="h-8 w-8" />
+          </div>
+          <h3 className="mb-1 text-lg font-bold text-white">Nenhuma oferta encontrada</h3>
+          <p className="mx-auto mb-6 max-w-md text-xs text-slate-400">
+            {hasActiveFilters
+              ? 'Nenhuma oferta corresponde aos filtros de busca, marketplace ou coleção selecionados.'
+              : 'Você ainda não possui ofertas cadastradas na biblioteca.'}
+          </p>
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleClearFilters}
+              leftIcon={<X className="h-3.5 w-3.5" />}
+              className="text-xs"
+            >
+              Limpar Filtros
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredOffers.map(({ offer, organization }) => (
+            <div key={offer.id} className={`rounded-2xl border ${selectedOfferIds.includes(offer.id) ? 'border-purple-500/60 bg-purple-950/10' : 'border-slate-800 bg-slate-900'} p-4 space-y-3 flex flex-col justify-between shadow-xl transition`}>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedOfferIds.includes(offer.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedOfferIds((prev) => [...prev, offer.id]);
+                      } else {
+                        setSelectedOfferIds((prev) => prev.filter((id) => id !== offer.id));
+                      }
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
+                  />
+                  <img
+                    src={offer.productData.images.main}
+                    alt={offer.productData.title}
+                    className="h-16 w-16 rounded-xl object-cover border border-slate-800 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <MarketplaceBadge marketplaceSlug={offer.marketplace} />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOffer(offer.id, offer.productData.title)}
+                        className="text-slate-500 hover:text-red-400 p-0.5 transition"
+                        title="Excluir Oferta"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <h3 className="text-xs font-bold text-white line-clamp-2 mt-1">{offer.productData.title}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm font-extrabold text-emerald-400">
+                        R$ {offer.pricing.currentPrice.toFixed(2)}
                       </span>
-                    )}
+                      {offer.pricing.originalPrice && (
+                        <span className="text-xs text-slate-500 line-through">
+                          R$ {offer.pricing.originalPrice.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Componente de Sugestão da IA (100% Editável + Histórico) */}
+                <SmartCategoryBadge
+                  organization={organization}
+                  onUpdate={(updated) => handleUpdateOrganization(offer.id, updated)}
+                  onReclassifyWithAI={() => handleReclassifyWithAI(offer.id)}
+                />
               </div>
 
-              {/* Componente de Sugestão da IA (100% Editável + Histórico) */}
-              <SmartCategoryBadge
-                organization={organization}
-                onUpdate={(updated) => handleUpdateOrganization(offer.id, updated)}
-                onReclassifyWithAI={() => handleReclassifyWithAI(offer.id)}
-              />
-            </div>
+              {/* Ações de Oferta: Compartilhar & Editar */}
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const rawOffer = pagination.items.find((o) => o.id === offer.id);
+                    if (rawOffer) {
+                      setEditingOfferData({ offer: rawOffer, productTitle: offer.productData.title });
+                    }
+                  }}
+                  leftIcon={<Edit2 className="h-3.5 w-3.5 text-amber-400" />}
+                  className="border-amber-500/20 text-amber-300 hover:bg-amber-600/10 text-xs py-2"
+                >
+                  Editar Oferta
+                </Button>
 
-            {/* Ações de Oferta: Compartilhar & Editar */}
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const rawOffer = pagination.items.find((o) => o.id === offer.id);
-                  if (rawOffer) {
-                    setEditingOfferData({ offer: rawOffer, productTitle: offer.productData.title });
-                  }
-                }}
-                leftIcon={<Edit2 className="h-3.5 w-3.5 text-amber-400" />}
-                className="border-amber-500/20 text-amber-300 hover:bg-amber-600/10 text-xs py-2"
-              >
-                Editar Oferta
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedOfferForMobile(offer)}
-                leftIcon={<Share2 className="h-3.5 w-3.5 text-blue-400" />}
-                className="border-blue-500/20 text-blue-300 hover:bg-blue-600/10 text-xs py-2"
-              >
-                Compartilhar
-              </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedOfferForMobile(offer)}
+                  leftIcon={<Share2 className="h-3.5 w-3.5 text-blue-400" />}
+                  className="border-blue-500/20 text-blue-300 hover:bg-blue-600/10 text-xs py-2"
+                >
+                  Compartilhar
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Pagination Controls ──────────────────────────────────────────────── */}
       <PaginationControls
