@@ -397,6 +397,7 @@ export function EditOfferModal({
         product.images = updatedImages;
         product.categoryId = category.trim() || product.categoryId;
         product.media = mediaList;
+        product.marketplaceSlug = marketplaceSlug;
 
         await productRepo.save(product);
       }

@@ -99,8 +99,8 @@ export class Product {
   public description: string;
   public brand: string;
   public categoryId: string;
-  public readonly marketplaceSlug: string;
-  public readonly originalUrl: string;
+  public marketplaceSlug: string;
+  public originalUrl: string;
   public affiliateUrl: AffiliateLink;
   public currentPrice: Price;
   public previousPrice?: Price | null;

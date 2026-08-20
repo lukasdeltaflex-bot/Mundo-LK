@@ -85,6 +85,13 @@ export function BulkEditOffersModal({
           changes,
         });
 
+        if (offer.productId) {
+          const prodRepo = new (await import('@/infrastructure/firebase/repositories/firestore-product.repository')).FirestoreProductRepository();
+          await prodRepo.update(offer.productId, {
+            marketplaceSlug: targetMarketplaceSlug,
+          }).catch((e) => console.warn('[BulkEdit] Erro ao sincronizar produto:', e));
+        }
+
         updated++;
       } catch (err: any) {
         conflicts.push({

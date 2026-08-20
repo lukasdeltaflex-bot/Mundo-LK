@@ -13,7 +13,8 @@ export class FirestoreOfferRepository implements IOfferRepository {
       const ref = doc(db, this.collectionName, id);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        return OfferMapper.toDomain(snap.data() as FirestoreOfferDoc);
+        const data = snap.data() as FirestoreOfferDoc;
+        return OfferMapper.toDomain({ ...data, id: data.id || snap.id });
       }
       return null;
     } catch (err) {
@@ -28,7 +29,10 @@ export class FirestoreOfferRepository implements IOfferRepository {
       if (userId) constraints.push(where('userId', '==', userId));
       const q = query(collection(db, this.collectionName), ...constraints, limit(50));
       const snap = await getDocs(q);
-      return snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
+      return snap.docs.map((docSnap) => {
+        const data = docSnap.data() as FirestoreOfferDoc;
+        return OfferMapper.toDomain({ ...data, id: data.id || docSnap.id });
+      });
     } catch (err) {
       console.warn('[FirestoreOfferRepository] findByProductId error:', err);
       return [];
@@ -42,7 +46,10 @@ export class FirestoreOfferRepository implements IOfferRepository {
 
       const snap = await getDocs(q);
 
-      const items = snap.docs.map((docSnap) => OfferMapper.toDomain(docSnap.data() as FirestoreOfferDoc));
+      const items = snap.docs.map((docSnap) => {
+        const data = docSnap.data() as FirestoreOfferDoc;
+        return OfferMapper.toDomain({ ...data, id: data.id || docSnap.id });
+      });
       return items.sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
     } catch (err: any) {
 
@@ -188,7 +195,11 @@ export class FirestoreOfferRepository implements IOfferRepository {
       if (offerChanges.scoreJustification !== undefined) updatePayload.scoreJustification = offerChanges.scoreJustification;
       if (offerChanges.cta !== undefined) updatePayload.cta = offerChanges.cta;
       if (offerChanges.hashtags !== undefined) updatePayload.hashtags = offerChanges.hashtags;
-      if (offerChanges.marketplaceId !== undefined) updatePayload.marketplaceId = offerChanges.marketplaceId;
+      if (offerChanges.marketplaceId !== undefined) {
+        updatePayload.marketplaceId = offerChanges.marketplaceId;
+        updatePayload.marketplace = offerChanges.marketplaceId;
+        updatePayload.marketplaceSlug = offerChanges.marketplaceId;
+      }
       if (offerChanges.marketplaceName !== undefined) updatePayload.marketplaceName = offerChanges.marketplaceName;
       if (offerChanges.media !== undefined) updatePayload.media = offerChanges.media;
       if (offerChanges.copies !== undefined) {
