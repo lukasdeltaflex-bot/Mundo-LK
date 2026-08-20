@@ -29,12 +29,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50 rounded-lg';
 
     const variants = {
-      primary: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 shadow-sm',
-      secondary: 'bg-slate-800 text-slate-100 hover:bg-slate-700 active:bg-slate-900 border border-slate-700',
-      outline: 'border border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800',
-      ghost: 'bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white',
-      danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800',
-      success: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 shadow-sm',
+      primary: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus-visible:ring-blue-500 shadow-sm font-semibold',
+      secondary: 'bg-slate-200 text-slate-900 hover:bg-slate-300 active:bg-slate-400 border border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:active:bg-slate-900 dark:border-slate-700 font-semibold',
+      outline: 'border border-slate-400 bg-white text-slate-800 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-transparent dark:text-slate-200 dark:hover:bg-slate-800 font-semibold',
+      ghost: 'bg-transparent text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white font-medium',
+      danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 font-semibold shadow-sm',
+      success: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 focus-visible:ring-emerald-500 font-semibold shadow-sm',
     };
 
     const sizes = {
