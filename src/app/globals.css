@@ -507,6 +507,27 @@ html.light .bg-gradient-to-r {
   background-image: linear-gradient(to right, #DBEAFE, #FFFFFF, #EDE9FE) !important;
 }
 
+/* Count badge inside active blue button */
+html.light button.bg-blue-600 span[class*="rounded-full"],
+html.light button[class*="bg-blue-600"] span[class*="rounded-full"],
+html.light .bg-blue-600 span[class*="rounded-full"],
+html.light button.bg-blue-600 span[class*="bg-slate-950"],
+html.light button[class*="bg-blue-600"] span[class*="bg-slate-950"] {
+  background-color: #1E40AF !important;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Count badge inside inactive button */
+html.light button:not([class*="bg-blue-600"]) span[class*="rounded-full"],
+html.light button:not([class*="bg-blue-600"]) span[class*="bg-slate-950"] {
+  background-color: #E2E8F0 !important;
+  color: #0F172A !important;
+  font-weight: 700 !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
 /* ── 10. Typography Colors & High-Contrast Hierarchy ─────────────────────── */
 html.light h1,
 html.light h2,
@@ -514,7 +535,13 @@ html.light h3,
 html.light h4,
 html.light h5,
 html.light label,
-html.light .font-bold:not(.bg-blue-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-purple-600) {
+html.light .font-bold:not(.bg-blue-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-purple-600),
+html.light .font-extrabold:not(.bg-blue-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-purple-600):not([class*="text-emerald"]):not([class*="text-blue"]):not([class*="text-amber"]):not([class*="text-red"]):not([class*="text-purple"]) {
+  color: #0F172A !important;
+}
+
+/* General text-white override for cards, body, and metrics (excluding solid colored action buttons and gradients) */
+html.light .text-white:not(button):not(a):not(.bg-blue-600 *):not(.bg-emerald-600 *):not(.bg-red-600 *):not(.bg-purple-600 *):not(.bg-indigo-600 *):not([class*="bg-gradient-to"] *) {
   color: #0F172A !important;
 }
 

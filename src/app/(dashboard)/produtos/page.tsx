@@ -786,7 +786,13 @@ export default function ProdutosPage() {
         >
           <ShoppingBag className="h-3.5 w-3.5" />
           <span>Catálogo & Ofertas</span>
-          <span className="rounded-full bg-slate-950/60 px-2 py-0.5 text-[10px]">{products.length}</span>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+            activeTab === 'catalogo'
+              ? 'bg-blue-800/80 text-white border border-blue-400/30'
+              : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-950/60 dark:text-slate-300 dark:border-transparent'
+          }`}>
+            {products.length}
+          </span>
         </button>
 
         <button
@@ -799,7 +805,11 @@ export default function ProdutosPage() {
         >
           <Tag className="h-3.5 w-3.5" />
           <span>Central de Categorias</span>
-          <span className="rounded-full bg-slate-950/60 px-2 py-0.5 text-[10px]">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+            activeTab === 'categorias'
+              ? 'bg-blue-800/80 text-white border border-blue-400/30'
+              : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-950/60 dark:text-slate-300 dark:border-transparent'
+          }`}>
             {categories.filter((c) => !c.parentCategoryId).length}
           </span>
         </button>
@@ -817,40 +827,40 @@ export default function ProdutosPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-3.5 flex flex-col justify-between shadow-sm">
           <span className="text-[11px] font-semibold text-slate-400">📦 Total Ofertas</span>
-          <div className="text-xl font-extrabold text-white mt-1">{campaignStats.total}</div>
+          <div className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">{campaignStats.total}</div>
         </div>
 
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 flex flex-col justify-between shadow-sm">
-          <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+          <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
             🟢 Nunca Enviadas
           </span>
-          <div className="text-xl font-extrabold text-emerald-300 mt-1">{campaignStats.nuncaEnviadas}</div>
+          <div className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">{campaignStats.nuncaEnviadas}</div>
         </div>
 
         <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3.5 flex flex-col justify-between shadow-sm">
-          <span className="text-[11px] font-semibold text-blue-400 flex items-center gap-1">
+          <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1">
             🔵 Enviadas Hoje
           </span>
-          <div className="text-xl font-extrabold text-blue-300 mt-1">{campaignStats.enviadasHoje}</div>
+          <div className="text-xl font-extrabold text-blue-700 dark:text-blue-300 mt-1">{campaignStats.enviadasHoje}</div>
         </div>
 
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex flex-col justify-between shadow-sm">
-          <span className="text-[11px] font-semibold text-amber-400 flex items-center gap-1">
+          <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
             🟡 Prontas (&gt;15d)
           </span>
-          <div className="text-xl font-extrabold text-amber-300 mt-1">{campaignStats.candidatasReenvio}</div>
+          <div className="text-xl font-extrabold text-amber-700 dark:text-amber-300 mt-1">{campaignStats.candidatasReenvio}</div>
         </div>
 
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3.5 flex flex-col justify-between shadow-sm">
-          <span className="text-[11px] font-semibold text-red-400 flex items-center gap-1">
+          <span className="text-[11px] font-semibold text-red-700 dark:text-red-400 flex items-center gap-1">
             🔴 Recentes (&lt;3d)
           </span>
-          <div className="text-xl font-extrabold text-red-300 mt-1">{campaignStats.enviadasRecentes}</div>
+          <div className="text-xl font-extrabold text-red-700 dark:text-red-300 mt-1">{campaignStats.enviadasRecentes}</div>
         </div>
 
         <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-3.5 flex flex-col justify-between shadow-sm">
-          <span className="text-[11px] font-semibold text-purple-400">📊 Média de Envios</span>
-          <div className="text-xl font-extrabold text-purple-300 mt-1">{campaignStats.averageDispatches}x</div>
+          <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-400">📊 Média de Envios</span>
+          <div className="text-xl font-extrabold text-purple-700 dark:text-purple-300 mt-1">{campaignStats.averageDispatches}x</div>
         </div>
       </div>
 
@@ -964,7 +974,13 @@ export default function ProdutosPage() {
               }`}
             >
               <span>Todos</span>
-              <span className="rounded-full bg-slate-950/60 px-1.5 py-0.5 text-[10px]">{products.length}</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                selectedCategory === 'TODAS'
+                  ? 'bg-blue-800/80 text-white border border-blue-400/30'
+                  : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-950/60 dark:text-slate-300 dark:border-transparent'
+              }`}>
+                {products.length}
+              </span>
             </button>
             {categories
               .filter((c) => !c.parentCategoryId && c.active)
@@ -982,7 +998,13 @@ export default function ProdutosPage() {
                     }`}
                   >
                     <span>{cat.name}</span>
-                    <span className="rounded-full bg-slate-950/60 px-1.5 py-0.5 text-[10px]">{count}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      isSelected
+                        ? 'bg-blue-800/80 text-white border border-blue-400/30'
+                        : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-950/60 dark:text-slate-300 dark:border-transparent'
+                    }`}>
+                      {count}
+                    </span>
                   </button>
                 );
               })}
