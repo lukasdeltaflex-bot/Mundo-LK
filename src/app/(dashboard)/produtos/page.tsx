@@ -10,7 +10,7 @@ import {
   ShoppingBag, Plus, Layers, Sparkles, Trash2, X, AlertTriangle, CheckCircle2,
   Search, LayoutGrid, List, Filter, Copy, ExternalLink, RefreshCw, ChevronLeft, ChevronRight,
   TrendingDown, Tag, Clock, ArrowUpDown, Image as ImageIcon, Check, Send, History, AlertCircle,
-  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2, ChevronDown, Lock, Unlock, Settings, Edit2
+  Radio, BarChart3, ShieldAlert, Sparkle, Flame, Zap, Share2, ChevronDown, Lock, Unlock, Settings, Edit2, Store
 } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '@/core/domain/entities/category.entity';
 import { FirestoreProductRepository } from '@/infrastructure/firebase/repositories/firestore-product.repository';
@@ -169,16 +169,17 @@ const LS_SORT = 'mundo_lk_products_sort';
 const LS_MARKETPLACE = 'mundo_lk_products_mkt';
 
 const MARKETPLACES_LIST = [
-  { slug: 'TODOS', name: 'Todos os Marketplaces' },
-  { slug: 'shopee', name: 'Shopee' },
-  { slug: 'mercadolivre', name: 'Mercado Livre' },
-  { slug: 'amazon', name: 'Amazon' },
-  { slug: 'magalu', name: 'Magalu (Magaz. Luiza)' },
-  { slug: 'shein', name: 'SHEIN' },
-  { slug: 'aliexpress', name: 'AliExpress' },
-  { slug: 'tiktok', name: 'TikTok Shop' },
-  { slug: 'casasbahia', name: 'Casas Bahia' },
-  { slug: 'kabum', name: 'KabuM!' },
+  { slug: 'TODOS', name: 'Todos os Marketplaces', dot: 'bg-slate-400' },
+  { slug: 'shopee', name: 'Shopee', dot: 'bg-orange-500' },
+  { slug: 'mercadolivre', name: 'Mercado Livre', dot: 'bg-yellow-400' },
+  { slug: 'amazon', name: 'Amazon', dot: 'bg-blue-400' },
+  { slug: 'magalu', name: 'Magalu', dot: 'bg-sky-400' },
+  { slug: 'shein', name: 'SHEIN', dot: 'bg-pink-400' },
+  { slug: 'aliexpress', name: 'AliExpress', dot: 'bg-red-500' },
+  { slug: 'tiktok', name: 'TikTok Shop', dot: 'bg-cyan-400' },
+  { slug: 'casasbahia', name: 'Casas Bahia', dot: 'bg-blue-500' },
+  { slug: 'kabum', name: 'KabuM!', dot: 'bg-amber-500' },
+  { slug: 'geral', name: 'Geral / Outros', dot: 'bg-purple-400' },
 ];
 
 export default function ProdutosPage() {
@@ -541,6 +542,30 @@ export default function ProdutosPage() {
     products.forEach((p) => {
       if (p.categoryId) {
         counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [products]);
+
+  const realMarketplaceCounts = useMemo(() => {
+    const counts: Record<string, number> = { TODOS: products.length };
+    products.forEach((p) => {
+      const raw = (p.marketplaceSlug || 'geral').toLowerCase().trim();
+      let normalized = 'geral';
+      if (raw.includes('shopee')) normalized = 'shopee';
+      else if (raw.includes('mercadolivre') || raw.includes('mercado livre')) normalized = 'mercadolivre';
+      else if (raw.includes('amazon')) normalized = 'amazon';
+      else if (raw.includes('magalu') || raw.includes('magazine')) normalized = 'magalu';
+      else if (raw.includes('shein')) normalized = 'shein';
+      else if (raw.includes('aliexpress')) normalized = 'aliexpress';
+      else if (raw.includes('tiktok')) normalized = 'tiktok';
+      else if (raw.includes('casasbahia') || raw.includes('via')) normalized = 'casasbahia';
+      else if (raw.includes('kabum')) normalized = 'kabum';
+      else normalized = raw;
+
+      counts[normalized] = (counts[normalized] || 0) + 1;
+      if (raw !== normalized) {
+        counts[raw] = (counts[raw] || 0) + 1;
       }
     });
     return counts;
@@ -965,6 +990,9 @@ export default function ProdutosPage() {
 
           {/* ── Real Firestore Derived Category Counters Tab Bar ───────────────── */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[10px] font-bold text-slate-500 uppercase px-2 shrink-0 flex items-center gap-1">
+              <Tag className="h-3 w-3 text-blue-400" /> Categorias:
+            </span>
             <button
               onClick={() => { setSelectedCategory('TODAS'); setCurrentPage(1); }}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
@@ -1010,6 +1038,40 @@ export default function ProdutosPage() {
               })}
           </div>
 
+          {/* ── Marketplace Filter Tab Bar ────────────────────────────────────────── */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[10px] font-bold text-slate-500 uppercase px-2 shrink-0 flex items-center gap-1">
+              <Store className="h-3.5 w-3.5 text-amber-400" /> Marketplaces:
+            </span>
+            {MARKETPLACES_LIST.map((mkt) => {
+              const count = realMarketplaceCounts[mkt.slug] ?? 0;
+              const isSelected = selectedMarketplace.toLowerCase() === mkt.slug.toLowerCase();
+              return (
+                <button
+                  key={mkt.slug}
+                  onClick={() => handleMarketplaceChange(mkt.slug)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 border ${
+                    isSelected
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                >
+                  {mkt.slug !== 'TODOS' && <span className={`h-2 w-2 rounded-full ${mkt.dot} shrink-0`} />}
+                  <span>{mkt.name}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      isSelected
+                        ? 'bg-blue-800/90 text-white border border-blue-400/40'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* ── Search, Filters & View Control Bar ─────────────────────────────── */}
           <div className="space-y-3">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 shadow-md">
@@ -1035,6 +1097,22 @@ export default function ProdutosPage() {
 
               {/* Quick Filters */}
               <div className="flex flex-wrap items-center gap-2">
+                {/* Marketplace Selector Dropdown */}
+                <div className="relative flex items-center">
+                  <Store className="absolute left-3 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  <select
+                    value={selectedMarketplace}
+                    onChange={(e) => handleMarketplaceChange(e.target.value)}
+                    className="pl-8 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-slate-300 focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    {MARKETPLACES_LIST.map((m) => (
+                      <option key={m.slug} value={m.slug}>
+                        {m.name} ({realMarketplaceCounts[m.slug] ?? 0})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Category Source & Lock Filter */}
                 <select
                   value={selectedCategorySourceFilter}
