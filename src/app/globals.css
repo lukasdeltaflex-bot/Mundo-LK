@@ -872,3 +872,242 @@ img, video, canvas, svg {
   -webkit-overflow-scrolling: touch;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE — MODAL & DIALOG INTERIOR DEEP FIX
+   Corrige baixa visibilidade em todos os quadros/modais no modo claro.
+   Prioridade máxima — aplicado após todos os outros overrides.
+   Problemas cobertos:
+   1. bg-slate-900/950 internos ao modal (header, body, footer, selects)
+   2. Texto colorido claro dentro de badges coloridos (text-blue-200/300, etc.)
+   3. Botões pill com cores suaves (amber/20, emerald/20, blue/20)
+   4. Labels, placeholders e textos auxiliares (text-slate-400/300)
+   5. Botões ghost/fechar dentro de modais
+   6. Banners de aviso (amber, blue, emerald, red) com texto correto
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Containers internos de modais ───────────────────────────────────── */
+/* Garante que sub-divs escuras dentro do modal recebam fundo branco/claro */
+html.light .fixed.inset-0 > div .bg-slate-900,
+html.light .fixed.inset-0 > div .bg-slate-950,
+html.light .fixed.inset-0 > div [class*="bg-slate-900"],
+html.light .fixed.inset-0 > div [class*="bg-slate-950"] {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+/* Footer e header interno dos modais com bg-slate-950/40 */
+html.light .fixed.inset-0 > div div[class*="border-t"],
+html.light .fixed.inset-0 > div div[class*="border-b"] {
+  border-color: #CBD5E1 !important;
+}
+
+/* ── 2. Texto claro dentro de banners coloridos (modo claro) ────────────── */
+/* Banner Amber/Amarelo */
+html.light [class*="bg-amber-500/10"] .text-white,
+html.light [class*="bg-amber-500/10"] [class*="text-white"],
+html.light .bg-amber-500\/10 .text-white {
+  color: #78350F !important;
+}
+
+html.light [class*="bg-amber-500/10"] .text-amber-300,
+html.light [class*="bg-amber-500/10"] [class*="text-amber-300"],
+html.light [class*="bg-amber-500/10"] .text-amber-400,
+html.light [class*="bg-amber-500/10"] [class*="text-amber-400"] {
+  color: #92400E !important;
+}
+
+html.light [class*="bg-amber-500/10"] .text-slate-300,
+html.light [class*="bg-amber-500/10"] [class*="text-slate-300"] {
+  color: #78350F !important;
+}
+
+/* Banner Azul */
+html.light [class*="bg-blue-500/10"] .text-white,
+html.light [class*="bg-blue-500/10"] [class*="text-white"],
+html.light [class*="bg-blue-600/10"] .text-white,
+html.light [class*="bg-blue-600/10"] [class*="text-white"] {
+  color: #1E3A8A !important;
+}
+
+html.light [class*="bg-blue-500/10"] .text-blue-200,
+html.light [class*="bg-blue-500/10"] .text-blue-300,
+html.light [class*="bg-blue-500/10"] [class*="text-blue-200"],
+html.light [class*="bg-blue-500/10"] [class*="text-blue-300"],
+html.light [class*="bg-blue-600/10"] .text-blue-200,
+html.light [class*="bg-blue-600/10"] .text-blue-300 {
+  color: #1D4ED8 !important;
+}
+
+html.light [class*="bg-blue-500/10"] .text-emerald-400,
+html.light [class*="bg-blue-500/10"] [class*="text-emerald-400"] {
+  color: #065F46 !important;
+}
+
+/* Banner Emerald/Verde */
+html.light [class*="bg-emerald-500/10"] .text-white,
+html.light [class*="bg-emerald-500/10"] [class*="text-white"],
+html.light [class*="bg-emerald-600/10"] .text-white {
+  color: #065F46 !important;
+}
+
+html.light [class*="bg-emerald-500/10"] .text-emerald-300,
+html.light [class*="bg-emerald-500/10"] .text-emerald-400,
+html.light [class*="bg-emerald-500/10"] [class*="text-emerald-300"],
+html.light [class*="bg-emerald-500/10"] [class*="text-emerald-400"] {
+  color: #065F46 !important;
+}
+
+/* Banner Vermelho */
+html.light [class*="bg-red-500/10"] .text-white,
+html.light [class*="bg-red-500/10"] [class*="text-white"],
+html.light [class*="bg-red-600/10"] .text-white {
+  color: #7F1D1D !important;
+}
+
+html.light [class*="bg-red-500/10"] .text-red-300,
+html.light [class*="bg-red-500/10"] .text-red-400,
+html.light [class*="bg-red-500/10"] [class*="text-red-300"],
+html.light [class*="bg-red-500/10"] [class*="text-red-400"] {
+  color: #991B1B !important;
+}
+
+/* ── 3. Botões pill com cores suaves ────────────────────────────────────── */
+/* Pill Amber ativo (bg-amber-500/20 border-amber-500) */
+html.light button[class*="bg-amber-500/20"],
+html.light button[class*="bg-amber-500\/20"] {
+  background-color: #FEF3C7 !important;
+  border-color: #D97706 !important;
+  color: #92400E !important;
+}
+
+html.light button[class*="bg-amber-500/20"] .text-amber-300,
+html.light button[class*="bg-amber-500/20"] svg {
+  color: #92400E !important;
+}
+
+/* Pill Emerald ativo (bg-emerald-500/20 border-emerald-500) */
+html.light button[class*="bg-emerald-500/20"],
+html.light button[class*="bg-emerald-500\/20"] {
+  background-color: #D1FAE5 !important;
+  border-color: #059669 !important;
+  color: #065F46 !important;
+}
+
+html.light button[class*="bg-emerald-500/20"] .text-emerald-300,
+html.light button[class*="bg-emerald-500/20"] svg {
+  color: #065F46 !important;
+}
+
+/* Pill Blue ativo (bg-blue-600/20 border-blue-500) */
+html.light button[class*="bg-blue-600/20"],
+html.light button[class*="bg-blue-600\/20"] {
+  background-color: #DBEAFE !important;
+  border-color: #2563EB !important;
+  color: #1D4ED8 !important;
+}
+
+html.light button[class*="bg-blue-600/20"] .text-blue-300,
+html.light button[class*="bg-blue-600/20"] svg {
+  color: #1D4ED8 !important;
+}
+
+/* ── 4. Texto auxiliar dentro de modais ─────────────────────────────────── */
+html.light .fixed.inset-0 > div .text-slate-400,
+html.light .fixed.inset-0 > div [class*="text-slate-400"] {
+  color: #475569 !important;
+}
+
+html.light .fixed.inset-0 > div .text-slate-300,
+html.light .fixed.inset-0 > div [class*="text-slate-300"] {
+  color: #334155 !important;
+}
+
+html.light .fixed.inset-0 > div .text-slate-200,
+html.light .fixed.inset-0 > div [class*="text-slate-200"] {
+  color: #1E293B !important;
+}
+
+html.light .fixed.inset-0 > div .text-slate-100,
+html.light .fixed.inset-0 > div [class*="text-slate-100"] {
+  color: #0F172A !important;
+}
+
+html.light .fixed.inset-0 > div .text-white:not(button):not(a) {
+  color: #0F172A !important;
+}
+
+/* ── 5. Inputs e selects dentro de modais ───────────────────────────────── */
+html.light .fixed.inset-0 > div select,
+html.light .fixed.inset-0 > div input:not([type="checkbox"]):not([type="radio"]),
+html.light .fixed.inset-0 > div textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #94A3B8 !important;
+}
+
+/* ── 6. Botões ghost/fechar dentro de modais ────────────────────────────── */
+html.light .fixed.inset-0 > div button[class*="text-slate-400"] {
+  color: #475569 !important;
+}
+
+html.light .fixed.inset-0 > div button[class*="hover:bg-slate-800"]:hover,
+html.light .fixed.inset-0 > div button[class*="hover:bg-slate-700"]:hover {
+  background-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+/* ── 7. Labels dentro de modais ─────────────────────────────────────────── */
+html.light .fixed.inset-0 > div label {
+  color: #334155 !important;
+}
+
+/* ── 8. Ícones SVG dentro de banners coloridos ─────────────────────────── */
+html.light [class*="bg-amber-500/10"] svg { color: #B45309 !important; }
+html.light [class*="bg-blue-500/10"] svg  { color: #1D4ED8 !important; }
+html.light [class*="bg-emerald-500/10"] svg { color: #059669 !important; }
+html.light [class*="bg-red-500/10"] svg  { color: #DC2626 !important; }
+
+/* ── 9. Pill buttons inativos dentro de modais ─────────────────────────── */
+html.light .fixed.inset-0 > div button[class*="bg-slate-950"],
+html.light .fixed.inset-0 > div button[class*="bg-slate-900"] {
+  background-color: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
+  color: #334155 !important;
+}
+
+html.light .fixed.inset-0 > div button[class*="bg-slate-950"]:hover,
+html.light .fixed.inset-0 > div button[class*="bg-slate-900"]:hover {
+  background-color: #E2E8F0 !important;
+  border-color: #94A3B8 !important;
+  color: #0F172A !important;
+}
+
+/* ── 10. Scrollbar dentro de modais no modo claro ───────────────────────── */
+html.light .fixed.inset-0 > div *::-webkit-scrollbar-thumb {
+  background: #CBD5E1 !important;
+}
+
+/* ── 11. Span de texto colorido dentro de banners (text-blue-200, etc.) ── */
+html.light span.text-blue-200, html.light span[class*="text-blue-200"] { color: #1D4ED8 !important; }
+html.light span.text-blue-300, html.light span[class*="text-blue-300"] { color: #1D4ED8 !important; }
+html.light span.text-amber-200, html.light span[class*="text-amber-200"] { color: #92400E !important; }
+html.light span.text-amber-300, html.light span[class*="text-amber-300"] { color: #92400E !important; }
+html.light span.text-emerald-200, html.light span[class*="text-emerald-200"] { color: #065F46 !important; }
+html.light span.text-emerald-300, html.light span[class*="text-emerald-300"] { color: #047857 !important; }
+html.light span.text-red-200, html.light span[class*="text-red-200"] { color: #991B1B !important; }
+html.light span.text-red-300, html.light span[class*="text-red-300"] { color: #991B1B !important; }
+html.light p.text-blue-200, html.light p[class*="text-blue-200"] { color: #1D4ED8 !important; }
+html.light p.text-blue-300, html.light p[class*="text-blue-300"] { color: #1D4ED8 !important; }
+
+/* ── 12. Div/p com texto colorido de baixo contraste fora de banners ────── */
+html.light .text-blue-200 { color: #1D4ED8 !important; }
+html.light .text-blue-300 { color: #1D4ED8 !important; }
+html.light .text-amber-200 { color: #92400E !important; }
+html.light .text-amber-300 { color: #B45309 !important; }
+html.light .text-emerald-200 { color: #065F46 !important; }
+html.light .text-emerald-300 { color: #047857 !important; }
+html.light .text-red-200 { color: #991B1B !important; }
+html.light .text-red-300 { color: #B91C1C !important; }
+html.light .text-purple-200 { color: #6D28D9 !important; }
+html.light .text-purple-300 { color: #6D28D9 !important; }
+
