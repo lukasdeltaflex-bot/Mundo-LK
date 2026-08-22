@@ -20,6 +20,7 @@ export class BatchAIQueueManager {
 
   /**
    * Processes selected batch items through the AI pipeline on-demand with concurrency limits and anti-429 handling.
+   * Eligible statuses: EXTRACTED, NEEDS_REVIEW, AI_READY, ERROR
    */
   public async processQueue(
     items: BatchItem[],
@@ -31,6 +32,8 @@ export class BatchAIQueueManager {
     const results: AIQueueItemResult[] = [];
     const pending = [...items];
     let quotaExhaustedShorthand = false;
+
+    console.log(`[BATCH] BatchAIQueueManager starting | itemCount: ${items.length} | statuses: ${items.map(i => i.status).join(', ')}`);
 
     const worker = async () => {
       while (pending.length > 0) {

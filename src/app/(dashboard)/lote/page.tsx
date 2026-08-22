@@ -34,9 +34,33 @@ import { Price } from '@/core/domain/value-objects';
 
 const LOT_BATCH_STATE_KEY = 'mundo_lk_batch_lote_draft_v1';
 
+/**
+ * STATUS VÁLIDOS PARA GERAÇÃO DE COPY:
+ * - EXTRACTED: produto com dados completos
+ * - NEEDS_REVIEW: produto com dados parciais (usuário pode forçar geração)
+ * - AI_READY: já gerou copy, pode regerar
+ * - ERROR: erro anterior, pode tentar novamente
+ *
+ * REGRA CORRIGIDA: NEEDS_REVIEW está incluído na lista de elegíveis para copy.
+ * A copy pode ser gerada mesmo com dados parciais — a IA usará o que estiver disponível.
+ */
+const ELIGIBLE_FOR_COPY_STATUSES: BatchItemStatus[] = [
+  'EXTRACTED',
+  'NEEDS_REVIEW',
+  'AI_READY',
+  'ERROR',
+];
+
 export default function LotePage() {
   const { user } = useAuth();
   const [urlsInput, setUrlsInput] = useState('');
+
+  /**
+   * CORREÇÃO CRÍTICA — FONTE ÚNICA DE VERDADE PARA A FILA:
+   * O estado `queue` é o único lugar onde items vivem.
+   * A seleção é armazenada em `item.selected` dentro do mesmo objeto.
+   * Não existe estado separado de seleção — isso eliminava a dessincronização.
+   */
   const [queue, setQueue] = useState<BatchItem[]>([]);
   const [selectedStyle, setSelectedStyle] = useState<OfferStyle>('padrao');
 
@@ -56,7 +80,17 @@ export default function LotePage() {
 
   const isPausedRef = useRef(false);
   const isCancelledRef = useRef(false);
-  const aiCallsDuringExtractionRef = useRef(0);
+
+  /**
+   * CORREÇÃO CRÍTICA — REF DA FILA PARA EVITAR STALE CLOSURE:
+   * Mantemos uma ref sempre sincronizada com o estado `queue`.
+   * Isso garante que funções async (como handleGenerateAICopiesForSelected)
+   * sempre leem o estado mais atual, não uma versão antiga capturada no closure.
+   */
+  const queueRef = useRef<BatchItem[]>([]);
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
 
   const batchService = BatchImportService.getInstance();
   const publishingService = useRef(new PublishingService()).current;
@@ -72,7 +106,7 @@ export default function LotePage() {
         }
       }
     } catch (e) {
-      console.warn('Falha ao restaurar rascunho de lote do localStorage:', e);
+      console.warn('[BATCH] Falha ao restaurar rascunho de lote do localStorage:', e);
     }
   }, []);
 
@@ -85,7 +119,7 @@ export default function LotePage() {
         localStorage.removeItem(LOT_BATCH_STATE_KEY);
       }
     } catch (e) {
-      console.warn('Falha ao salvar rascunho de lote no localStorage:', e);
+      console.warn('[BATCH] Falha ao salvar rascunho de lote no localStorage:', e);
     }
   }, [queue]);
 
@@ -103,6 +137,7 @@ export default function LotePage() {
     isPausedRef.current = false;
     isCancelledRef.current = true;
     setQueue([]);
+    queueRef.current = [];
     setQuotaErrorBanner(null);
     localStorage.removeItem(LOT_BATCH_STATE_KEY);
   };
@@ -112,12 +147,13 @@ export default function LotePage() {
     const rawUrls = urlsInput.split('\n').filter((u) => u.trim());
     if (rawUrls.length === 0) return;
 
-    // Reseta contador de diagnóstico: 0 chamadas de IA durante extração
-    aiCallsDuringExtractionRef.current = 0;
     setQuotaErrorBanner(null);
 
     const items = batchService.createBatch(rawUrls);
+    console.log(`[BATCH] inputCount: ${rawUrls.length} | normalizedCount (após dedup): ${items.length}`);
+
     setQueue(items);
+    queueRef.current = items;
     setIsExtracting(true);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -136,6 +172,7 @@ export default function LotePage() {
       if (isCancelledRef.current) break;
 
       const item = items[index];
+      console.log(`[BATCH] processing URL [${index + 1}/${items.length}]: ${item.url}`);
 
       // Atualiza estado para EXTRACTING
       setQueue((prev) =>
@@ -147,9 +184,22 @@ export default function LotePage() {
 
         if (result && result.data) {
           const resData = result.data;
-          const isMissingEssential = !resData.title || resData.currentPrice === null || resData.currentPrice === 0;
 
-          const newStatus: BatchItemStatus = isMissingEssential ? 'NEEDS_REVIEW' : 'EXTRACTED';
+          /**
+           * CORREÇÃO CRÍTICA — THRESHOLD DE DADOS MÍNIMOS:
+           * Antes: apenas title E price ausentes → NEEDS_REVIEW
+           * Agora: qualquer dado útil (title OU price) é suficiente para EXTRACTED.
+           * Se NENHUM dado essencial existir → NEEDS_REVIEW para edição manual.
+           * Isso evita que produtos com título mas sem preço fiquem presos em NEEDS_REVIEW
+           * e não possam receber Copy.
+           */
+          const hasTitle = Boolean(resData.title && resData.title.trim().length > 3);
+          const hasPrice = resData.currentPrice !== null && resData.currentPrice !== undefined && resData.currentPrice > 0;
+          const hasEssentialData = hasTitle; // Título é suficiente para avançar — preço pode ser editado
+
+          const newStatus: BatchItemStatus = hasEssentialData ? 'EXTRACTED' : 'NEEDS_REVIEW';
+
+          console.log(`[BATCH] marketplace detected: ${result.marketplaceSlug} | extraction: ${newStatus} | title: ${hasTitle} | price: ${hasPrice}`);
 
           setQueue((prev) =>
             prev.map((i) =>
@@ -163,12 +213,15 @@ export default function LotePage() {
                     currentPrice: resData.currentPrice,
                     imageUrl: resData.image,
                     extractionResult: resData,
-                    reviewReason: isMissingEssential ? 'Título ou preço ausente na extração.' : undefined,
+                    reviewReason: !hasEssentialData ? 'Título ausente na extração automática. Edite manualmente.' : undefined,
                   }
                 : i
             )
           );
+
+          console.log(`[BATCH] product created: ${item.id} | status: ${newStatus}`);
         } else {
+          console.warn(`[BATCH] extraction failure for: ${item.url} | reason: ${result?.reviewReason}`);
           setQueue((prev) =>
             prev.map((i) =>
               i.id === item.id
@@ -183,6 +236,7 @@ export default function LotePage() {
           );
         }
       } catch (err: any) {
+        console.error(`[BATCH] extraction error for ${item.url}:`, err?.message);
         setQueue((prev) =>
           prev.map((i) =>
             i.id === item.id
@@ -199,6 +253,7 @@ export default function LotePage() {
     }
 
     setIsExtracting(false);
+    console.log(`[BATCH] extraction complete. Results: ${queueRef.current.map(i => i.status).join(', ')}`);
   };
 
   // ─── FASE 2: Controles de Seleção & Edição Inline ─────────────────────────
@@ -243,14 +298,20 @@ export default function LotePage() {
             description: editDescription.trim(),
             category: editCategory.trim() || 'Geral',
           };
-          const isComplete = Boolean(editTitle.trim() && validPrice !== null && validPrice > 0);
+          /**
+           * CORREÇÃO: Após edição manual, sempre promove para EXTRACTED
+           * se título foi informado — mesmo sem preço.
+           * Isso permite que o usuário edite e depois gere copy sem ser bloqueado.
+           */
+          const hasTitle = Boolean(editTitle.trim().length > 3);
+          const isComplete = hasTitle;
           return {
             ...i,
-            productTitle: editTitle.trim(),
+            productTitle: editTitle.trim() || i.productTitle,
             currentPrice: validPrice,
             status: isComplete ? 'EXTRACTED' : 'NEEDS_REVIEW',
             userConfirmedData: updatedConfirmedData,
-            reviewReason: isComplete ? undefined : 'Complete título e preço para avançar.',
+            reviewReason: isComplete ? undefined : 'Complete o título para avançar.',
           };
         }
         return i;
@@ -262,25 +323,57 @@ export default function LotePage() {
 
   // ─── FASE 4: Geração de Copy por IA por Demanda com Anti-429 ───────────────
   const handleGenerateAICopiesForSelected = async () => {
-    const selectedItems = queue.filter(
-      (i) => i.selected && (i.status === 'EXTRACTED' || i.status === 'AI_READY' || i.status === 'ERROR')
+    /**
+     * CORREÇÃO CRÍTICA — USA queueRef.current PARA EVITAR STALE STATE:
+     * O estado `queue` no closure pode ser desatualizado após múltiplas chamadas
+     * assíncronas de setQueue(prev => ...). A ref sempre reflete o estado mais recente.
+     */
+    const currentQueue = queueRef.current;
+
+    /**
+     * CORREÇÃO CRÍTICA — FILTRO INCLUI NEEDS_REVIEW:
+     * Antes: somente EXTRACTED, AI_READY, ERROR eram elegíveis.
+     * Problema: após extração sem preço, items ficam em NEEDS_REVIEW.
+     *   → Usuário seleciona visualmente mas filtro retorna 0 → "Selecione ao menos um"
+     * Correção: NEEDS_REVIEW também é elegível para geração de copy.
+     * A IA usará o título e qualquer dado disponível para gerar a copy.
+     */
+    const selectedItems = currentQueue.filter(
+      (i) => i.selected && ELIGIBLE_FOR_COPY_STATUSES.includes(i.status)
     );
 
+    console.log(`[BATCH] copy requested | selectedCount: ${selectedItems.length} | availableProducts: ${currentQueue.length}`);
+    console.log(`[BATCH] selected statuses: ${selectedItems.map(i => i.status).join(', ')}`);
+
     if (selectedItems.length === 0) {
-      alert('Selecione ao menos um produto extraído para gerar Copy com IA.');
+      const totalSelected = currentQueue.filter(i => i.selected).length;
+      const ineligibleStatuses = currentQueue
+        .filter(i => i.selected)
+        .map(i => i.status);
+
+      console.warn(`[BATCH] copy blocked | totalVisuallySelected: ${totalSelected} | statuses: ${ineligibleStatuses.join(', ')}`);
+
+      if (totalSelected > 0) {
+        alert(
+          `Os ${totalSelected} produto(s) selecionado(s) estão em status que não permitem geração de copy (${[...new Set(ineligibleStatuses)].join(', ')}).\n\nSomente produtos nos status: Extraído, Revisão, Copy IA ou Erro podem gerar Copy.`
+        );
+      } else {
+        alert('Selecione ao menos um produto extraído para gerar Copy com IA.');
+      }
       return;
     }
 
     setIsGeneratingAI(true);
     setQuotaErrorBanner(null);
 
-    const queueManager = new BatchAIQueueManager(2); // Concorrência máxima: 2 requisições simultâneas
+    const queueManager = new BatchAIQueueManager(2);
 
     await queueManager.processQueue(
       selectedItems,
       selectedStyle,
       user?.uid,
       (updatedItem) => {
+        console.log(`[BATCH] copy resolved: ${updatedItem.id} | status: ${updatedItem.status}`);
         setQueue((prev) => prev.map((i) => (i.id === updatedItem.id ? updatedItem : i)));
       },
       (quotaReason) => {
@@ -298,9 +391,22 @@ export default function LotePage() {
       return;
     }
 
-    const selectedItems = queue.filter((i) => i.selected && i.status !== 'SAVED' && i.status !== 'PENDING');
+    /**
+     * CORREÇÃO: Usa queueRef para evitar stale closure durante salvamento.
+     * Também inclui itens em NEEDS_REVIEW e EXTRACTED (não apenas AI_READY).
+     */
+    const currentQueue = queueRef.current;
+    const selectedItems = currentQueue.filter(
+      (i) => i.selected && i.status !== 'SAVED' && i.status !== 'PENDING' && i.status !== 'EXTRACTING'
+    );
+
     if (selectedItems.length === 0) {
-      alert('Selecione ao menos um produto para salvar.');
+      const totalSelected = currentQueue.filter(i => i.selected).length;
+      if (totalSelected > 0) {
+        alert(`Os ${totalSelected} produto(s) selecionado(s) não estão prontos para salvar (podem estar em processamento ou já salvos).`);
+      } else {
+        alert('Selecione ao menos um produto para salvar.');
+      }
       return;
     }
 
@@ -316,13 +422,11 @@ export default function LotePage() {
 
         const finalTitle = confirmed?.title || item.productTitle || ext?.title || 'Produto sem título';
         const finalPrice = confirmed?.currentPrice ?? item.currentPrice ?? ext?.currentPrice ?? 0;
-        const finalPriceStr = finalPrice ? `R$ ${finalPrice.toFixed(2)}` : 'R$ 0,00';
         const finalDesc = confirmed?.description || ext?.description || '';
         const finalUrl = ext?.originalUrl || ext?.canonicalUrl || item.url;
         const finalImg = confirmed?.image || item.imageUrl || ext?.image || '';
         const finalCat = confirmed?.category || ext?.category || 'Geral';
 
-        // Constrói o objeto ProductExtractionResult validado
         const productData = {
           title: finalTitle,
           description: finalDesc,
@@ -360,15 +464,12 @@ export default function LotePage() {
         let offerScore = 80;
         let aiProviderUsed = 'Salvo Sem IA (Modo Direto)';
 
-        // Se for salvamento com IA e houver preview gerado
         if (withAI && item.offerPreview) {
           whatsAppCopy = item.offerPreview.offer.whatsAppText;
           telegramCopy = item.offerPreview.offer.telegramText || whatsAppCopy;
           offerScore = item.offerPreview.offer.score || 90;
           aiProviderUsed = (item.offerPreview.offer as any).aiProviderUsed || 'IA OpenAI/Gemini';
         } else {
-          // REGRA ARQUITETURAL INEGOCIÁVEL: Salvamento Sem IA salva com Copy Vazia / COPY_PENDENTE
-          // Zero templates robóticos estáticos fake!
           whatsAppCopy = '';
           telegramCopy = '';
           aiProviderUsed = 'Pendente de Gerar IA';
@@ -392,15 +493,13 @@ export default function LotePage() {
           aiProviderUsed,
         };
 
-        // Grava no Firestore de forma independente
         await publishingService.saveProductAndOffer(productData as any, offerProps, activeUid);
 
-        // Atualiza status individual do item para SAVED
         setQueue((prev) =>
           prev.map((i) => (i.id === item.id ? { ...i, status: 'SAVED', progress: 100 } : i))
         );
       } catch (err: any) {
-        console.error(`[LotePage] Falha ao salvar item ${item.id}:`, err);
+        console.error(`[BATCH] save error for item ${item.id}:`, err);
         setQueue((prev) =>
           prev.map((i) =>
             i.id === item.id ? { ...i, status: 'ERROR', error: err?.message || 'Falha ao salvar no banco' } : i
@@ -412,14 +511,28 @@ export default function LotePage() {
     setIsSaving(false);
   };
 
-  // Métricas de progresso
+  // Métricas de progresso — calculadas direto do queue (sempre atualizadas)
   const totalCount = queue.length;
   const extractedCount = queue.filter((i) => i.status === 'EXTRACTED' || i.status === 'AI_READY' || i.status === 'SAVED').length;
   const needsReviewCount = queue.filter((i) => i.status === 'NEEDS_REVIEW').length;
   const aiReadyCount = queue.filter((i) => i.status === 'AI_READY').length;
   const savedCount = queue.filter((i) => i.status === 'SAVED').length;
   const errorCount = queue.filter((i) => i.status === 'ERROR').length;
+
+  /**
+   * CORREÇÃO: selectedCount é calculado diretamente do queue renderizado.
+   * Não existe estado separado de seleção — o campo `selected` vive dentro de cada BatchItem.
+   * Isso garante que a contagem visual e a contagem usada pelas ações são sempre a mesma.
+   */
   const selectedCount = queue.filter((i) => i.selected).length;
+
+  /**
+   * Items elegíveis para geração de copy (selecionados E em status válido).
+   * Este valor é exibido no botão para ser transparente com o usuário.
+   */
+  const eligibleForCopyCount = queue.filter(
+    (i) => i.selected && ELIGIBLE_FOR_COPY_STATUSES.includes(i.status)
+  ).length;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -450,7 +563,7 @@ export default function LotePage() {
             <span>⚠️ Cota de IA Atingida — Produtos 100% Preservados na Tabela</span>
           </div>
           <p className="text-slate-300">
-            As requisições de IA foram pausadas pela plataforma. **Seus produtos extraídos estão salvos no staging abaixo**.
+            As requisições de IA foram pausadas pela plataforma. <strong>Seus produtos extraídos estão salvos no staging abaixo</strong>.
             Você pode salvá-los imediatamente sem IA usando o botão <strong>"Salvar Selecionados sem IA"</strong> ou tentar gerar a Copy novamente mais tarde.
           </p>
         </div>
@@ -473,7 +586,7 @@ export default function LotePage() {
               rows={9}
               value={urlsInput}
               onChange={(e) => setUrlsInput(e.target.value)}
-              placeholder="https://shopee.com.br/product/123&#10;https://mercadolivre.com.br/MLB-456&#10;https://amazon.com.br/dp/789"
+              placeholder={'https://shopee.com.br/product/123\nhttps://mercadolivre.com.br/MLB-456\nhttps://amazon.com.br/dp/789'}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 font-mono"
             />
 
@@ -496,7 +609,7 @@ export default function LotePage() {
               <div>
                 <CardTitle className="text-base">Métricas do Lote Ativo</CardTitle>
                 <CardDescription className="text-xs">
-                  {totalCount} itens na fila • {selectedCount} selecionados
+                  {totalCount} itens na fila • {selectedCount} selecionados • {eligibleForCopyCount} elegíveis para Copy
                 </CardDescription>
               </div>
 
@@ -556,11 +669,11 @@ export default function LotePage() {
                 variant="outline"
                 size="sm"
                 className="text-xs border-blue-500/30 text-blue-300 hover:bg-blue-500/10"
-                disabled={isGeneratingAI || isSaving || selectedCount === 0}
+                disabled={isGeneratingAI || isSaving || eligibleForCopyCount === 0}
                 leftIcon={isGeneratingAI ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-blue-400" />}
                 onClick={handleGenerateAICopiesForSelected}
               >
-                2. Gerar Copy dos Selecionados ({selectedCount})
+                2. Fazer Copy ({eligibleForCopyCount})
               </Button>
 
               <Button
@@ -596,6 +709,11 @@ export default function LotePage() {
             <CardTitle className="text-base">Tabela de Staging e Produção de Ofertas</CardTitle>
             <CardDescription className="text-xs">
               Revise os produtos extraídos, edite dados se necessário e selecione quais itens gerar Copy ou salvar.
+              {needsReviewCount > 0 && (
+                <span className="ml-1 text-amber-400 font-semibold">
+                  ⚠️ {needsReviewCount} produto(s) em revisão podem ter dados incompletos — você pode editá-los ou gerar Copy mesmo assim.
+                </span>
+              )}
             </CardDescription>
           </div>
 
@@ -633,6 +751,7 @@ export default function LotePage() {
                   {queue.map((item) => {
                     const priceFormatted = Price.formatBRL(item.currentPrice);
                     const hasDesc = Boolean(item.userConfirmedData?.description || item.extractionResult?.description);
+                    const isEligibleForCopy = ELIGIBLE_FOR_COPY_STATUSES.includes(item.status);
 
                     return (
                       <tr key={item.id} className={`hover:bg-slate-900/50 transition-colors ${item.selected ? 'bg-blue-950/20' : ''}`}>
@@ -656,6 +775,9 @@ export default function LotePage() {
                             <div className="truncate">
                               <div className="font-semibold text-slate-200 truncate">{item.productTitle || item.url}</div>
                               <div className="text-[10px] text-slate-500 font-mono truncate">{item.url}</div>
+                              {item.reviewReason && (
+                                <div className="text-[10px] text-amber-400 mt-0.5 truncate">⚠️ {item.reviewReason}</div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -674,7 +796,11 @@ export default function LotePage() {
                         </td>
                         <td className="p-3">
                           {item.status === 'EXTRACTED' && <Badge variant="info">Extraído</Badge>}
-                          {item.status === 'NEEDS_REVIEW' && <Badge variant="warning">⚠️ Revisão</Badge>}
+                          {item.status === 'NEEDS_REVIEW' && (
+                            <Badge variant="warning">
+                              ⚠️ Revisão{isEligibleForCopy ? ' (Copy OK)' : ''}
+                            </Badge>
+                          )}
                           {item.status === 'AI_GENERATING' && <Badge variant="info">Gerando IA...</Badge>}
                           {item.status === 'AI_READY' && <Badge variant="success">✨ Copy IA</Badge>}
                           {item.status === 'SAVED' && <Badge variant="success">✓ Salvo</Badge>}
@@ -713,21 +839,24 @@ export default function LotePage() {
 
             <div className="text-slate-400 text-[11px]">
               Edite as informações abaixo. Quaisquer edições salvas aqui prevalecerão como o <strong>briefing factual do produto</strong> para a geração de Copy e catálogo.
+              <br />
+              <span className="text-blue-400">💡 Após salvar, o produto ficará disponível para geração de Copy mesmo que não tenha preço.</span>
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Título do Produto:</label>
+              <label className="block text-slate-300 font-semibold mb-1">Título do Produto: <span className="text-red-400">*</span></label>
               <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-500 font-medium"
+                placeholder="Ex: Tênis Nike Air Max 270"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Preço Atual (R$):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Preço Atual (R$): <span className="text-slate-500">(opcional)</span></label>
                 <input
                   type="text"
                   value={editPrice}
@@ -768,7 +897,12 @@ export default function LotePage() {
               <Button variant="ghost" size="sm" onClick={() => setEditingItem(null)}>
                 Cancelar
               </Button>
-              <Button variant="primary" size="sm" onClick={handleSaveInlineEdit}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveInlineEdit}
+                disabled={!editTitle.trim() || editTitle.trim().length < 3}
+              >
                 Salvar Alterações no Staging
               </Button>
             </div>
